@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Game.Rulesets.Sticks", "osu.Game.Rulesets.Sticks\osu.Game.Rulesets.Sticks.csproj", "{5D1703F4-A2C7-4B69-A8AD-260D803E0B08}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Game.Rulesets.Sticks.Tests", "osu.Game.Rulesets.Sticks.Tests\osu.Game.Rulesets.Sticks.Tests.csproj", "{55C0939C-E301-4B73-9C7C-4A1BC321AF40}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5D1703F4-A2C7-4B69-A8AD-260D803E0B08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D1703F4-A2C7-4B69-A8AD-260D803E0B08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D1703F4-A2C7-4B69-A8AD-260D803E0B08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D1703F4-A2C7-4B69-A8AD-260D803E0B08}.Release|Any CPU.Build.0 = Release|Any CPU
+		{55C0939C-E301-4B73-9C7C-4A1BC321AF40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55C0939C-E301-4B73-9C7C-4A1BC321AF40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55C0939C-E301-4B73-9C7C-4A1BC321AF40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55C0939C-E301-4B73-9C7C-4A1BC321AF40}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

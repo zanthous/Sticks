@@ -1,0 +1,31 @@
+# Build output
+**/bin/
+**/obj/
+artifacts/
+[Dd]ebug/
+[Rr]elease/
+TestResults/
+*.trx
+coverage*
+
+# IDE and user-local state
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# Generated packages and diagnostics
+*.nupkg
+*.snupkg
+*.pdb
+*.log
+*.tmp
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+

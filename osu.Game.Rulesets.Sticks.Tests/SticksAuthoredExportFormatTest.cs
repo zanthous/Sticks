@@ -1,0 +1,125 @@
+// Copyright (c) Zanthous. Licensed under the MIT Licence.
+
+using System.IO;
+using System.Linq;
+using NUnit.Framework;
+using osu.Game.Beatmaps.Formats;
+using osu.Game.Beatmaps.Timing;
+using osu.Game.IO;
+using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Objects.Legacy;
+using osu.Game.Rulesets.Objects.Types;
+using osu.Game.Rulesets.Sticks.Beatmaps;
+using osu.Game.Rulesets.Sticks.Objects;
+
+namespace osu.Game.Rulesets.Sticks.Tests
+{
+    [TestFixture]
+    public class SticksAuthoredExportFormatTest
+    {
+        private const string exported_beatmap = """
+                                                        osu file format v14
+
+                                                        [General]
+                                                        AudioFilename: validation.wav
+                                                        AudioLeadIn: 0
+                                                        PreviewTime: -1
+                                                        Countdown: 0
+                                                        SampleSet: Normal
+                                                        StackLeniency: 0.7
+                                                        Mode: 0
+
+                                                        [Editor]
+                                                        BeatDivisor: 4
+                                                        GridSize: 4
+                                                        TimelineZoom: 1
+
+                                                        [Metadata]
+                                                        Title:Mapper export validation
+                                                        TitleUnicode:Mapper export validation
+                                                        Artist:Sticks
+                                                        ArtistUnicode:Sticks
+                                                        Creator:Zanthous
+                                                        Version:Round trip
+                                                        Source:
+                                                        Tags:sticks-v1
+
+                                                        [Difficulty]
+                                                        HPDrainRate:5
+                                                        CircleSize:5
+                                                        OverallDifficulty:5
+                                                        ApproachRate:5
+                                                        SliderMultiplier:1.4
+                                                        SliderTickRate:1
+
+                                                        [Events]
+
+                                                        [TimingPoints]
+                                                        0,500,4,2,0,100,1,0
+
+                                                        [HitObjects]
+                                                        416,192,1000.125,1,0,0:0:0:100:sticks-v1~f~l~359.875.wav
+                                                        151,192,1000.125,1,0,0:0:0:100:sticks-v1~f~r~180.wav
+                                                        256,192,2000,8,0,2750.5,0:0:0:100:sticks-v1~h~l~90.25~750.5.wav
+                                                        256,192,3000,8,0,4250.25,0:0:0:100:sticks-v1~s~r~270~1250.25~-135.5~2.wav
+                                                        """;
+
+        [Test]
+        public void TestGeneratedOsuTextDecodesAndConvertsLosslessly()
+        {
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(exported_beatmap));
+            using var reader = new LineBufferedReader(stream);
+            var source = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader);
+
+            Assert.That(source.HitObjects, Has.All.Matches<HitObject>(hitObject =>
+                hitObject.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>().Any(sample => sample.Filename.StartsWith(SticksAuthoredBeatmapCodec.MARKER_PREFIX))));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(source.HitObjects[0], Is.Not.InstanceOf<IHasDuration>());
+                Assert.That(source.HitObjects[1], Is.Not.InstanceOf<IHasDuration>());
+                Assert.That(source.HitObjects[2], Is.InstanceOf<IHasDuration>());
+                Assert.That(((IHasDuration)source.HitObjects[2]).EndTime, Is.EqualTo(2750.5));
+                Assert.That(source.HitObjects[3], Is.InstanceOf<IHasDuration>());
+                Assert.That(((IHasDuration)source.HitObjects[3]).EndTime, Is.EqualTo(4250.25));
+            });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(source.BeatmapInfo.Ruleset.OnlineID, Is.Zero);
+                Assert.That(source.Metadata.AudioFile, Is.EqualTo("validation.wav"));
+                Assert.That(source.Metadata.Title, Is.EqualTo("Mapper export validation"));
+                Assert.That(source.ControlPointInfo.TimingPointAt(1000).BeatLength, Is.EqualTo(500));
+
+                Assert.That(converted, Has.Length.EqualTo(4));
+
+                Assert.That(converted[0], Is.TypeOf<SticksFlick>());
+                Assert.That(converted[0].StartTime, Is.EqualTo(1000.125));
+                Assert.That(converted[0].Side, Is.EqualTo(StickSide.Left));
+                Assert.That(converted[0].Angle, Is.EqualTo(359.875f));
+                Assert.That(((SticksFlick)converted[0]).SyncedNoteSide, Is.EqualTo(StickSide.Right));
+                Assert.That(((SticksFlick)converted[0]).SyncedNoteAngle, Is.EqualTo(180));
+
+                Assert.That(converted[1], Is.TypeOf<SticksFlick>());
+                Assert.That(converted[1].Side, Is.EqualTo(StickSide.Right));
+                Assert.That(converted[1].Angle, Is.EqualTo(180));
+
+                Assert.That(converted[2], Is.TypeOf<SticksHold>());
+                Assert.That(converted[2].Side, Is.EqualTo(StickSide.Left));
+                Assert.That(converted[2].Angle, Is.EqualTo(90.25f));
+                Assert.That(((SticksHold)converted[2]).Duration, Is.EqualTo(750.5));
+
+                Assert.That(converted[3], Is.TypeOf<SticksSlider>());
+                Assert.That(converted[3].Side, Is.EqualTo(StickSide.Right));
+                Assert.That(converted[3].Angle, Is.EqualTo(270));
+                Assert.That(((SticksSlider)converted[3]).Duration, Is.EqualTo(1250.25));
+                Assert.That(((SticksSlider)converted[3]).ArcAngle, Is.EqualTo(-135.5f));
+                Assert.That(((SticksSlider)converted[3]).RepeatCount, Is.EqualTo(2));
+                Assert.That(converted, Has.All.Matches<SticksHitObject>(hitObject => hitObject.Samples.Any(sample => sample.Name == "hitnormal")));
+            });
+        }
+    }
+}

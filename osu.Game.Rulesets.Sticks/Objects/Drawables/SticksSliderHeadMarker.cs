@@ -1,0 +1,180 @@
+// Copyright (c) Zanthous. Licensed under the MIT Licence.
+
+using System;
+using System.Collections.Generic;
+using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Lines;
+using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
+using osu.Game.Rulesets.Sticks.UI;
+using osuTK;
+using osuTK.Graphics;
+
+namespace osu.Game.Rulesets.Sticks.Objects.Drawables
+{
+    /// <summary>
+    /// A compact slider head with a centred direction glyph framed by its angular hit width.
+    /// It intentionally omits the centre tick used by flick markers so the double arrow is
+    /// the sole focal point.
+    /// </summary>
+    public partial class SticksSliderHeadMarker : CompositeDrawable
+    {
+        private const float stroke_radius = 2.5f;
+        private const float cap_half_length = 7;
+        private readonly StickSide side;
+        private readonly int direction;
+        private readonly SmoothPath widthArc;
+        private readonly CircularProgress animatedWidthArc;
+        private readonly SmoothPath leadingCap;
+        private readonly SmoothPath trailingCap;
+        private readonly Circle colourPlate;
+        private readonly SpriteIcon directionArrow;
+        private float span;
+
+        public float Angle
+        {
+            get => Rotation;
+            set => Rotation = value;
+        }
+
+        public float Span
+        {
+            get => span;
+            set
+            {
+                value = Math.Max(1, value);
+                if (Math.Abs(span - value) < 0.001f)
+                    return;
+
+                span = value;
+                updateGeometry();
+            }
+        }
+
+        public int Direction => direction;
+
+        public SticksSliderHeadMarker(StickSide side, int direction, Color4 colour, bool animatedSpan = false)
+        {
+            this.side = side;
+            this.direction = Math.Sign(direction) == 0 ? 1 : Math.Sign(direction);
+
+            Anchor = Anchor.TopLeft;
+            Origin = Anchor.Centre;
+            Position = new Vector2(SticksPlayfield.SIZE / 2);
+            Size = new Vector2(SticksPlayfield.SIZE);
+
+            Vector2 centrePosition = SticksPlayfield.PointAt(0, SticksPlayfield.RadiusFor(side));
+
+            widthArc = animatedSpan ? null : createArc(colour, 0.72f);
+            animatedWidthArc = animatedSpan ? createAnimatedArc(side, colour, 0.72f) : null;
+
+            AddRangeInternal(new Drawable[]
+            {
+                animatedSpan ? animatedWidthArc : widthArc,
+                leadingCap = createCap(colour),
+                trailingCap = createCap(colour),
+                colourPlate = new Circle
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.Centre,
+                    Position = centrePosition,
+                    Size = new Vector2(22),
+                    Colour = colour,
+                },
+                directionArrow = new SpriteIcon
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.Centre,
+                    Position = centrePosition,
+                    Size = new Vector2(18),
+                    Icon = FontAwesome.Solid.AngleDoubleRight,
+                    Colour = Color4.White,
+                    Rotation = this.direction * 90,
+                    Shadow = true,
+                },
+            });
+
+            Span = SticksHitObject.VISIBLE_ARC_SPAN;
+        }
+
+        private void updateGeometry()
+        {
+            float radius = SticksPlayfield.RadiusFor(side);
+            if (animatedWidthArc != null)
+            {
+                animatedWidthArc.Progress = span / 360;
+                animatedWidthArc.Rotation = 90 - span / 2;
+            }
+            else
+            {
+                widthArc.Vertices = arcVertices(radius, span);
+            }
+
+            positionCap(leadingCap, radius, -span / 2);
+            positionCap(trailingCap, radius, span / 2);
+        }
+
+        private static SmoothPath createArc(Color4 colour, float alpha) => new SmoothPath
+        {
+            AutoSizeAxes = Axes.None,
+            Size = new Vector2(SticksPlayfield.SIZE),
+            PathRadius = stroke_radius,
+            Colour = colour,
+            Alpha = alpha,
+        };
+
+        private static CircularProgress createAnimatedArc(StickSide side, Color4 colour, float alpha)
+        {
+            float radius = SticksPlayfield.RadiusFor(side);
+            float outerRadius = radius + stroke_radius;
+            return new CircularProgress
+            {
+                Anchor = Anchor.TopLeft,
+                Origin = Anchor.Centre,
+                Position = new Vector2(SticksPlayfield.SIZE / 2),
+                Size = new Vector2(outerRadius * 2),
+                InnerRadius = 2 * stroke_radius / outerRadius,
+                RoundedCaps = true,
+                Colour = colour,
+                Alpha = alpha,
+            };
+        }
+
+        private static IReadOnlyList<Vector2> arcVertices(float radius, float span)
+        {
+            const int segments = 24;
+            var vertices = new List<Vector2>(segments + 1);
+
+            for (int i = 0; i <= segments; i++)
+            {
+                float angle = -span / 2 + span * i / segments;
+                vertices.Add(SticksPlayfield.PointAt(angle, radius));
+            }
+
+            return vertices;
+        }
+
+        private static SmoothPath createCap(Color4 colour) => new SmoothPath
+        {
+            Anchor = Anchor.TopLeft,
+            Origin = Anchor.Centre,
+            AutoSizeAxes = Axes.None,
+            Size = new Vector2(cap_half_length * 2 + stroke_radius * 2, stroke_radius * 2),
+            PathRadius = stroke_radius,
+            Colour = colour,
+            Vertices = new[]
+            {
+                new Vector2(stroke_radius, stroke_radius),
+                new Vector2(stroke_radius + cap_half_length * 2, stroke_radius),
+            },
+        };
+
+        private static void positionCap(SmoothPath cap, float radius, float angle)
+        {
+            cap.Position = SticksPlayfield.PointAt(angle, radius);
+            cap.Rotation = angle;
+        }
+    }
+}

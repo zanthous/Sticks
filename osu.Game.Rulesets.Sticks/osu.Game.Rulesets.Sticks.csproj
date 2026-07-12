@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyTitle>osu.Game.Rulesets.Sticks</AssemblyTitle>
+    <OutputType>Library</OutputType>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <RootNamespace>osu.Game.Rulesets.Sticks</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ppy.osu.Game" Version="2026.702.1" />
+  </ItemGroup>
+</Project>

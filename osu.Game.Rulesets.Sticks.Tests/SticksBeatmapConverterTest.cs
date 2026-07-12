@@ -1,0 +1,802 @@
+// Copyright (c) Zanthous. Licensed under the MIT Licence.
+
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using NUnit.Framework;
+using osu.Game.Audio;
+using osu.Game.Beatmaps;
+using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Beatmaps.Formats;
+using osu.Game.IO;
+using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Objects.Drawables;
+using osu.Game.Rulesets.Objects.Types;
+using osu.Game.Rulesets.Sticks.Beatmaps;
+using osu.Game.Rulesets.Sticks.Mods;
+using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.Objects.Drawables;
+using osuTK;
+
+namespace osu.Game.Rulesets.Sticks.Tests
+{
+    [TestFixture]
+    public partial class SticksBeatmapConverterTest
+    {
+        [Test]
+        public void TestConvertsFlicksAndSliderWithCoordinatedSticks()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(256, 384) });
+            source.HitObjects.Add(new TestDurationHitObject { StartTime = 2000, Duration = 2000, Position = new Vector2(0, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2500, Position = new Vector2(256, 0) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            var slider = (SticksSlider)converted[2];
+            slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+            var tail = slider.NestedHitObjects.OfType<SticksSliderTail>().Single();
+            SticksSliderTick[] ticks = slider.NestedHitObjects.OfType<SticksSliderTick>().ToArray();
+            var drawableSlider = new TestDrawableSticksSlider(slider);
+            drawableSlider.Apply(slider);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(4));
+                Assert.That(converted.Take(2), Has.All.TypeOf<SticksFlick>());
+                Assert.That(converted[0].Side, Is.Not.EqualTo(converted[1].Side));
+                Assert.That(slider.Duration, Is.EqualTo(2000));
+                Assert.That(System.Math.Abs(slider.ArcAngle), Is.GreaterThanOrEqualTo(30));
+                Assert.That(slider.TickInterval, Is.EqualTo(500));
+                Assert.That(ticks.Select(tick => tick.StartTime), Is.EqualTo(new[] { 2500, 3000, 3500 }));
+                Assert.That(ticks, Has.All.Matches<SticksSliderTick>(tick => tick.Side == slider.Side));
+                Assert.That(ticks, Has.All.Matches<SticksSliderTick>(tick => tick.Samples.Single().Name == "slidertick"));
+                Assert.That(tail.StartTime, Is.EqualTo(slider.EndTime));
+                Assert.That(tail.SliderStartTime, Is.EqualTo(slider.StartTime));
+                Assert.That(tail.PreemptDuration, Is.EqualTo(slider.Duration + tail.ApproachDuration));
+                Assert.That(tail.Side, Is.EqualTo(slider.Side));
+                Assert.That(tail.Angle, Is.EqualTo(slider.AngleAt(slider.EndTime)).Within(0.001));
+                Assert.That(drawableSlider.AttachedNestedObjects, Is.EqualTo(4));
+                Assert.That(converted[3].Side, Is.Not.EqualTo(slider.Side));
+                Assert.That(converted, Has.All.Matches<SticksHitObject>(hitObject => hitObject.Samples.Count > 0));
+            });
+        }
+
+        [Test]
+        public void TestPreservesSourceHitsounds()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(512, 192),
+                Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP) },
+            });
+
+            SticksHitObject converted = (SticksHitObject)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+
+            Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
+        }
+
+        [Test]
+        public void TestAuthoredObjectsRoundTripThroughLegacyProxyMarkers()
+        {
+            SticksHitObject[] authored =
+            {
+                new SticksFlick { StartTime = 1000, Side = StickSide.Left, Angle = 15 },
+                new SticksHold { StartTime = 2000, Duration = 750, Side = StickSide.Right, Angle = 120 },
+                new SticksSlider { StartTime = 3000, Duration = 1250, Side = StickSide.Left, Angle = 300, ArcAngle = -135, RepeatCount = 2 },
+            };
+
+            SticksHitObject[] decoded = authored.Select(SticksAuthoredBeatmapCodec.CreateLegacyProxy)
+                                                .Select(proxy =>
+                                                {
+                                                    Assert.That(SticksAuthoredBeatmapCodec.TryDecode(proxy, out SticksHitObject result), Is.True);
+                                                    return result;
+                                                })
+                                                .ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(decoded[0], Is.TypeOf<SticksFlick>());
+                Assert.That(decoded[0].StartTime, Is.EqualTo(1000));
+                Assert.That(decoded[0].Side, Is.EqualTo(StickSide.Left));
+                Assert.That(decoded[0].Angle, Is.EqualTo(15));
+
+                var hold = (SticksHold)decoded[1];
+                Assert.That(hold.Duration, Is.EqualTo(750));
+                Assert.That(hold.Side, Is.EqualTo(StickSide.Right));
+                Assert.That(hold.Angle, Is.EqualTo(120));
+
+                var slider = (SticksSlider)decoded[2];
+                Assert.That(slider.Duration, Is.EqualTo(1250));
+                Assert.That(slider.ArcAngle, Is.EqualTo(-135));
+                Assert.That(slider.RepeatCount, Is.EqualTo(2));
+            });
+        }
+
+        [Test]
+        public void TestAuthoredChordConvertsExactlyAndReceivesLink()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
+            {
+                StartTime = 1000,
+                Side = StickSide.Left,
+                Angle = 0,
+            }));
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
+            {
+                StartTime = 1000,
+                Side = StickSide.Right,
+                Angle = 135,
+            }));
+
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                      .Convert().HitObjects.OfType<SticksFlick>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(converted[0].Angle, Is.EqualTo(0));
+                Assert.That(converted[1].Angle, Is.EqualTo(135));
+                Assert.That(converted[0].SyncedNoteSide, Is.EqualTo(StickSide.Right));
+                Assert.That(converted[0].SyncedNoteAngle, Is.EqualTo(135));
+            });
+        }
+
+        [Test]
+        public void TestAuthoredMarkerSurvivesLegacyBeatmapDecode()
+        {
+            const string beatmapText = """
+                                       osu file format v14
+
+                                       [General]
+                                       AudioFilename: audio.mp3
+                                       Mode: 0
+
+                                       [Metadata]
+                                       Title:Authored marker test
+                                       Artist:Test
+                                       Creator:Test
+                                       Version:Test
+
+                                       [Difficulty]
+                                       HPDrainRate:5
+                                       CircleSize:4
+                                       OverallDifficulty:5
+                                       ApproachRate:5
+                                       SliderMultiplier:1.4
+                                       SliderTickRate:1
+
+                                       [TimingPoints]
+                                       0,500,4,2,0,100,1,0
+
+                                       [HitObjects]
+                                       256,352,1234,1,0,0:0:0:80:sticks-v1~s~l~270~1250.5~-135.25~2.wav
+                                       """;
+
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(beatmapText));
+            using var reader = new LineBufferedReader(stream);
+            Beatmap decodedBeatmap = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader);
+            var converted = (SticksSlider)new SticksBeatmapConverter(decodedBeatmap, new SticksRuleset())
+                                           .Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted.StartTime, Is.EqualTo(1234));
+                Assert.That(converted.Side, Is.EqualTo(StickSide.Left));
+                Assert.That(converted.Angle, Is.EqualTo(270));
+                Assert.That(converted.Duration, Is.EqualTo(1250.5));
+                Assert.That(converted.ArcAngle, Is.EqualTo(-135.25));
+                Assert.That(converted.RepeatCount, Is.EqualTo(2));
+                Assert.That(converted.Samples, Has.Count.EqualTo(1));
+                Assert.That(converted.Samples[0].Name, Is.EqualTo(HitSampleInfo.HIT_NORMAL));
+                Assert.That(converted.Samples[0].Volume, Is.EqualTo(80));
+            });
+        }
+
+        [Test]
+        public void TestDifficultyAdjustCanDisableAuthoredReversals()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                RepeatCount = 2,
+                Side = StickSide.Right,
+                Angle = 45,
+                ArcAngle = -90,
+            }));
+
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            var mod = new SticksModDifficultyAdjust { DisableReversals = { Value = true } };
+            mod.ApplyToBeatmapConverter(converter);
+            var converted = (SticksSlider)converter.Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted.RepeatCount, Is.Zero);
+                Assert.That(converted.ArcAngle, Is.EqualTo(-270));
+            });
+        }
+
+        [TestCase("sticks-v1~f~l~1e40.wav")]
+        [TestCase("sticks-v1~s~r~0~1000~1e40~0.wav")]
+        public void TestAuthoredMarkerRejectsValuesOutsideFloatRange(string marker)
+        {
+            var source = new TestPositionedHitObject
+            {
+                Samples = new[] { new osu.Game.Rulesets.Objects.Legacy.ConvertHitObjectParser.FileHitSampleInfo(marker, 100) },
+            };
+
+            Assert.That(SticksAuthoredBeatmapCodec.TryDecode(source, out _), Is.False);
+        }
+
+        [Test]
+        public void TestConvertsSourceHoldDurationToDirectionalHold()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(new TestHoldDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 1500,
+                Position = new Vector2(512, 192),
+            });
+
+            var hold = (SticksHold)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(hold.Duration, Is.EqualTo(1500));
+                Assert.That(hold.Angle, Is.EqualTo(0).Within(0.001));
+                Assert.That(() => new DrawableSticksHold(hold), Throws.Nothing);
+            });
+        }
+
+        [Test]
+        public void TestStandardPositionsMapToCircleAngles()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(256, 384) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted[0].Angle, Is.EqualTo(0).Within(0.001));
+                Assert.That(converted[1].Angle, Is.EqualTo(90).Within(0.001));
+            });
+        }
+
+        [Test]
+        public void TestRapidFlicksAlternateSticks()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1125, Position = new Vector2(400, 300) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1250, Position = new Vector2(256, 384) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted[1].Side, Is.Not.EqualTo(converted[0].Side));
+                Assert.That(converted[2].Side, Is.Not.EqualTo(converted[1].Side));
+            });
+        }
+
+        [Test]
+        public void TestRapidFlicksAlternateEvenWhenHalfBeatIsShorterThanThreshold()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 250 });
+
+            for (int i = 0; i < 3; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 1000 + i * 250,
+                    Position = new Vector2(512, 192),
+                });
+            }
+
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                      .Convert().HitObjects.OfType<SticksFlick>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD, Is.GreaterThanOrEqualTo(250));
+                Assert.That(converted.Zip(converted.Skip(1)), Has.All.Matches<(SticksFlick First, SticksFlick Second)>(pair => pair.First.Side != pair.Second.Side));
+            });
+        }
+
+        [Test]
+        public void TestRapidFlickIntoSliderUsesOppositeStick()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(512, 192),
+            });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1250,
+                Duration = 1000,
+                Position = new Vector2(512, 192),
+            });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD,
+                    Is.EqualTo(SticksFlick.EARLY_HIT_WINDOW + SticksFlick.LATE_HIT_WINDOW));
+                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(converted[0], Is.TypeOf<SticksFlick>());
+                Assert.That(converted[1], Is.TypeOf<SticksSlider>());
+                Assert.That(converted[0].Side, Is.Not.EqualTo(converted[1].Side));
+            });
+        }
+
+        [Test]
+        public void TestExactTimestampNeverReusesAStick()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+
+            for (int i = 0; i < 4; i++)
+                source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(256 + i * 40, 192) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(converted.Select(hitObject => hitObject.Side).Distinct().Count(), Is.EqualTo(2));
+            });
+        }
+
+        [Test]
+        public void TestFlickAtSliderTailUsesOtherStick()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 1000,
+                Position = new Vector2(512, 192),
+            });
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 2000,
+                Position = new Vector2(256, 384),
+            });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(converted[0], Is.TypeOf<SticksSlider>());
+                Assert.That(converted[1], Is.TypeOf<SticksFlick>());
+                Assert.That(converted[1].Side, Is.Not.EqualTo(converted[0].Side));
+            });
+        }
+
+        [Test]
+        public void TestFlickApproachNeverAppearsUnderSameStickSlider()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 1000,
+                Position = new Vector2(512, 192),
+            });
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1500,
+                Position = new Vector2(256, 0),
+            });
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 2500,
+                Position = new Vector2(0, 192),
+            });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksSlider slider = converted.OfType<SticksSlider>().Single();
+            SticksFlick[] approachingFlicks = converted.OfType<SticksFlick>()
+                                                       .Where(flick => flick.StartTime == 2500)
+                                                       .ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(approachingFlicks, Is.Not.Empty);
+                Assert.That(approachingFlicks, Has.All.Matches<SticksFlick>(flick => flick.Side != slider.Side));
+                Assert.That(2500 - SticksBeatmapConverter.VISIBILITY_PREEMPT, Is.LessThan(slider.EndTime));
+            });
+        }
+
+        [Test]
+        public void TestRapidSameStickReflickIsRemovedWhenOtherStickIsOccupied()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 1500,
+                Position = new Vector2(512, 192),
+            });
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1500,
+                Position = new Vector2(256, 0),
+            });
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1750,
+                Position = new Vector2(256, 0),
+            });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksSlider slider = converted.OfType<SticksSlider>().Single();
+            SticksFlick[] flicks = converted.OfType<SticksFlick>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(flicks, Has.Length.EqualTo(1));
+                Assert.That(flicks, Has.All.Matches<SticksFlick>(flick => flick.Side != slider.Side));
+            });
+        }
+
+        [Test]
+        public void TestCoordinatedDoublePatterns()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(256, 0) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(256, 384) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(0, 192) });
+
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                      .Convert().HitObjects.OfType<SticksFlick>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted[0].Side, Is.Not.EqualTo(converted[1].Side));
+                Assert.That(System.Math.Abs(SticksHitObject.DeltaAngle(converted[0].Angle, converted[1].Angle)), Is.EqualTo(180).Within(0.001));
+                Assert.That(converted[2].Side, Is.Not.EqualTo(converted[3].Side));
+                Assert.That(System.Math.Abs(SticksHitObject.DeltaAngle(converted[2].Angle, converted[3].Angle)), Is.EqualTo(90).Within(0.001));
+            });
+        }
+
+        [Test]
+        public void TestConverterAddsPlayableSyncedChordStreaksAtStrongMusicalPoints()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+
+            for (int i = 0; i < 40; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 1000 + i * 500,
+                    Position = new Vector2(256 + (i % 4 - 2) * 80, 192),
+                });
+            }
+
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                      .Convert().HitObjects.OfType<SticksFlick>().ToArray();
+            SticksFlick[] linkOwners = converted.Where(flick => flick.SyncedNoteSide.HasValue).ToArray();
+            IGrouping<double, SticksFlick>[] generatedChords = converted.GroupBy(flick => flick.StartTime)
+                                                                        .Where(group => group.Count() == 2)
+                                                                        .ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted.Length, Is.GreaterThan(40));
+                Assert.That(generatedChords.Length, Is.InRange(8, 15));
+                Assert.That(linkOwners, Has.Length.EqualTo(generatedChords.Length));
+                Assert.That(generatedChords, Has.All.Matches<IGrouping<double, SticksFlick>>(group => group.Select(flick => flick.Side).Distinct().Count() == 2));
+                Assert.That(linkOwners.Select(owner => System.Math.Abs(SticksHitObject.DeltaAngle(owner.Angle, owner.SyncedNoteAngle))).Distinct().Count(), Is.GreaterThan(1));
+                Assert.That(generatedChords.Zip(generatedChords.Skip(1), (first, second) => second.Key - first.Key), Has.Some.EqualTo(500));
+            });
+        }
+
+        [Test]
+        public void TestConverterCreatesHoldSectionWithOtherStickAccompaniment()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject { StartTime = 1000, Duration = 2000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1500, Position = new Vector2(256, 0) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(0, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2500, Position = new Vector2(256, 384) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksHold hold = converted.OfType<SticksHold>().Single();
+            SticksFlick[] accompaniment = converted.OfType<SticksFlick>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(hold.Duration, Is.EqualTo(2000));
+                Assert.That(accompaniment, Has.Length.EqualTo(3));
+                Assert.That(accompaniment, Has.All.Matches<SticksFlick>(flick => flick.Side != hold.Side));
+                Assert.That(accompaniment.Zip(accompaniment.Skip(1), (first, second) => second.StartTime - first.StartTime), Has.All.EqualTo(500));
+            });
+        }
+
+        [Test]
+        public void TestConverterBuildsHoldPhraseFromOrdinaryNotes()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+
+            for (int i = 0; i < 12; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 2000 + i * 500,
+                    Position = new Vector2(256 + (i % 3 - 1) * 100, 192),
+                });
+            }
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksHold hold = converted.OfType<SticksHold>().First();
+            SticksFlick[] accompaniment = converted.OfType<SticksFlick>()
+                                                   .Where(flick => flick.StartTime > hold.StartTime && flick.StartTime <= hold.EndTime)
+                                                   .ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(hold.Duration, Is.InRange(1500, 2000));
+                Assert.That(accompaniment.Length, Is.GreaterThanOrEqualTo(3));
+                Assert.That(accompaniment, Has.All.Matches<SticksFlick>(flick => flick.Side != hold.Side));
+            });
+        }
+
+        [Test]
+        public void TestContinuousSliderCreatesLoopExtensionNotation()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                Side = StickSide.Left,
+                Angle = 0,
+                ArcAngle = 810,
+            };
+            slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty());
+
+            SticksSliderExtension[] extensions = slider.NestedHitObjects.OfType<SticksSliderExtension>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(extensions, Has.Length.EqualTo(2));
+                Assert.That(extensions.Select(extension => extension.StartTime), Is.EqualTo(new[] { 2333.333333333333, 3666.666666666666 }).Within(0.001));
+                Assert.That(extensions, Has.All.Matches<SticksSliderExtension>(extension => extension.Direction == 1));
+                Assert.That(extensions, Has.All.Matches<SticksSliderExtension>(extension => extension.Side == StickSide.Left));
+            });
+        }
+
+        [Test]
+        public void TestRareSliderAccompanimentFollowsArc()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject { StartTime = 1000, Duration = 2000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1500, Position = new Vector2(0, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(256, 0) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            var slider = (SticksSlider)converted[0];
+            SticksFlick[] taps = converted.OfType<SticksFlick>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(taps, Has.Length.EqualTo(2));
+                Assert.That(taps, Has.All.Matches<SticksFlick>(tap => tap.Side != slider.Side));
+                Assert.That(SticksHitObject.DeltaAngle(taps[0].Angle, slider.AngleAt(taps[0].StartTime)), Is.EqualTo(0).Within(0.001));
+                Assert.That(SticksHitObject.DeltaAngle(taps[1].Angle, slider.AngleAt(taps[1].StartTime)), Is.EqualTo(0).Within(0.001));
+            });
+        }
+
+        [Test]
+        public void TestRareStreamAlternatesWithinSmallArc()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+
+            for (int i = 0; i < 6; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 1000 + i * 125,
+                    Position = i % 2 == 0 ? new Vector2(512, 192) : new Vector2(0, 192),
+                });
+            }
+
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                      .Convert().HitObjects.Cast<SticksFlick>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(6));
+                Assert.That(converted.Zip(converted.Skip(1)), Has.All.Matches<(SticksFlick First, SticksFlick Second)>(pair => pair.First.Side != pair.Second.Side));
+                Assert.That(System.Math.Abs(SticksHitObject.DeltaAngle(converted[0].Angle, converted[^1].Angle)), Is.EqualTo(30).Within(0.001));
+                Assert.That(converted, Has.All.Matches<SticksFlick>(flick => System.Math.Abs(SticksHitObject.DeltaAngle(converted[0].Angle, flick.Angle)) <= 30.001));
+            });
+        }
+
+        [Test]
+        public void TestPreservesChainedSliderReversals()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            var sourceSlider = new TestRepeatDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                RepeatCount = 2,
+                Position = new Vector2(512, 192),
+            };
+            sourceSlider.NodeSamples.Add(new List<HitSampleInfo>());
+            sourceSlider.NodeSamples.Add(new List<HitSampleInfo>());
+            sourceSlider.NodeSamples.Add(new List<HitSampleInfo>());
+            sourceSlider.NodeSamples.Add(new List<HitSampleInfo>());
+            source.HitObjects.Add(sourceSlider);
+
+            var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+            SticksSliderRepeat[] repeats = slider.NestedHitObjects.OfType<SticksSliderRepeat>().ToArray();
+            SticksSliderTick[] ticks = slider.NestedHitObjects.OfType<SticksSliderTick>().ToArray();
+            SticksSliderTail tail = slider.NestedHitObjects.OfType<SticksSliderTail>().Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.RepeatCount, Is.EqualTo(2));
+                Assert.That(slider.SpanCount, Is.EqualTo(3));
+                Assert.That(slider.SpanDuration, Is.EqualTo(1000));
+                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(1000), slider.Angle), Is.EqualTo(0).Within(0.001));
+                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(2000), slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
+                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(3000), slider.Angle), Is.EqualTo(0).Within(0.001));
+                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(4000), slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
+                Assert.That(repeats.Select(repeat => repeat.StartTime), Is.EqualTo(new[] { 2000, 3000 }));
+                Assert.That(repeats, Has.All.Matches<SticksSliderRepeat>(repeat => repeat.DisplayPreempt == slider.SpanDuration));
+                Assert.That(repeats[0].DirectionAfter, Is.EqualTo(-repeats[1].DirectionAfter));
+                Assert.That(repeats, Has.All.Matches<SticksSliderRepeat>(repeat => repeat.Samples.Count > 0));
+                Assert.That(ticks.Select(tick => tick.StartTime), Is.EqualTo(new[] { 1500, 2500, 3500 }));
+                Assert.That(tail.StartTime, Is.EqualTo(4000));
+                Assert.That(SticksHitObject.DeltaAngle(tail.Angle, slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
+                Assert.That(tail.Samples, Is.Not.Empty);
+            });
+        }
+
+        [Test]
+        public void TestFastSliderReversalsBecomeContinuousMotion()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestRepeatDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 300,
+                RepeatCount = 2,
+                Position = new Vector2(512, 192),
+            });
+
+            var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksBeatmapConverter.MAX_REVERSAL_ANGULAR_VELOCITY, Is.EqualTo(180));
+                Assert.That(slider.RepeatCount, Is.Zero);
+                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(90).Within(0.001));
+                Assert.That(slider.NestedHitObjects.OfType<SticksSliderRepeat>(), Is.Empty);
+            });
+        }
+
+        [Test]
+        public void TestDifficultyAdjustCanDisableReversals()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestRepeatDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                RepeatCount = 2,
+                Position = new Vector2(512, 192),
+            });
+
+            var normal = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            var mod = new SticksModDifficultyAdjust { DisableReversals = { Value = true } };
+            mod.ApplyToBeatmapConverter(converter);
+            var adjusted = (SticksSlider)converter.Convert().HitObjects.Single();
+            adjusted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(adjusted.RepeatCount, Is.Zero);
+                Assert.That(adjusted.ArcAngle, Is.EqualTo(normal.ArcAngle * 3).Within(0.001));
+                Assert.That(adjusted.NestedHitObjects.OfType<SticksSliderRepeat>(), Is.Empty);
+            });
+        }
+
+        private class TestPositionedHitObject : HitObject, IHasPosition
+        {
+            public Vector2 Position { get; set; }
+
+            public float X
+            {
+                get => Position.X;
+                set => Position = new Vector2(value, Y);
+            }
+
+            public float Y
+            {
+                get => Position.Y;
+                set => Position = new Vector2(X, value);
+            }
+        }
+
+        private class TestDurationHitObject : TestPositionedHitObject, IHasDuration
+        {
+            public double Duration { get; set; }
+
+            public double EndTime => StartTime + Duration;
+        }
+
+        private class TestHoldDurationHitObject : TestDurationHitObject
+        {
+        }
+
+        private class TestRepeatDurationHitObject : TestDurationHitObject, IHasRepeats
+        {
+            public int RepeatCount { get; set; }
+
+            public IList<IList<HitSampleInfo>> NodeSamples { get; } = new List<IList<HitSampleInfo>>();
+        }
+
+        private partial class TestDrawableSticksSlider : DrawableSticksSlider
+        {
+            public int AttachedNestedObjects { get; private set; }
+
+            public TestDrawableSticksSlider(SticksSlider hitObject)
+                : base(hitObject)
+            {
+            }
+
+            protected override void AddNestedHitObject(DrawableHitObject hitObject)
+            {
+                base.AddNestedHitObject(hitObject);
+                AttachedNestedObjects++;
+            }
+        }
+    }
+}

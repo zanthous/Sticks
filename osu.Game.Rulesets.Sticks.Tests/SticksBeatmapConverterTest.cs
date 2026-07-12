@@ -715,8 +715,80 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(SticksBeatmapConverter.MAX_REVERSAL_ANGULAR_VELOCITY, Is.EqualTo(180));
                 Assert.That(slider.RepeatCount, Is.Zero);
-                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(90).Within(0.001));
+                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(54).Within(0.001));
+                Assert.That(System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000,
+                    Is.LessThanOrEqualTo(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001));
                 Assert.That(slider.NestedHitObjects.OfType<SticksSliderRepeat>(), Is.Empty);
+            });
+        }
+
+        [Test]
+        public void TestGeneratedSliderArcShortensToRespectMaximumSpeed()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 100,
+                Position = new Vector2(512, 192),
+            });
+
+            var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            double angularVelocity = System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.Duration, Is.EqualTo(100), "Conversion should preserve source timing.");
+                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(18).Within(0.001));
+                Assert.That(angularVelocity, Is.LessThanOrEqualTo(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001));
+            });
+        }
+
+        [Test]
+        public void TestGeneratedSliderBelowSpeedCapKeepsMusicalArcLength()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 2000,
+                Position = new Vector2(512, 192),
+            });
+
+            var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(180).Within(0.001));
+                Assert.That(System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000,
+                    Is.LessThan(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY));
+            });
+        }
+
+        [Test]
+        public void TestAuthoredSliderIsNotAffectedByGeneratedSpeedCap()
+        {
+            var authored = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 100,
+                Side = StickSide.Right,
+                Angle = 45,
+                ArcAngle = 270,
+                RepeatCount = 1,
+            };
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(authored));
+
+            var converted = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted.Duration, Is.EqualTo(100));
+                Assert.That(converted.ArcAngle, Is.EqualTo(270));
+                Assert.That(converted.RepeatCount, Is.EqualTo(1));
             });
         }
 

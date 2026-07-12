@@ -22,6 +22,12 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         public const double MAX_REVERSAL_ANGULAR_VELOCITY = 180;
 
+        /// <summary>
+        /// Maximum angular velocity of sliders produced by procedural conversion, in degrees per second.
+        /// Authored Sticks sliders are intentionally not affected.
+        /// </summary>
+        public const double MAX_GENERATED_SLIDER_ANGULAR_VELOCITY = 180;
+
         // Base conversion readability on the ruleset's default player AR 5. Faster ARs have
         // a shorter approach, while unusually slow player overrides may exceed this window.
         public const double VISIBILITY_PREEMPT = 850;
@@ -122,7 +128,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 double sourceSpanDuration = duration.Duration / sourceSpanCount;
                 double angularVelocity = Math.Abs(plan.ArcAngle) / Math.Max(1, sourceSpanDuration) * 1000;
                 bool removeReversals = DisableReversals
-                                       || sourceRepeatCount > 0 && angularVelocity > MAX_REVERSAL_ANGULAR_VELOCITY;
+                                       || sourceRepeatCount > 0 && angularVelocity >= MAX_REVERSAL_ANGULAR_VELOCITY - 0.001;
                 var slider = new SticksSlider
                 {
                     StartTime = original.StartTime,
@@ -776,9 +782,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             int direction = sourceDirection(hitObject, startAngle, index);
             float magnitude = (float)Math.Clamp(Math.Round(beats * 45 / 15) * 15, 45, 270);
 
-            // Keep generated motion followable even on very short source sliders.
-            magnitude = Math.Min(magnitude, (float)(spanDuration * 0.22));
-            magnitude = Math.Max(30, magnitude);
+            // Preserve the source duration and shorten only the generated path when its musical
+            // 45-degrees-per-beat length would move too quickly. Do not apply a minimum arc after
+            // this cap: that previously forced short sliders back above the intended speed limit.
+            float maximumMagnitude = (float)(spanDuration / 1000 * MAX_GENERATED_SLIDER_ANGULAR_VELOCITY);
+            magnitude = Math.Min(magnitude, maximumMagnitude);
             return direction * magnitude;
         }
 

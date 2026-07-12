@@ -1,5 +1,7 @@
 // Copyright (c) Zanthous. Licensed under the MIT Licence.
 
+using System;
+using osu.Framework.Input;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -18,6 +20,8 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         protected float CurrentPointerAngle { get; private set; }
 
+        private InputManager inputManager;
+
         protected override bool IsValidForPlacement => base.IsValidForPlacement && HasValidPosition;
 
         protected SticksPlacementBlueprint(T hitObject)
@@ -29,6 +33,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         protected override void LoadComplete()
         {
             base.LoadComplete();
+            inputManager = GetContainingInputManager();
             BeginPlacement();
         }
 
@@ -42,10 +47,13 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         {
             Vector2 localPosition = ToLocalSpace(screenSpacePosition);
             bool validPointer = SticksEditorCoordinates.TryGetPlacement(localPosition, out StickSide side, out float angle);
-            CurrentPointerAngle = angle;
 
             if (PlacementActive == PlacementState.Waiting)
             {
+                if (validPointer && inputManager?.CurrentState.Keyboard.ShiftPressed == true)
+                    angle = SnapAngle(angle);
+
+                CurrentPointerAngle = angle;
                 HasValidPosition = validPointer;
                 if (validPointer)
                 {
@@ -56,12 +64,22 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
             else
             {
+                CurrentPointerAngle = angle;
                 ActivePointerMoved(localPosition, angle, validPointer);
             }
 
             SnapResult result = base.UpdateTimeAndPosition(screenSpacePosition, fallbackTime);
             TimeUpdated(result.Time ?? fallbackTime);
             return result;
+        }
+
+        public static float SnapAngle(float angle, float increment = 15)
+        {
+            if (!float.IsFinite(increment) || increment <= 0)
+                throw new ArgumentOutOfRangeException(nameof(increment));
+
+            float snapped = MathF.Round(angle / increment, MidpointRounding.AwayFromZero) * increment;
+            return SticksHitObject.NormaliseAngle(snapped);
         }
 
         protected virtual void ActivePointerMoved(Vector2 localPosition, float angle, bool isInLane)

@@ -13,6 +13,8 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Configuration;
+using osu.Game.Rulesets.Sticks.Edit;
+using osu.Game.Rulesets.Sticks.Edit.Blueprints;
 using osu.Game.Rulesets.Sticks.Mods;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
@@ -42,6 +44,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(new SticksRuleset().GetModsFor(ModType.Automation).Single(), Is.TypeOf<SticksModAutoplay>());
                 Assert.That(new SticksRuleset().CreateConfig(null), Is.TypeOf<SticksRulesetConfigManager>());
                 Assert.That(new SticksRuleset().CreateSettings(), Is.TypeOf<SticksSettingsSubsection>());
+                Assert.That(new SticksRuleset().CreateHitObjectComposer(), Is.TypeOf<SticksHitObjectComposer>());
                 Assert.That(new SticksJudgement().MaxResult, Is.EqualTo(HitResult.Great));
                 Assert.That(new SticksRuleset().GetValidHitResults(), Is.EqualTo(new[]
                 {
@@ -52,6 +55,65 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     HitResult.LargeTickMiss,
                     HitResult.IgnoreMiss,
                 }));
+            });
+        }
+
+        [Test]
+        public void TestEditorCircularCoordinates()
+        {
+            foreach (StickSide side in Enum.GetValues<StickSide>())
+            {
+                foreach (float angle in new[] { 0f, 45f, 180f, 315f })
+                {
+                    var position = SticksEditorCoordinates.PositionFor(side, angle);
+
+                    Assert.That(SticksEditorCoordinates.TryGetPlacement(position, out StickSide decodedSide, out float decodedAngle), Is.True);
+                    Assert.Multiple(() =>
+                    {
+                        Assert.That(decodedSide, Is.EqualTo(side));
+                        Assert.That(decodedAngle, Is.EqualTo(angle).Within(0.001f));
+                    });
+                }
+            }
+
+            Assert.That(SticksEditorCoordinates.TryGetPlacement(SticksEditorCoordinates.Centre, out _, out _), Is.False);
+        }
+
+        [Test]
+        public void TestEditorPlacementPreservesOppositeStickChord()
+        {
+            var placement = new SticksFlickPlacementBlueprint();
+            placement.HitObject.StartTime = 1000;
+            placement.HitObject.Side = StickSide.Left;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(placement.ReplacesExistingObject(new SticksFlick
+                {
+                    StartTime = 1000,
+                    Side = StickSide.Left,
+                }), Is.True);
+                Assert.That(placement.ReplacesExistingObject(new SticksFlick
+                {
+                    StartTime = 1000,
+                    Side = StickSide.Right,
+                }), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestEditorWheelAdjustmentsClampLogically()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(2, 1), Is.EqualTo(3));
+                Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(0, -1), Is.Zero);
+                Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(16, 1), Is.EqualTo(16));
+
+                Assert.That(SticksSelectionBlueprint.AdjustDuration(500, 125, 1), Is.EqualTo(625));
+                Assert.That(SticksSelectionBlueprint.AdjustDuration(500, 125, -1), Is.EqualTo(375));
+                Assert.That(SticksSelectionBlueprint.AdjustDuration(125, 125, -1), Is.EqualTo(125));
+                Assert.That(SticksSelectionBlueprint.AdjustDuration(50, 0, -1), Is.EqualTo(49));
             });
         }
 

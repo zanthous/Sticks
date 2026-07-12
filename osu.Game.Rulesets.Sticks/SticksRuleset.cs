@@ -9,11 +9,14 @@ using osu.Game.Configuration;
 using osu.Game.Overlays.Settings;
 using osu.Game.Rulesets.Configuration;
 using osu.Game.Rulesets.Difficulty;
+using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Replays.Types;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Scoring.Legacy;
 using osu.Game.Rulesets.Sticks.Beatmaps;
 using osu.Game.Rulesets.Sticks.Configuration;
+using osu.Game.Rulesets.Sticks.Edit;
 using osu.Game.Rulesets.Sticks.Mods;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.Sticks.Scoring;
@@ -24,6 +27,24 @@ namespace osu.Game.Rulesets.Sticks
 {
     public class SticksRuleset : Ruleset
     {
+        /// <summary>
+        /// Stock lazer currently gates its legacy-backed editor save and undo implementation on
+        /// <see cref="ILegacyRuleset"/>, while external rulesets must remain outside the four
+        /// server-side legacy IDs. The ruleset store must therefore discover this non-legacy
+        /// bootstrap type, but normal instantiation is redirected to the nested editor-compatible
+        /// implementation below.
+        /// </summary>
+        public SticksRuleset()
+        {
+            // Keep the database-facing identity unambiguously custom. In particular, never claim
+            // mode 0 here: doing so would collide with osu!standard during ruleset discovery.
+            RulesetInfo.OnlineID = -1;
+            RulesetInfo.InstantiationInfo = editorCompatibleInstantiationInfo;
+        }
+
+        private static string editorCompatibleInstantiationInfo =>
+            $"{typeof(EditorCompatibleSticksRuleset).FullName}, {typeof(SticksRuleset).Assembly.GetName().Name}";
+
         public override string Description => "Sticks";
 
         public override string PlayingVerb => "Flicking sticks";
@@ -34,6 +55,10 @@ namespace osu.Game.Rulesets.Sticks
             new DrawableSticksRuleset(this, beatmap, mods);
 
         public override IBeatmapConverter CreateBeatmapConverter(IBeatmap beatmap) => new SticksBeatmapConverter(beatmap, this);
+
+        public override IBeatmapProcessor CreateBeatmapProcessor(IBeatmap beatmap) => SticksLegacyEditorBridge.TryCreateProcessor(beatmap);
+
+        public override HitObjectComposer CreateHitObjectComposer() => new SticksHitObjectComposer(this);
 
         public override DifficultyCalculator CreateDifficultyCalculator(IWorkingBeatmap beatmap) => new SticksDifficultyCalculator(RulesetInfo, beatmap);
 
@@ -72,5 +97,18 @@ namespace osu.Game.Rulesets.Sticks
         public override Drawable CreateIcon() => new SticksRulesetIcon();
 
         public override string RulesetAPIVersionSupported => CURRENT_RULESET_API_VERSION;
+
+        /// <summary>
+        /// Instantiated from a persisted Sticks <see cref="RulesetInfo"/>. Nested public types are
+        /// intentionally not returned by <see cref="Type.IsPublic"/>, so the assembly ruleset
+        /// scanner continues to discover only <see cref="SticksRuleset"/> and Realm registration
+        /// remains on the normal external-ruleset path.
+        /// </summary>
+        public sealed class EditorCompatibleSticksRuleset : SticksRuleset, ILegacyRuleset
+        {
+            int ILegacyRuleset.LegacyID => 0;
+
+            ILegacyScoreSimulator ILegacyRuleset.CreateLegacyScoreSimulator() => new SticksLegacyScoreSimulator();
+        }
     }
 }

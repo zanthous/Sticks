@@ -1,9 +1,11 @@
 // Copyright (c) Zanthous. Licensed under the MIT Licence.
 
 using System;
+using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Utils;
+using osu.Game.Audio;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
@@ -22,6 +24,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public new SticksFlick HitObject => (SticksFlick)base.HitObject;
 
         public override bool HandlePositionalInput => false;
+
+        public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.CreatePlayableSamples();
 
         public DrawableSticksFlick(SticksFlick hitObject)
             : base(hitObject)

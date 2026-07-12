@@ -33,12 +33,14 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private readonly Dictionary<HitObject, ConversionPlan> chordLinkTargets = new Dictionary<HitObject, ConversionPlan>();
         private readonly HashSet<HitObject> generatedHoldSources = new HashSet<HitObject>();
         private readonly Dictionary<HitObject, double> generatedFlickHoldDurations = new Dictionary<HitObject, double>();
+        private readonly Ruleset targetRuleset;
 
         public bool DisableReversals { get; set; }
 
         public SticksBeatmapConverter(IBeatmap beatmap, Ruleset ruleset)
             : base(beatmap, ruleset)
         {
+            targetRuleset = ruleset;
             buildPlans(beatmap);
         }
 
@@ -47,6 +49,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         protected override Beatmap<SticksHitObject> ConvertBeatmap(IBeatmap original, CancellationToken cancellationToken)
         {
             Beatmap<SticksHitObject> converted = base.ConvertBeatmap(original, cancellationToken);
+
+            // The base converter retains the source map's ruleset metadata. Sticks needs its own
+            // instantiation info here so EditorBeatmap constructs the Sticks editor processor,
+            // while ordinary gameplay keeps the custom online ID (-1).
+            converted.BeatmapInfo.Ruleset = targetRuleset.RulesetInfo.Clone();
 
             foreach (IGrouping<double, SticksFlick> group in converted.HitObjects.OfType<SticksFlick>().GroupBy(flick => flick.StartTime))
             {

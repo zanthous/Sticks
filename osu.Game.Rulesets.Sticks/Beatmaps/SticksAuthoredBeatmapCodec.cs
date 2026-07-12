@@ -38,11 +38,47 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             };
         }
 
+        /// <summary>
+        /// Replaces the object's normal sample with its current lossless editor carrier marker.
+        /// A <see cref="ConvertHitObjectParser.FileHitSampleInfo"/> is itself a normal sample and
+        /// contains normal-skin fallback lookup names, so retaining a second normal sample would
+        /// both double playback and violate the legacy encoder's single-normal-sample assumption.
+        /// </summary>
+        public static void SynchroniseMarker(SticksHitObject hitObject)
+        {
+            ArgumentNullException.ThrowIfNull(hitObject);
+
+            string expectedFilename = EncodeMarker(hitObject);
+            ConvertHitObjectParser.FileHitSampleInfo? existingMarker = hitObject.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>()
+                                                                                       .FirstOrDefault(IsMarker);
+            HitSampleInfo? regularNormal = hitObject.Samples.FirstOrDefault(sample => sample.Name == HitSampleInfo.HIT_NORMAL && !IsMarker(sample));
+            HitSampleInfo? previousNormal = regularNormal ?? existingMarker;
+            int volume = previousNormal?.Volume ?? hitObject.Samples.FirstOrDefault()?.Volume ?? 100;
+
+            bool hasExactSingleMarkerNormal = existingMarker != null
+                                              && string.Equals(existingMarker.Filename, expectedFilename, StringComparison.Ordinal)
+                                              && existingMarker.Volume == volume
+                                              && hitObject.Samples.Count(IsMarker) == 1
+                                              && hitObject.Samples.Count(sample => sample.Name == HitSampleInfo.HIT_NORMAL) == 1;
+
+            if (hasExactSingleMarkerNormal)
+                return;
+
+            var samples = hitObject.Samples.Where(sample => sample.Name != HitSampleInfo.HIT_NORMAL && !IsMarker(sample))
+                                   .ToList();
+            samples.Insert(0, new ConvertHitObjectParser.FileHitSampleInfo(expectedFilename, volume));
+            hitObject.Samples = samples;
+        }
+
+        public static bool IsMarker(HitSampleInfo sample) =>
+            sample is ConvertHitObjectParser.FileHitSampleInfo file
+            && Path.GetFileName(file.Filename).StartsWith(MARKER_PREFIX, StringComparison.OrdinalIgnoreCase);
+
         public static bool TryDecode(HitObject source, out SticksHitObject? decoded)
         {
             decoded = null;
             var marker = source.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>()
-                               .FirstOrDefault(sample => Path.GetFileName(sample.Filename).StartsWith(MARKER_PREFIX, StringComparison.OrdinalIgnoreCase));
+                               .FirstOrDefault(sample => IsMarker(sample));
 
             if (marker == null)
                 return false;
@@ -109,17 +145,23 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         }
 
         /// <summary>
-        /// Creates a standard hit-circle proxy suitable for mode-0 legacy encoding.
+        /// Creates a standard mode-0 proxy suitable for legacy encoding. Flicks use hit circles;
+        /// holds and sliders use duration-bearing spinner carriers so their occupied timeline range
+        /// remains visible even before Sticks conversion.
         /// </summary>
         public static HitObject CreateLegacyProxy(SticksHitObject source)
         {
             float radians = source.Angle * MathF.PI / 180;
             float radius = source.Side == StickSide.Left ? 160 : 105;
-            var proxy = new LegacyProxyHitObject
+            LegacyProxyHitObject proxy = source switch
             {
-                StartTime = source.StartTime,
-                Position = new Vector2(256 + MathF.Cos(radians) * radius, 192 + MathF.Sin(radians) * radius),
+                SticksSlider slider => new LegacyDurationProxyHitObject { Duration = slider.Duration },
+                SticksHold hold => new LegacyDurationProxyHitObject { Duration = hold.Duration },
+                _ => new LegacyProxyHitObject(),
             };
+
+            proxy.StartTime = source.StartTime;
+            proxy.Position = new Vector2(256 + MathF.Cos(radians) * radius, 192 + MathF.Sin(radians) * radius);
 
             int volume = source.Samples.FirstOrDefault()?.Volume ?? 100;
             proxy.Samples.Add(new ConvertHitObjectParser.FileHitSampleInfo(EncodeMarker(source), volume));
@@ -150,7 +192,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private static bool parseFloat(string value, out float result) =>
             float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result) && float.IsFinite(result);
 
-        private sealed class LegacyProxyHitObject : HitObject, IHasPosition
+        private class LegacyProxyHitObject : HitObject, IHasPosition
         {
             public Vector2 Position { get; set; }
 
@@ -165,6 +207,13 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 get => Position.Y;
                 set => Position = new Vector2(Position.X, value);
             }
+        }
+
+        private sealed class LegacyDurationProxyHitObject : LegacyProxyHitObject, IHasDuration
+        {
+            public double EndTime => StartTime + Duration;
+
+            public double Duration { get; set; }
         }
     }
 }

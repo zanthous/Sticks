@@ -32,11 +32,31 @@ osu.Game.Rulesets.Sticks\bin\Release\net8.0\osu.Game.Rulesets.Sticks.dll
 
 Use **Settings → Open osu! folder** if you do not know where lazer's data folder is.
 
-## Mapping
+## In-client editor
 
-The companion **Sticks Mapper** in `Mapper/index.html` provides circular flick, hold, slider, and chord placement with local audio playback, timing-aware snapping, exact-value inspection, and project JSON save/load. Timing authored in lazer's standard editor can be imported from a `.osu` difficulty, including multiple BPM sections, inherited points, effects, and its saved beat divisor. Its **Export .osz** action packages the song and a portable authored map for direct import into an unmodified osu!lazer client.
+Sticks has a native circular composer inside osu!lazer. To start from an imported song:
 
-Authored gameplay data is versioned inside ordinary mode-0 carrier objects. The Sticks converter recognises those markers and reconstructs angles, sides, durations, slider arcs, and repeats exactly; unmarked standard maps continue to use procedural conversion.
+1. Select an osu!standard difficulty for the song.
+2. Open **Settings → Rulesets → Sticks**.
+3. Choose **Create blank Sticks difficulty** to keep the song, metadata, and timing but map from scratch, or **Create editable converted Sticks difficulty** to use the converter as a starting point.
+4. The new database-backed Sticks difficulty opens directly in lazer's editor.
+
+Use the left editor toolbox (or number keys) to select Flick, Hold, or Slider:
+
+- Flick: click the blue outer lane for the left stick or red inner lane for the right stick.
+- Hold: press on a lane, drag radially in the displayed duration direction, and release.
+- Slider: press on a lane, trace the circular arc, and release.
+- Selected hold/slider: Ctrl + wheel changes duration by the active beat snap.
+- Selected slider: Shift + wheel changes the repeat count.
+- Drag selected objects around the ring to change their angle. A single object may also cross between the two stick lanes; grouped selections preserve their angular pattern.
+
+Normal editor save, Ctrl+S, undo/redo, dirty-state warnings, timing, setup, timeline, test-play, copy, and paste remain available. Same-time objects only replace an existing object on the same stick, so opposite-stick chords can be authored normally.
+
+lazer's stock **Create new difficulty** path attempts to encode an external ruleset before its composer exists. Use the two Sticks settings actions above for the initial difficulty; once created, it behaves like a normal editable difficulty.
+
+Authored gameplay data is versioned inside ordinary mode-0 carrier objects. The Sticks converter reconstructs angles, sides, durations, slider arcs, and repeats exactly when the difficulty is reopened or shared; unmarked standard maps continue to use procedural conversion. This provides editor persistence without patching osu!lazer.
+
+The earlier companion **Sticks Mapper** remains available in `Mapper/index.html` as an optional portable authoring tool. It supports local audio, timing import, project JSON, and `.osz` export, but the in-client editor is now the primary mapping workflow.
 
 Player-replay recording support remains incomplete in this prototype.
 

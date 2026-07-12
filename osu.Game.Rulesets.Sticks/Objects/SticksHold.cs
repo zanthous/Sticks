@@ -8,7 +8,17 @@ namespace osu.Game.Rulesets.Sticks.Objects
     {
         public const double REQUIRED_TRACKING_FRACTION = 0.65;
 
-        public double Duration { get; set; }
+        private double duration;
+
+        public double Duration
+        {
+            get => duration;
+            set
+            {
+                duration = value;
+                RefreshLegacyEditorMarker();
+            }
+        }
 
         public double EndTime => StartTime + Duration;
     }

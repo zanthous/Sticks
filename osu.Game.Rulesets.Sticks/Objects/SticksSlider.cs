@@ -8,6 +8,7 @@ using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets.Objects.Types;
+using osu.Game.Rulesets.Sticks.Beatmaps;
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {
@@ -15,7 +16,17 @@ namespace osu.Game.Rulesets.Sticks.Objects
     {
         public const double REQUIRED_TRACKING_FRACTION = 0.5;
 
-        public double Duration { get; set; }
+        private double duration;
+
+        public double Duration
+        {
+            get => duration;
+            set
+            {
+                duration = value;
+                RefreshLegacyEditorMarker();
+            }
+        }
 
         public double EndTime => StartTime + Duration;
 
@@ -24,7 +35,11 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public int RepeatCount
         {
             get => repeatCount;
-            set => repeatCount = Math.Max(0, value);
+            set
+            {
+                repeatCount = Math.Max(0, value);
+                RefreshLegacyEditorMarker();
+            }
         }
 
         public IList<IList<HitSampleInfo>> NodeSamples { get; } = new List<IList<HitSampleInfo>>();
@@ -33,7 +48,17 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public double SpanDuration => Duration / SpanCount;
 
-        public float ArcAngle { get; set; }
+        private float arcAngle;
+
+        public float ArcAngle
+        {
+            get => arcAngle;
+            set
+            {
+                arcAngle = value;
+                RefreshLegacyEditorMarker();
+            }
+        }
 
         public int InitialDirection => ArcAngle < 0 ? -1 : 1;
 
@@ -96,8 +121,10 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
             if (double.IsFinite(TickInterval) && TickInterval > 0)
             {
-                HitSampleInfo tickSample = (Samples.FirstOrDefault(sample => sample.Name == HitSampleInfo.HIT_NORMAL) ?? Samples.FirstOrDefault())?.With("slidertick")
-                                               ?? new HitSampleInfo("slidertick");
+                HitSampleInfo sourceSample = Samples.FirstOrDefault(sample => sample.Name == HitSampleInfo.HIT_NORMAL) ?? Samples.FirstOrDefault();
+                HitSampleInfo tickSample = sourceSample == null || SticksAuthoredBeatmapCodec.IsMarker(sourceSample)
+                    ? new HitSampleInfo("slidertick", volume: sourceSample?.Volume ?? 100)
+                    : sourceSample.With("slidertick");
 
                 for (int span = 0; span < SpanCount; span++)
                 {
@@ -180,10 +207,10 @@ namespace osu.Game.Rulesets.Sticks.Objects
         {
             IList<HitSampleInfo> nodeSamples = this.GetNodeSamples(nodeIndex);
             if (nodeSamples.Count > 0)
-                return nodeSamples.Select(sample => sample.With()).ToArray();
+                return CreatePlayableSamples(nodeSamples);
 
             if (Samples.Count > 0)
-                return Samples.Select(sample => sample.With()).ToArray();
+                return CreatePlayableSamples();
 
             return new[] { new HitSampleInfo(HitSampleInfo.HIT_NORMAL) };
         }

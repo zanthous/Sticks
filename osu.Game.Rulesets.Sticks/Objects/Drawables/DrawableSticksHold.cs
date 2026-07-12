@@ -1,6 +1,7 @@
 // Copyright (c) Zanthous. Licensed under the MIT Licence.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
@@ -35,6 +36,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public new SticksHold HitObject => (SticksHold)base.HitObject;
 
         public override bool HandlePositionalInput => false;
+
+        public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.CreatePlayableSamples();
 
         public Vector2 RailStart => railStart;
 
@@ -178,7 +181,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.LoadSamples();
 
-            var slidingSamples = HitObject.CreateSlidingSamples();
+            var slidingSamples = HitObject.CreatePlayableSlidingSamples();
             if (slidingSamples.Count == 0)
                 slidingSamples.Add(HitObject.CreateHitSampleInfo("sliderslide"));
 

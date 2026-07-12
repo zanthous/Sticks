@@ -12,7 +12,10 @@ namespace osu.Game.Rulesets.Sticks
     {
         public SticksRulesetIcon()
         {
-            RelativeSizeAxes = Axes.Both;
+            // Ruleset icons are inserted into both fixed-size containers and auto-sized horizontal
+            // flows. An intrinsic size is required here: relative X sizing is invalid inside the
+            // latter and crashes song select when a Sticks difficulty is displayed.
+            Size = new Vector2(32);
             InternalChildren = new Drawable[]
             {
                 circle(0.78f, SticksPlayfield.LEFT_COLOUR),

@@ -16,6 +16,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     /// </summary>
     public partial class SticksSyncedNoteLink : CompositeDrawable
     {
+        public const float INITIAL_ALPHA = 0.45f;
+        public const float FINAL_ALPHA = 0.8f;
+
         public ChordLinkStyle Style { get; }
 
         public SticksSyncedNoteLink(
@@ -36,8 +39,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (style == ChordLinkStyle.ToCentre)
             {
                 Vector2 centre = new Vector2(SticksPlayfield.SIZE / 2);
-                AddInternal(path(first, centre, colourFor(firstSide)));
-                AddInternal(path(second, centre, colourFor(secondSide)));
+                AddInternal(path(first, centre, ColourFor(firstSide)));
+                AddInternal(path(second, centre, ColourFor(secondSide)));
                 return;
             }
 
@@ -62,12 +65,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             AutoSizeAxes = Axes.None,
             Size = new Vector2(SticksPlayfield.SIZE),
-            PathRadius = 1.35f,
+            PathRadius = 1.6f,
             Colour = colour ?? Color4.White,
             Vertices = new[] { start, end },
         };
 
-        private static Color4 colourFor(StickSide side) => side == StickSide.Left
+        public static float AlphaAtGrowth(double growth) =>
+            (float)(INITIAL_ALPHA + Math.Clamp(growth, 0, 1) * (FINAL_ALPHA - INITIAL_ALPHA));
+
+        public static Color4 ColourFor(StickSide side) => side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
             : SticksPlayfield.RIGHT_COLOUR;
     }

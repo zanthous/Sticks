@@ -183,7 +183,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             var centreLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 180, slider.ChordLinkStyle);
-            Assert.That(centreLink.Style, Is.EqualTo(ChordLinkStyle.ToCentre));
+            Assert.Multiple(() =>
+            {
+                Assert.That(centreLink.Style, Is.EqualTo(ChordLinkStyle.ToCentre));
+                Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Left), Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
+                Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Right), Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
+                Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(0), Is.EqualTo(0.45f).Within(0.001));
+                Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(1), Is.EqualTo(0.8f).Within(0.001));
+            });
 
             mod.ShowSyncedNoteLinks.Value = false;
             mod.ChordLinkStyle.Value = ChordLinkStyle.BetweenNotes;

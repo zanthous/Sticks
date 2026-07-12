@@ -65,7 +65,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + growth * 0.8);
 
             if (syncedNoteLink != null)
-                syncedNoteLink.Alpha = (float)(0.1 + growth * 0.2);
+                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtGrowth(growth);
 
             long sequence = playfield.FlickSequence(HitObject.Side);
             if (sequence == observedSequence || Judged)

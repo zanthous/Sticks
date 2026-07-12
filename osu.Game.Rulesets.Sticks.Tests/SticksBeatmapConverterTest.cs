@@ -66,19 +66,60 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestPreservesSourceHitsounds()
+        public void TestNormalisesConvertedHitsounds()
         {
             var source = new Beatmap<HitObject>();
             source.HitObjects.Add(new TestPositionedHitObject
             {
                 StartTime = 1000,
                 Position = new Vector2(512, 192),
-                Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP) },
+                Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 27) },
             });
 
             SticksHitObject converted = (SticksHitObject)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
 
-            Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
+                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
+            });
+        }
+
+        [Test]
+        public void TestNormalisesConvertedSliderNodeHitsounds()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            var sourceSlider = new TestRepeatDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 1500,
+                RepeatCount = 1,
+                Position = new Vector2(512, 192),
+                Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 24) },
+            };
+            sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 31) });
+            sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 42) });
+            sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 53) });
+            source.HitObjects.Add(sourceSlider);
+
+            var converted = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            converted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+            HitObject[] audibleNested = converted.NestedHitObjects
+                                                  .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
+                                                  .ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
+                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
+                Assert.That(converted.NodeSamples, Is.Empty);
+                Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples), Is.Not.Empty);
+                Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples),
+                    Has.All.Matches<HitSampleInfo>(sample =>
+                        (sample.Name == HitSampleInfo.HIT_NORMAL || sample.Name == "slidertick") && sample.Volume == 100));
+            });
         }
 
         [Test]

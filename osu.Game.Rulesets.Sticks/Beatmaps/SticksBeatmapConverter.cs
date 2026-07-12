@@ -105,7 +105,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Duration = generatedHoldDuration,
                     Side = plan.Side,
                     Angle = plan.Angle,
-                    Samples = convertedSamples(original),
+                    Samples = normalisedConversionSamples(),
                 };
                 yield break;
             }
@@ -120,7 +120,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         Duration = duration.Duration,
                         Side = plan.Side,
                         Angle = plan.Angle,
-                        Samples = convertedSamples(original),
+                        Samples = normalisedConversionSamples(),
                     };
                     yield break;
                 }
@@ -141,22 +141,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Side = plan.Side,
                     Angle = plan.Angle,
                     ArcAngle = removeReversals ? plan.ArcAngle * sourceSpanCount : plan.ArcAngle,
-                    Samples = convertedSamples(original),
+                    Samples = normalisedConversionSamples(),
                 };
-
-                if (original is IHasRepeats sourceRepeats)
-                {
-                    if (removeReversals && sourceRepeats.NodeSamples.Count > 0)
-                    {
-                        slider.NodeSamples.Add(sourceRepeats.NodeSamples[0].Select(sample => sample.With()).ToArray());
-                        slider.NodeSamples.Add(sourceRepeats.NodeSamples[^1].Select(sample => sample.With()).ToArray());
-                    }
-                    else
-                    {
-                        foreach (IList<HitSampleInfo> nodeSamples in sourceRepeats.NodeSamples)
-                            slider.NodeSamples.Add(nodeSamples.Select(sample => sample.With()).ToArray());
-                    }
-                }
 
                 yield return slider;
             }
@@ -167,7 +153,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     StartTime = original.StartTime,
                     Side = plan.Side,
                     Angle = plan.Angle,
-                    Samples = convertedSamples(original),
+                    Samples = normalisedConversionSamples(),
                 };
 
                 if (chordLinkTargets.TryGetValue(original, out ConversionPlan linkedPlan))
@@ -185,19 +171,14 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         StartTime = original.StartTime,
                         Side = partner.Side,
                         Angle = partner.Angle,
-                        Samples = convertedSamples(original),
+                        Samples = normalisedConversionSamples(),
                     };
                 }
             }
         }
 
-        private static IList<HitSampleInfo> convertedSamples(HitObject original)
-        {
-            HitSampleInfo[] sourceSamples = original.Samples.ToArray();
-            return sourceSamples.Length > 0
-                ? sourceSamples
-                : new[] { new HitSampleInfo(HitSampleInfo.HIT_NORMAL) };
-        }
+        private static IList<HitSampleInfo> normalisedConversionSamples() =>
+            new[] { new HitSampleInfo(HitSampleInfo.HIT_NORMAL) };
 
         private void buildPlans(IBeatmap beatmap)
         {

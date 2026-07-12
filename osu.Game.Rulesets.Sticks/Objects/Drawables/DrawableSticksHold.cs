@@ -21,12 +21,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         private const float tracking_magnitude = 0.56f;
 
-        private readonly SticksArcMarker headMarker;
+        private SticksArcMarker headMarker;
         private readonly SmoothPath durationRail;
         private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
-        private readonly Vector2 railStart;
-        private readonly Vector2 railEnd;
+        private Vector2 railStart;
+        private Vector2 railEnd;
+        private StickSide displayedSide;
+        private float displayedAngle = float.NaN;
+        private double displayedDuration = double.NaN;
         private SticksPlayfield playfield = null!;
         private bool headAcquired;
         private double trackedTime;
@@ -39,19 +42,28 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.CreatePlayableSamples();
 
-        public Vector2 RailStart => railStart;
+        public Vector2 RailStart
+        {
+            get
+            {
+                refreshGeometry();
+                return railStart;
+            }
+        }
 
-        public Vector2 RailEnd => railEnd;
+        public Vector2 RailEnd
+        {
+            get
+            {
+                refreshGeometry();
+                return railEnd;
+            }
+        }
 
         public DrawableSticksHold(SticksHold hitObject)
             : base(hitObject)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
-            float laneRadius = SticksPlayfield.RadiusFor(hitObject.Side);
-            float railLength = (float)Math.Clamp(hitObject.Duration * 0.06, 40, 130);
-            float farRadius = laneRadius + (hitObject.Side == StickSide.Left ? railLength : -railLength);
-            railStart = SticksPlayfield.PointAt(hitObject.Angle, laneRadius);
-            railEnd = SticksPlayfield.PointAt(hitObject.Angle, farRadius);
 
             AddInternal(durationRail = new SmoothPath
             {
@@ -75,17 +87,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Depth = 5,
             });
 
-            AddInternal(headMarker = new SticksArcMarker(hitObject.Side, colourFor(hitObject.Side), true)
-            {
-                Angle = hitObject.Angle,
-                Span = hitObject.PrimaryHitAngle * 0.2f,
-            });
+            AddInternal(headMarker = createHeadMarker());
 
             AddInternal(holdingSample = new PausableSkinnableSound
             {
                 Looping = true,
                 MinimumSampleVolume = MINIMUM_SAMPLE_VOLUME,
             });
+
+            refreshGeometry();
         }
 
         [BackgroundDependencyLoader]
@@ -94,6 +104,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         protected override void Update()
         {
             base.Update();
+
+            refreshGeometry();
 
             double now = Time.Current;
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
@@ -122,6 +134,45 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             lastPlaybackTime = now;
         }
+
+        private void refreshGeometry()
+        {
+            bool sideChanged = !float.IsNaN(displayedAngle) && displayedSide != HitObject.Side;
+            if (!sideChanged
+                && Math.Abs(displayedAngle - HitObject.Angle) < 0.001f
+                && Math.Abs(displayedDuration - HitObject.Duration) < 0.001)
+                return;
+
+            float laneRadius = SticksPlayfield.RadiusFor(HitObject.Side);
+            float railLength = (float)Math.Clamp(HitObject.Duration * 0.06, 40, 130);
+            float farRadius = laneRadius + (HitObject.Side == StickSide.Left ? railLength : -railLength);
+            railStart = SticksPlayfield.PointAt(HitObject.Angle, laneRadius);
+            railEnd = SticksPlayfield.PointAt(HitObject.Angle, farRadius);
+
+            durationRail.Colour = colourFor(HitObject.Side);
+            durationRail.Vertices = new[] { railStart, railEnd };
+            durationCursor.Position = railEnd;
+
+            if (sideChanged)
+            {
+                RemoveInternal(headMarker, true);
+                AddInternal(headMarker = createHeadMarker());
+            }
+            else
+            {
+                headMarker.Angle = HitObject.Angle;
+            }
+
+            displayedSide = HitObject.Side;
+            displayedAngle = HitObject.Angle;
+            displayedDuration = HitObject.Duration;
+        }
+
+        private SticksArcMarker createHeadMarker() => new SticksArcMarker(HitObject.Side, colourFor(HitObject.Side), true)
+        {
+            Angle = HitObject.Angle,
+            Span = HitObject.PrimaryHitAngle * 0.2f,
+        };
 
         private void updateHeadAcquisition(double now)
         {

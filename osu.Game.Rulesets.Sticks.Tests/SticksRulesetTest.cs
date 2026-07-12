@@ -383,6 +383,21 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(red.RailEnd.X - centre, Is.LessThan(red.RailStart.X - centre));
                 Assert.That(SticksHold.REQUIRED_TRACKING_FRACTION, Is.EqualTo(0.65));
             });
+
+            blue.HitObject.Angle = 225;
+            blue.HitObject.Duration = 250;
+            osuTK.Vector2 centrePoint = new osuTK.Vector2(centre);
+            osuTK.Vector2 startOffset = blue.RailStart - centrePoint;
+            osuTK.Vector2 endOffset = blue.RailEnd - centrePoint;
+            float crossProduct = startOffset.X * endOffset.Y - startOffset.Y * endOffset.X;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(crossProduct, Is.EqualTo(0).Within(0.01), "The refreshed hold rail must remain radial through the playfield centre.");
+                Assert.That(endOffset.Length, Is.GreaterThan(startOffset.Length));
+                Assert.That(blue.RailStart.X, Is.LessThan(centre));
+                Assert.That(blue.RailStart.Y, Is.LessThan(centre));
+            });
         }
 
         [Test]

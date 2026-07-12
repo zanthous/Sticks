@@ -7,7 +7,6 @@ using System.Reflection;
 using NUnit.Framework;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Effects;
-using osu.Framework.Graphics.Sprites;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets;
@@ -34,7 +33,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var assembly = typeof(SticksRuleset).Assembly;
             Type[] rulesets = assembly.GetTypes().Where(type => type.IsPublic && type.IsSubclassOf(typeof(Ruleset))).ToArray();
-            var icon = (SpriteIcon)new SticksRuleset().CreateIcon();
+            var icon = (SticksRulesetIcon)new SticksRuleset().CreateIcon();
 
             Assert.Multiple(() =>
             {
@@ -48,6 +47,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(new SticksRuleset().CreateSettings(), Is.TypeOf<SticksSettingsSubsection>());
                 Assert.That(new SticksRuleset().CreateHitObjectComposer(), Is.TypeOf<SticksHitObjectComposer>());
                 Assert.That(icon.RelativeSizeAxes, Is.EqualTo(Axes.None));
+                Assert.That(icon.Size, Is.EqualTo(new osuTK.Vector2(32)));
                 Assert.That(new SticksJudgement().MaxResult, Is.EqualTo(HitResult.Great));
                 Assert.That(new SticksRuleset().GetValidHitResults(), Is.EqualTo(new[]
                 {

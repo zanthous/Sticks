@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using osu.Framework.Graphics;
-using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Bindings;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
@@ -95,7 +94,7 @@ namespace osu.Game.Rulesets.Sticks
             new KeyBinding(InputKey.Space, SticksAction.Focus),
         };
 
-        public override Drawable CreateIcon() => new SpriteIcon { Icon = FontAwesome.Solid.Gamepad };
+        public override Drawable CreateIcon() => new SticksRulesetIcon();
 
         public override string RulesetAPIVersionSupported => CURRENT_RULESET_API_VERSION;
 

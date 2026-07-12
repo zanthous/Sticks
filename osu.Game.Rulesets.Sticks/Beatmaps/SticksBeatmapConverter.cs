@@ -22,11 +22,13 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         public const double MAX_REVERSAL_ANGULAR_VELOCITY = 180;
 
+        public const double MIN_GENERATED_REVERSAL_SPAN_DURATION = 250;
+
         /// <summary>
         /// Maximum angular velocity of sliders produced by procedural conversion, in degrees per second.
         /// Authored Sticks sliders are intentionally not affected.
         /// </summary>
-        public const double MAX_GENERATED_SLIDER_ANGULAR_VELOCITY = 180;
+        public const double MAX_GENERATED_SLIDER_ANGULAR_VELOCITY = 120;
 
         // Base conversion readability on the ruleset's default player AR 5. Faster ARs have
         // a shorter approach, while unusually slow player overrides may exceed this window.
@@ -128,7 +130,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 double sourceSpanDuration = duration.Duration / sourceSpanCount;
                 double angularVelocity = Math.Abs(plan.ArcAngle) / Math.Max(1, sourceSpanDuration) * 1000;
                 bool removeReversals = DisableReversals
-                                       || sourceRepeatCount > 0 && angularVelocity >= MAX_REVERSAL_ANGULAR_VELOCITY - 0.001;
+                                       || sourceRepeatCount > 0
+                                       && (sourceSpanDuration < MIN_GENERATED_REVERSAL_SPAN_DURATION
+                                           || angularVelocity >= MAX_REVERSAL_ANGULAR_VELOCITY - 0.001);
                 var slider = new SticksSlider
                 {
                     StartTime = original.StartTime,

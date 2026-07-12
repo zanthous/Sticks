@@ -714,8 +714,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(SticksBeatmapConverter.MAX_REVERSAL_ANGULAR_VELOCITY, Is.EqualTo(180));
+                Assert.That(SticksBeatmapConverter.MIN_GENERATED_REVERSAL_SPAN_DURATION, Is.EqualTo(250));
                 Assert.That(slider.RepeatCount, Is.Zero);
-                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(54).Within(0.001));
+                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(36).Within(0.001));
                 Assert.That(System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000,
                     Is.LessThanOrEqualTo(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001));
                 Assert.That(slider.NestedHitObjects.OfType<SticksSliderRepeat>(), Is.Empty);
@@ -740,7 +741,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(slider.Duration, Is.EqualTo(100), "Conversion should preserve source timing.");
-                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(18).Within(0.001));
+                Assert.That(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY, Is.EqualTo(120));
+                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(12).Within(0.001));
                 Assert.That(angularVelocity, Is.LessThanOrEqualTo(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001));
             });
         }

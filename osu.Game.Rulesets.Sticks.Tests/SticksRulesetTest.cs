@@ -105,18 +105,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestEditorWheelAdjustmentsClampLogically()
+        public void TestEditorAdjustmentsClampLogically()
         {
             Assert.Multiple(() =>
             {
                 Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(2, 1), Is.EqualTo(3));
                 Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(0, -1), Is.Zero);
                 Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(16, 1), Is.EqualTo(16));
-
-                Assert.That(SticksSelectionBlueprint.AdjustDuration(500, 125, 1), Is.EqualTo(625));
-                Assert.That(SticksSelectionBlueprint.AdjustDuration(500, 125, -1), Is.EqualTo(375));
-                Assert.That(SticksSelectionBlueprint.AdjustDuration(125, 125, -1), Is.EqualTo(125));
-                Assert.That(SticksSelectionBlueprint.AdjustDuration(50, 0, -1), Is.EqualTo(49));
 
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, false), Is.EqualTo(82));
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, true), Is.EqualTo(75));

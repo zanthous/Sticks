@@ -8,10 +8,10 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
-using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Screens.Edit;
@@ -25,15 +25,14 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
     {
         private readonly SticksBlueprintPiece piece;
         private readonly SliderTailHandle? sliderTailHandle;
+        private readonly RepeatButton? decreaseRepeatsButton;
+        private readonly RepeatButton? increaseRepeatsButton;
         private float dragArcAngle;
         private float lastDragPointerAngle;
         private float originalDragArcAngle;
 
         [Resolved]
         private EditorBeatmap? editorBeatmap { get; set; }
-
-        [Resolved]
-        private IBeatSnapProvider? beatSnapProvider { get; set; }
 
         [Resolved(CanBeNull = true)]
         private IEditorChangeHandler? changeHandler { get; set; }
@@ -51,6 +50,8 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                     Dragged = dragTail,
                     DragEnded = endTailDrag,
                 });
+                AddInternal(decreaseRepeatsButton = new RepeatButton(false, () => adjustRepeats(-1)));
+                AddInternal(increaseRepeatsButton = new RepeatButton(true, () => adjustRepeats(1)));
             }
         }
 
@@ -67,6 +68,14 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 sliderTailHandle.FillColour = slider.Side == StickSide.Left
                     ? SticksPlayfield.LEFT_COLOUR
                     : SticksPlayfield.RIGHT_COLOUR;
+
+                float tailAngle = slider.Angle + slider.ArcAngle;
+                float radians = (tailAngle + 90) * MathF.PI / 180;
+                Vector2 tangent = new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * 27;
+                decreaseRepeatsButton!.Position = sliderTailHandle.Position - tangent;
+                increaseRepeatsButton!.Position = sliderTailHandle.Position + tangent;
+                decreaseRepeatsButton.Enabled = slider.RepeatCount > 0;
+                increaseRepeatsButton.Enabled = slider.RepeatCount < 16;
             }
         }
 
@@ -81,40 +90,8 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             piece.Alpha = 1;
         }
 
-        protected override bool OnScroll(ScrollEvent e)
-        {
-            int direction = Math.Sign(e.ScrollDelta.Y);
-            if (!IsSelected || direction == 0)
-                return base.OnScroll(e);
-
-            if (e.ShiftPressed && HitObject is SticksSlider slider)
-            {
-                int repeatCount = AdjustRepeatCount(slider.RepeatCount, direction);
-                if (repeatCount != slider.RepeatCount)
-                    performUndoableChange(slider, () => slider.RepeatCount = repeatCount);
-                return true;
-            }
-
-            if (e.ControlPressed && HitObject is IHasDuration duration)
-            {
-                double step = beatSnapProvider?.GetBeatLengthAtTime(HitObject.StartTime) ?? 100;
-                double adjustedDuration = AdjustDuration(duration.Duration, step, direction);
-                if (adjustedDuration != duration.Duration)
-                    performUndoableChange(HitObject, () => duration.Duration = adjustedDuration);
-                return true;
-            }
-
-            return base.OnScroll(e);
-        }
-
         public static int AdjustRepeatCount(int repeatCount, int direction) =>
             Math.Clamp(repeatCount + Math.Sign(direction), 0, 16);
-
-        public static double AdjustDuration(double duration, double step, int direction)
-        {
-            step = Math.Max(1, step);
-            return Math.Max(step, duration + Math.Sign(direction) * step);
-        }
 
         public static float AdjustDraggedArcAngle(float rawArcAngle, bool snap)
         {
@@ -170,6 +147,16 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private bool tryGetPointerAngle(Vector2 screenSpacePosition, out float angle) =>
             SticksEditorCoordinates.TryGetPlacement(piece.ToLocalSpace(screenSpacePosition), out _, out angle);
 
+        private void adjustRepeats(int direction)
+        {
+            if (HitObject is not SticksSlider slider)
+                return;
+
+            int repeatCount = AdjustRepeatCount(slider.RepeatCount, direction);
+            if (repeatCount != slider.RepeatCount)
+                performUndoableChange(slider, () => slider.RepeatCount = repeatCount);
+        }
+
         private void performUndoableChange(HitObject hitObject, Action mutation)
         {
             if (editorBeatmap == null)
@@ -178,7 +165,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 return;
             }
 
-            editorBeatmap.BeginChange();
+            changeHandler?.BeginChange();
             try
             {
                 mutation();
@@ -186,13 +173,15 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
             finally
             {
-                editorBeatmap.EndChange();
+                changeHandler?.EndChange();
             }
         }
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
             piece.ReceiveAt(screenSpacePos)
-            || sliderTailHandle?.ReceivePositionalInputAt(screenSpacePos) == true;
+            || sliderTailHandle?.ReceivePositionalInputAt(screenSpacePos) == true
+            || decreaseRepeatsButton?.ReceivePositionalInputAt(screenSpacePos) == true
+            || increaseRepeatsButton?.ReceivePositionalInputAt(screenSpacePos) == true;
 
         public override Vector2 ScreenSpaceSelectionPoint => piece.Marker.ScreenSpaceDrawQuad.Centre;
 
@@ -240,6 +229,63 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             {
                 DragEnded?.Invoke(e);
                 base.OnDragEnd(e);
+            }
+        }
+
+        private partial class RepeatButton : CircularContainer
+        {
+            private readonly Action action;
+            private bool enabled = true;
+
+            public bool Enabled
+            {
+                get => enabled;
+                set
+                {
+                    enabled = value;
+                    Alpha = value ? 1 : 0.3f;
+                }
+            }
+
+            public RepeatButton(bool increase, Action action)
+            {
+                this.action = action;
+
+                Anchor = Anchor.TopLeft;
+                Origin = Anchor.Centre;
+                Size = new Vector2(20);
+                Masking = true;
+                BorderThickness = 2;
+                BorderColour = Color4.White;
+                Depth = -21;
+                Children = new Drawable[]
+                {
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = Color4.Black,
+                        Alpha = 0.7f,
+                    },
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(11),
+                        Icon = increase ? FontAwesome.Solid.Plus : FontAwesome.Solid.Minus,
+                        Colour = Color4.White,
+                    },
+                };
+            }
+
+            protected override bool OnMouseDown(MouseDownEvent e) => e.Button == MouseButton.Left;
+
+            protected override bool OnClick(ClickEvent e)
+            {
+                if (e.Button != MouseButton.Left || !Enabled)
+                    return false;
+
+                action();
+                return true;
             }
         }
     }

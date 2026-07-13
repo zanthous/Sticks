@@ -83,16 +83,6 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
         }
 
-        protected override bool OnScroll(ScrollEvent e)
-        {
-            if (PlacementActive != PlacementState.Active || !e.ControlPressed || e.ScrollDelta.Y == 0)
-                return base.OnScroll(e);
-
-            spatialDuration = Math.Max(minimumDuration(), spatialDuration + Math.Sign(e.ScrollDelta.Y) * minimumDuration());
-            updateDuration();
-            return true;
-        }
-
         private void updateDuration() => HitObject.Duration = Math.Max(spatialDuration, clockDuration);
 
         private double minimumDuration() => beatSnapProvider?.GetBeatLengthAtTime(HitObject.StartTime) ?? 100;

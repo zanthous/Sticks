@@ -33,13 +33,13 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     AddHeader("Editor controls");
                     AddValue("Drag tail: arc end");
                     AddValue("Shift + drag tail: snap 15°");
-                    AddValue("Shift + wheel: repeats");
-                    AddValue("Ctrl + wheel: duration");
+                    AddValue("Tail − / +: reversals");
+                    AddValue("Timeline end handle: duration");
                     break;
 
                 case SticksHold:
                     AddHeader("Editor controls");
-                    AddValue("Ctrl + wheel: duration");
+                    AddValue("Timeline end handle: duration");
                     break;
             }
         }

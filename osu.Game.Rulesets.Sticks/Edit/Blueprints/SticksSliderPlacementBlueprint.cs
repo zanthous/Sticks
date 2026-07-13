@@ -101,28 +101,6 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
         }
 
-        protected override bool OnScroll(ScrollEvent e)
-        {
-            if (PlacementActive != PlacementState.Active || e.ScrollDelta.Y == 0)
-                return base.OnScroll(e);
-
-            if (e.ControlPressed)
-            {
-                arcDuration = Math.Max(minimumDuration(), arcDuration + Math.Sign(e.ScrollDelta.Y) * minimumDuration());
-                updateDuration();
-            }
-            else if (e.ShiftPressed)
-            {
-                HitObject.RepeatCount = Math.Clamp(HitObject.RepeatCount + Math.Sign(e.ScrollDelta.Y), 0, 16);
-            }
-            else
-            {
-                return base.OnScroll(e);
-            }
-
-            return true;
-        }
-
         private void updateDuration() => HitObject.Duration = Math.Max(arcDuration, clockDuration);
 
         private double minimumDuration() => beatSnapProvider?.GetBeatLengthAtTime(HitObject.StartTime) ?? 100;

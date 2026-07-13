@@ -27,7 +27,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksHoldCompositionTool()
             : base("Hold")
         {
-            TooltipText = "Press and drag radially to place a hold; Ctrl + wheel adjusts its snapped duration";
+            TooltipText = "Press and drag radially to place a hold; edit its duration from the timeline end handle";
         }
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorHoldNote };
@@ -40,7 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksSliderCompositionTool()
             : base("Slider")
         {
-            TooltipText = "Press and trace the arc, then release; Shift snaps the end angle, Ctrl + wheel adjusts duration, and Shift + wheel adjusts repeats";
+            TooltipText = "Press and trace the arc, then release; Shift snaps the end angle, and selected sliders expose reversal buttons";
         }
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorSlider };

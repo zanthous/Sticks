@@ -22,6 +22,8 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         private InputManager inputManager;
 
+        protected bool ShiftPressed => inputManager?.CurrentState.Keyboard.ShiftPressed == true;
+
         protected override bool IsValidForPlacement => base.IsValidForPlacement && HasValidPosition;
 
         protected SticksPlacementBlueprint(T hitObject)
@@ -50,7 +52,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
             if (PlacementActive == PlacementState.Waiting)
             {
-                if (validPointer && inputManager?.CurrentState.Keyboard.ShiftPressed == true)
+                if (validPointer && ShiftPressed)
                     angle = SticksEditorCoordinates.SnapAngle(angle);
 
                 CurrentPointerAngle = angle;

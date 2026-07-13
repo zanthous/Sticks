@@ -40,7 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksSliderCompositionTool()
             : base("Slider")
         {
-            TooltipText = "Press and trace the arc, then release; Ctrl + wheel adjusts duration and Shift + wheel adjusts repeats";
+            TooltipText = "Press and trace the arc, then release; Shift snaps the end angle, Ctrl + wheel adjusts duration, and Shift + wheel adjusts repeats";
         }
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorSlider };

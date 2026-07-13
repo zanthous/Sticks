@@ -21,6 +21,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private bool hasLastPointerAngle;
         private double arcDuration;
         private double clockDuration;
+        private float pointerArcAngle;
 
         public SticksSliderPlacementBlueprint()
             : base(new SticksSlider())
@@ -39,6 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 arcDuration = clockDuration = minimumDuration();
                 updateDuration();
                 HitObject.ArcAngle = 0;
+                pointerArcAngle = 0;
                 lastPointerAngle = HitObject.Angle;
                 hasLastPointerAngle = true;
                 return true;
@@ -79,7 +81,10 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 return;
             }
 
-            HitObject.ArcAngle += SticksHitObject.DeltaAngle(lastPointerAngle, angle);
+            pointerArcAngle += SticksHitObject.DeltaAngle(lastPointerAngle, angle);
+            HitObject.ArcAngle = ShiftPressed
+                ? SticksEditorCoordinates.SnapAngleOffset(pointerArcAngle)
+                : pointerArcAngle;
             lastPointerAngle = angle;
 
             double step = minimumDuration();

@@ -38,11 +38,15 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         public static float SnapAngle(float angle, float increment = 15)
         {
+            return SticksHitObject.NormaliseAngle(SnapAngleOffset(angle, increment));
+        }
+
+        public static float SnapAngleOffset(float angleOffset, float increment = 15)
+        {
             if (!float.IsFinite(increment) || increment <= 0)
                 throw new ArgumentOutOfRangeException(nameof(increment));
 
-            float snapped = MathF.Round(angle / increment, MidpointRounding.AwayFromZero) * increment;
-            return SticksHitObject.NormaliseAngle(snapped);
+            return MathF.Round(angleOffset / increment, MidpointRounding.AwayFromZero) * increment;
         }
     }
 }

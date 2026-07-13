@@ -122,6 +122,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksEditorCoordinates.SnapAngle(7.5f), Is.EqualTo(15));
                 Assert.That(SticksEditorCoordinates.SnapAngle(82), Is.EqualTo(75));
                 Assert.That(SticksEditorCoordinates.SnapAngle(352.5f), Is.EqualTo(0));
+                Assert.That(SticksEditorCoordinates.SnapAngleOffset(22), Is.EqualTo(15));
+                Assert.That(SticksEditorCoordinates.SnapAngleOffset(-22), Is.EqualTo(-15));
+                Assert.That(SticksEditorCoordinates.SnapAngleOffset(352.5f), Is.EqualTo(360));
+                Assert.That(SticksEditorCoordinates.SnapAngleOffset(-352.5f), Is.EqualTo(-360));
             });
         }
 

@@ -368,6 +368,57 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestDifficultyAccountsForAngularPatternSeparation()
+        {
+            var crossStickClustered = new List<SticksHitObject>();
+            var crossStickWide = new List<SticksHitObject>();
+            var sameStickClustered = new List<SticksHitObject>();
+            var sameStickWide = new List<SticksHitObject>();
+
+            for (int i = 0; i < 40; i++)
+            {
+                double time = 1000 + i * 200;
+                StickSide alternatingSide = i % 2 == 0 ? StickSide.Left : StickSide.Right;
+                float wideAngle = i % 2 == 0 ? 0 : 180;
+
+                crossStickClustered.Add(new SticksFlick { StartTime = time, Side = alternatingSide, Angle = 0 });
+                crossStickWide.Add(new SticksFlick { StartTime = time, Side = alternatingSide, Angle = wideAngle });
+                sameStickClustered.Add(new SticksFlick { StartTime = time, Side = StickSide.Left, Angle = 0 });
+                sameStickWide.Add(new SticksFlick { StartTime = time, Side = StickSide.Left, Angle = wideAngle });
+            }
+
+            double crossClusteredStars = SticksDifficultyCalculator.CalculateStarRating(crossStickClustered);
+            double crossWideStars = SticksDifficultyCalculator.CalculateStarRating(crossStickWide);
+            double sameClusteredStars = SticksDifficultyCalculator.CalculateStarRating(sameStickClustered);
+            double sameWideStars = SticksDifficultyCalculator.CalculateStarRating(sameStickWide);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(crossWideStars, Is.GreaterThan(crossClusteredStars + 0.25));
+                Assert.That(sameWideStars, Is.GreaterThan(sameClusteredStars + 0.5));
+                Assert.That(sameWideStars - sameClusteredStars, Is.GreaterThan(crossWideStars - crossClusteredStars));
+            });
+        }
+
+        [Test]
+        public void TestDifficultyAccountsForChordAngularSpread()
+        {
+            var stackedChord = new SticksHitObject[]
+            {
+                new SticksFlick { StartTime = 1000, Side = StickSide.Left, Angle = 0 },
+                new SticksFlick { StartTime = 1000, Side = StickSide.Right, Angle = 0 },
+            };
+            var wideChord = new SticksHitObject[]
+            {
+                new SticksFlick { StartTime = 1000, Side = StickSide.Left, Angle = 0 },
+                new SticksFlick { StartTime = 1000, Side = StickSide.Right, Angle = 180 },
+            };
+
+            Assert.That(SticksDifficultyCalculator.CalculateStarRating(wideChord),
+                Is.GreaterThan(SticksDifficultyCalculator.CalculateStarRating(stackedChord) + 0.5));
+        }
+
+        [Test]
         public void TestVeryFastSliderRatesAboveEightStars()
         {
             double stars = SticksDifficultyCalculator.CalculateStarRating(new[]

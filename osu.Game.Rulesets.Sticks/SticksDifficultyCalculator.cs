@@ -40,6 +40,7 @@ namespace osu.Game.Rulesets.Sticks
             var previousBySide = new Dictionary<StickSide, PreviousObject>();
             var activeSliders = new List<SticksSlider>();
             var sectionPeaks = new Dictionary<int, double>();
+            SticksHitObject[] previousPattern = Array.Empty<SticksHitObject>();
             double previousTimestamp = double.NaN;
 
             foreach (IGrouping<double, SticksHitObject> timestampGroup in objects.GroupBy(hitObject => Math.Round(hitObject.StartTime, 2)))
@@ -50,6 +51,10 @@ namespace osu.Game.Rulesets.Sticks
                 double globalInterval = double.IsNaN(previousTimestamp)
                     ? double.PositiveInfinity
                     : effectiveInterval(timestamp - previousTimestamp, clockRate);
+                double chordSpread = angularSpread(simultaneous.Select(hitObject => hitObject.Angle));
+                double chordSpreadDemand = simultaneous.Length > 1
+                    ? Math.Pow(chordSpread / 90, 0.9) * 0.35
+                    : 0;
 
                 foreach (SticksHitObject current in simultaneous)
                 {
@@ -57,8 +62,11 @@ namespace osu.Game.Rulesets.Sticks
                     double sameSideInterval = hasPrevious
                         ? effectiveInterval(current.StartTime - previous.EndTime, clockRate)
                         : double.PositiveInfinity;
-                    double angleTravel = hasPrevious
+                    double sameSideAngleTravel = hasPrevious
                         ? Math.Abs(SticksHitObject.DeltaAngle(previous.ExitAngle, current.Angle))
+                        : 0;
+                    double patternAngleTravel = previousPattern.Length > 0
+                        ? previousPattern.Min(previousObject => Math.Abs(SticksHitObject.DeltaAngle(angleAt(previousObject, timestamp), current.Angle)))
                         : 0;
 
                     double globalDemand = double.IsFinite(globalInterval)
@@ -67,8 +75,11 @@ namespace osu.Game.Rulesets.Sticks
                     double sameSideDemand = double.IsFinite(sameSideInterval)
                         ? Math.Pow(320 / Math.Max(25, sameSideInterval), 1.35)
                         : 0;
-                    double angleDemand = double.IsFinite(sameSideInterval)
-                        ? angleTravel / 90 * Math.Pow(180 / Math.Max(40, sameSideInterval), 0.75)
+                    double sameSideAngleDemand = double.IsFinite(sameSideInterval)
+                        ? sameSideAngleTravel / 90 * Math.Pow(180 / Math.Max(40, sameSideInterval), 0.75)
+                        : 0;
+                    double patternAngleDemand = double.IsFinite(globalInterval) && previousPattern.Length > 0
+                        ? patternAngleTravel / 90 * Math.Pow(180 / Math.Max(40, globalInterval), 0.75)
                         : 0;
 
                     double demand;
@@ -86,20 +97,23 @@ namespace osu.Game.Rulesets.Sticks
                             ? 0
                             : Math.Log2(slider.SegmentCount + 1) * Math.Pow(0.4 / Math.Max(0.025, shortestSegmentSeconds), 1.1) * 0.6;
 
-                        demand = 0.6 + sameSideDemand * 0.3 + angleDemand * 0.3 + globalDemand * 0.35 + motionDemand + reversalDemand;
+                        demand = 0.6 + sameSideDemand * 0.3 + sameSideAngleDemand * 0.45 + patternAngleDemand * 0.2
+                                 + globalDemand * 0.35 + motionDemand + reversalDemand;
                     }
                     else if (current is SticksHold)
                     {
-                        demand = 0.5 + sameSideDemand * 0.25 + globalDemand * 0.3 + angleDemand * 0.3;
+                        demand = 0.5 + sameSideDemand * 0.25 + globalDemand * 0.3
+                                 + sameSideAngleDemand * 0.4 + patternAngleDemand * 0.2;
                     }
                     else
                     {
                         // Flicks must return to neutral. Same-stick timing therefore dominates their physical demand.
-                        demand = 0.45 + sameSideDemand + globalDemand * 0.55 + angleDemand * 0.35;
+                        demand = 0.45 + sameSideDemand + globalDemand * 0.55
+                                 + sameSideAngleDemand * 0.8 + patternAngleDemand * 0.35;
                     }
 
                     if (simultaneous.Length > 1)
-                        demand += (simultaneous.Length - 1) * 0.65;
+                        demand += (simultaneous.Length - 1) * 0.65 + chordSpreadDemand;
 
                     if (activeSliders.Any(slider => slider.Side != current.Side && slider.StartTime < timestamp && slider.EndTime > timestamp))
                         demand *= 1.15;
@@ -123,6 +137,7 @@ namespace osu.Game.Rulesets.Sticks
                         activeSliders.Add(activeSlider);
                 }
 
+                previousPattern = simultaneous;
                 previousTimestamp = timestamp;
             }
 
@@ -142,6 +157,23 @@ namespace osu.Game.Rulesets.Sticks
         }
 
         private static double effectiveInterval(double interval, double clockRate) => interval / clockRate;
+
+        private static float angleAt(SticksHitObject hitObject, double time) =>
+            hitObject is SticksSlider slider ? slider.AngleAt(time) : hitObject.Angle;
+
+        private static double angularSpread(IEnumerable<float> angles)
+        {
+            float[] values = angles.ToArray();
+            double maximum = 0;
+
+            for (int i = 0; i < values.Length; i++)
+            {
+                for (int j = i + 1; j < values.Length; j++)
+                    maximum = Math.Max(maximum, Math.Abs(SticksHitObject.DeltaAngle(values[i], values[j])));
+            }
+
+            return maximum;
+        }
 
         private readonly record struct PreviousObject(double EndTime, float ExitAngle);
 

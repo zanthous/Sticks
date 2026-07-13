@@ -592,6 +592,19 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestEditorSliderHeadSampleCrossing()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(DrawableSticksSlider.CrossedStartTime(999, 1000, 1000), Is.True);
+                Assert.That(DrawableSticksSlider.CrossedStartTime(990, 1010, 1000), Is.True);
+                Assert.That(DrawableSticksSlider.CrossedStartTime(1000, 1010, 1000), Is.False);
+                Assert.That(DrawableSticksSlider.CrossedStartTime(1010, 990, 1000), Is.False);
+                Assert.That(DrawableSticksSlider.CrossedStartTime(double.NaN, 1000, 1000), Is.False);
+            });
+        }
+
+        [Test]
         public void TestMissingSliderHeadDoesNotResolveSliderEarly()
         {
             var drawable = new DrawableSticksSlider(new SticksSlider

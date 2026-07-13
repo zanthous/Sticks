@@ -12,6 +12,7 @@ using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
+using osu.Game.Screens.Edit;
 using osuTK;
 using osuTK.Graphics;
 
@@ -35,6 +36,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private bool headHit;
         private double headHitTime;
         private StickSide? displayedSide;
+        private bool headSamplePlayed;
+        private double previousEditorTime = double.NaN;
+
+        [Resolved(CanBeNull = true)]
+        private Editor editor { get; set; }
 
         public new SticksSlider HitObject => (SticksSlider)base.HitObject;
 
@@ -97,6 +103,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             double now = Time.Current;
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
+            updateEditorHeadSample(now);
             double cueDuration = HitObject.ApproachDuration;
             bool cueActive = now >= HitObject.StartTime - cueDuration && now < HitObject.StartTime;
             double cueProgress = Math.Clamp((now - (HitObject.StartTime - cueDuration)) / Math.Max(1, cueDuration), 0, 1);
@@ -247,10 +254,41 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void playHeadSample()
         {
+            if (headSamplePlayed)
+                return;
+
+            headSamplePlayed = true;
             Samples.Volume.Value = 1;
             Samples.Frequency.Value = 1;
             base.PlaySamples();
         }
+
+        private void updateEditorHeadSample(double now)
+        {
+            if (editor == null)
+                return;
+
+            if (!double.IsNaN(previousEditorTime) && now < previousEditorTime && now < HitObject.StartTime)
+            {
+                headSamplePlayed = false;
+                headJudged = false;
+                headHit = false;
+                headHitTime = 0;
+                trackedTime = 0;
+                lastPlaybackTime = double.NaN;
+            }
+
+            if (!headSamplePlayed && CrossedStartTime(previousEditorTime, now, HitObject.StartTime))
+                playHeadSample();
+
+            previousEditorTime = now;
+        }
+
+        public static bool CrossedStartTime(double previousTime, double currentTime, double startTime) =>
+            !double.IsNaN(previousTime)
+            && currentTime >= previousTime
+            && previousTime < startTime
+            && currentTime >= startTime;
 
         protected override double InitialLifetimeOffset => HitObject.ApproachDuration;
 

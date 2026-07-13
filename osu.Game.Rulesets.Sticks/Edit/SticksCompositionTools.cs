@@ -40,7 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksSliderCompositionTool()
             : base("Slider")
         {
-            TooltipText = "Press and trace the arc, then release; Shift snaps the end angle, and selected sliders expose reversal buttons";
+            TooltipText = "Press and trace the first arc, then release; select the slider and use + at its endpoint to place each reversal point";
         }
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorSlider };

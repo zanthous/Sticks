@@ -84,8 +84,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             {
                 if (DisableReversals && authoredObject is SticksSlider { RepeatCount: > 0 } authoredSlider)
                 {
-                    authoredSlider.ArcAngle *= authoredSlider.RepeatCount + 1;
+                    float continuousArc = authoredSlider.InitialDirection * authoredSlider.TotalAngularDistance;
                     authoredSlider.RepeatCount = 0;
+                    authoredSlider.ArcAngle = continuousArc;
                 }
 
                 yield return authoredObject!;

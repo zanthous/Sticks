@@ -73,9 +73,9 @@ namespace osu.Game.Rulesets.Sticks.Replays
             for (double time = slider.StartTime; time < slider.EndTime; time += slider_sample_interval)
                 track.Set(time, vectorAt(slider.AngleAt(time)));
 
-            for (int span = 1; span < slider.SpanCount; span++)
+            for (int segment = 0; segment < slider.SegmentCount - 1; segment++)
             {
-                double reversalTime = slider.StartTime + span * slider.SpanDuration;
+                double reversalTime = slider.SegmentEndTimeAt(segment);
                 track.Set(reversalTime, vectorAt(slider.AngleAt(reversalTime)));
             }
 

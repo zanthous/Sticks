@@ -12,6 +12,7 @@ using osu.Game.Beatmaps.Formats;
 using osu.Game.IO;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
+using osu.Game.Rulesets.Objects.Legacy;
 using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Sticks.Beatmaps;
 using osu.Game.Rulesets.Sticks.Mods;
@@ -156,6 +157,35 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.Duration, Is.EqualTo(1250));
                 Assert.That(slider.ArcAngle, Is.EqualTo(-135));
                 Assert.That(slider.RepeatCount, Is.EqualTo(2));
+            });
+        }
+
+        [Test]
+        public void TestSegmentedSliderRoundTripsThroughLegacyProxyMarker()
+        {
+            var authored = new SticksSlider
+            {
+                StartTime = 3000,
+                Duration = 3500,
+                Side = StickSide.Left,
+                Angle = 10,
+            };
+            authored.SetCustomSegments(new[] { 90f, -180f, 45f });
+
+            HitObject proxy = SticksAuthoredBeatmapCodec.CreateLegacyProxy(authored);
+            Assert.That(SticksAuthoredBeatmapCodec.TryDecode(proxy, out SticksHitObject decodedObject), Is.True);
+            var decoded = (SticksSlider)decodedObject;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(proxy.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>().Single().Filename,
+                    Is.EqualTo("sticks-v2~s~l~10~3500~90_-180_45.wav"));
+                Assert.That(decoded.HasCustomSegments, Is.True);
+                Assert.That(decoded.SegmentArcAngles, Is.EqualTo(new[] { 90f, -180f, 45f }));
+                Assert.That(decoded.Duration, Is.EqualTo(3500));
+                Assert.That(decoded.SegmentDurationAt(0), Is.EqualTo(1000).Within(0.001));
+                Assert.That(decoded.SegmentDurationAt(1), Is.EqualTo(2000).Within(0.001));
+                Assert.That(decoded.SegmentDurationAt(2), Is.EqualTo(500).Within(0.001));
             });
         }
 

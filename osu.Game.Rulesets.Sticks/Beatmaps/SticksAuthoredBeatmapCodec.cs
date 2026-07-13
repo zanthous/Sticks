@@ -23,6 +23,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
     public static class SticksAuthoredBeatmapCodec
     {
         public const string MARKER_PREFIX = "sticks-v1~";
+        public const string SEGMENT_MARKER_PREFIX = "sticks-v2~";
 
         public static string EncodeMarker(SticksHitObject hitObject)
         {
@@ -31,6 +32,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             return hitObject switch
             {
+                SticksSlider { HasCustomSegments: true } slider =>
+                    $"{SEGMENT_MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{string.Join('_', slider.SegmentArcAngles.Select(segment => number(segment)))}.wav",
                 SticksSlider slider => $"{MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{number(slider.ArcAngle)}~{slider.RepeatCount}.wav",
                 SticksHold hold => $"{MARKER_PREFIX}h~{side}~{angle}~{number(hold.Duration)}.wav",
                 SticksFlick => $"{MARKER_PREFIX}f~{side}~{angle}.wav",
@@ -72,7 +75,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         public static bool IsMarker(HitSampleInfo sample) =>
             sample is ConvertHitObjectParser.FileHitSampleInfo file
-            && Path.GetFileName(file.Filename).StartsWith(MARKER_PREFIX, StringComparison.OrdinalIgnoreCase);
+            && (Path.GetFileName(file.Filename).StartsWith(MARKER_PREFIX, StringComparison.OrdinalIgnoreCase)
+                || Path.GetFileName(file.Filename).StartsWith(SEGMENT_MARKER_PREFIX, StringComparison.OrdinalIgnoreCase));
 
         public static bool TryDecode(HitObject source, out SticksHitObject? decoded)
         {
@@ -85,7 +89,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             string filename = Path.GetFileNameWithoutExtension(marker.Filename);
             string[] parts = filename.Split('~');
-            if (parts.Length < 4 || !string.Equals(parts[0], "sticks-v1", StringComparison.OrdinalIgnoreCase))
+            bool isV1 = string.Equals(parts[0], "sticks-v1", StringComparison.OrdinalIgnoreCase);
+            bool isV2 = string.Equals(parts[0], "sticks-v2", StringComparison.OrdinalIgnoreCase);
+            if (parts.Length < 4 || (!isV1 && !isV2))
                 return false;
 
             StickSide side = parts[2] switch
@@ -99,6 +105,34 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 return false;
 
             IList<HitSampleInfo> samples = decodedSamples(source, marker);
+
+            if (isV2 && parts[1] == "s" && parts.Length == 6
+                     && parse(parts[4], out double segmentedDuration) && segmentedDuration > 0)
+            {
+                string[] encodedSegments = parts[5].Split('_', StringSplitOptions.RemoveEmptyEntries);
+                var segments = new List<float>(encodedSegments.Length);
+                foreach (string encodedSegment in encodedSegments)
+                {
+                    if (!parseFloat(encodedSegment, out float segment) || Math.Abs(segment) < 1)
+                        return false;
+                    segments.Add(segment);
+                }
+
+                if (segments.Count == 0)
+                    return false;
+
+                var segmentedSlider = new SticksSlider
+                {
+                    StartTime = source.StartTime,
+                    Duration = segmentedDuration,
+                    Side = side,
+                    Angle = SticksHitObject.NormaliseAngle(angle),
+                    Samples = samples,
+                };
+                segmentedSlider.SetCustomSegments(segments);
+                decoded = segmentedSlider;
+                return true;
+            }
 
             switch (parts[1])
             {

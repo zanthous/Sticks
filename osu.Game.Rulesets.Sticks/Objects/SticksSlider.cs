@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Newtonsoft.Json;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
@@ -31,12 +32,25 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public double EndTime => StartTime + Duration;
 
         private int repeatCount;
+        private List<float> customSegmentArcAngles;
+
+        [JsonProperty("segments", Order = 100, NullValueHandling = NullValueHandling.Ignore)]
+        public List<float> SerialisedSegments
+        {
+            get => customSegmentArcAngles?.ToList();
+            set
+            {
+                if (value != null)
+                    SetCustomSegments(value);
+            }
+        }
 
         public int RepeatCount
         {
             get => repeatCount;
             set
             {
+                customSegmentArcAngles = null;
                 repeatCount = Math.Max(0, value);
                 RefreshLegacyEditorMarker();
             }
@@ -44,9 +58,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public IList<IList<HitSampleInfo>> NodeSamples { get; } = new List<IList<HitSampleInfo>>();
 
-        public int SpanCount => RepeatCount + 1;
+        public int SpanCount => SegmentCount;
 
-        public double SpanDuration => Duration / SpanCount;
+        public double SpanDuration => Duration / Math.Max(1, SpanCount);
 
         private float arcAngle;
 
@@ -55,56 +69,154 @@ namespace osu.Game.Rulesets.Sticks.Objects
             get => arcAngle;
             set
             {
+                customSegmentArcAngles = null;
                 arcAngle = value;
                 RefreshLegacyEditorMarker();
             }
         }
 
-        public int InitialDirection => ArcAngle < 0 ? -1 : 1;
+        public int SegmentCount => customSegmentArcAngles?.Count ?? RepeatCount + 1;
+
+        public bool HasCustomSegments => customSegmentArcAngles != null;
+
+        public IReadOnlyList<float> SegmentArcAngles => customSegmentArcAngles ?? createLegacySegments();
+
+        public float TotalAngularDistance => customSegmentArcAngles == null
+            ? Math.Abs(ArcAngle) * SegmentCount
+            : customSegmentArcAngles.Sum(segment => Math.Abs(segment));
+
+        public int InitialDirection => Math.Sign(SegmentArcAngleAt(0)) == 0 ? 1 : Math.Sign(SegmentArcAngleAt(0));
 
         public double TickInterval { get; private set; }
 
+        public float SegmentArcAngleAt(int index)
+        {
+            index = Math.Clamp(index, 0, SegmentCount - 1);
+            return customSegmentArcAngles?[index] ?? (index % 2 == 0 ? ArcAngle : -ArcAngle);
+        }
+
+        public float SegmentStartAngleAt(int index)
+        {
+            float result = Angle;
+            for (int i = 0; i < Math.Clamp(index, 0, SegmentCount); i++)
+                result += SegmentArcAngleAt(i);
+            return result;
+        }
+
+        public double SegmentDurationAt(int index)
+        {
+            float totalDistance = TotalAngularDistance;
+            return totalDistance <= 0
+                ? Duration / Math.Max(1, SegmentCount)
+                : Duration * Math.Abs(SegmentArcAngleAt(index)) / totalDistance;
+        }
+
+        public double SegmentStartTimeAt(int index)
+        {
+            double result = StartTime;
+            for (int i = 0; i < Math.Clamp(index, 0, SegmentCount); i++)
+                result += SegmentDurationAt(i);
+            return result;
+        }
+
+        public double SegmentEndTimeAt(int index) => SegmentStartTimeAt(index) + SegmentDurationAt(index);
+
         public float AngleAt(double time)
         {
-            return Angle + ArcAngle * (float)PathProgressAt(time);
+            int segmentIndex = SegmentIndexAt(time);
+            return SegmentStartAngleAt(segmentIndex) + SegmentArcAngleAt(segmentIndex) * (float)SegmentProgressAt(time);
         }
 
-        public int SpanIndexAt(double time)
+        public int SegmentIndexAt(double time)
         {
-            double elapsed = Math.Clamp(time - StartTime, 0, Duration);
-            return Math.Min(SpanCount - 1, (int)(elapsed / Math.Max(1, SpanDuration)));
+            double clampedTime = Math.Clamp(time, StartTime, EndTime);
+            for (int i = 0; i < SegmentCount - 1; i++)
+            {
+                if (clampedTime < SegmentEndTimeAt(i))
+                    return i;
+            }
+
+            return SegmentCount - 1;
         }
 
-        public double SpanProgressAt(double time)
+        public int SpanIndexAt(double time) => SegmentIndexAt(time);
+
+        public double SegmentProgressAt(double time)
         {
-            int spanIndex = SpanIndexAt(time);
-            double elapsedInSpan = Math.Clamp(time - StartTime - spanIndex * SpanDuration, 0, SpanDuration);
-            return elapsedInSpan / Math.Max(1, SpanDuration);
+            int segmentIndex = SegmentIndexAt(time);
+            double segmentStart = SegmentStartTimeAt(segmentIndex);
+            return Math.Clamp((time - segmentStart) / Math.Max(1, SegmentDurationAt(segmentIndex)), 0, 1);
         }
 
-        public double PathProgressAt(double time)
-        {
-            double spanProgress = SpanProgressAt(time);
-            return SpanIndexAt(time) % 2 == 0 ? spanProgress : 1 - spanProgress;
-        }
+        public double SpanProgressAt(double time) => SegmentProgressAt(time);
 
-        public bool CurrentSpanEndsWithReversal(double time) => SpanIndexAt(time) < RepeatCount;
+        public double PathProgressAt(double time) => SegmentProgressAt(time);
 
-        public (double Start, double End) RemainingPathRangeAt(double time)
-        {
-            double pathProgress = PathProgressAt(time);
-            return SpanIndexAt(time) % 2 == 0
-                ? (pathProgress, 1)
-                : (0, pathProgress);
-        }
+        public bool CurrentSpanEndsWithReversal(double time) => SegmentIndexAt(time) < SegmentCount - 1;
 
-        public double RehearsalStartTime => Math.Max(StartTime - ApproachDuration, StartTime - SpanDuration);
+        public (double Start, double End) RemainingPathRangeAt(double time) => (SegmentProgressAt(time), 1);
+
+        public double RehearsalStartTime => Math.Max(StartTime - ApproachDuration, StartTime - SegmentDurationAt(0));
 
         public double RehearsalProgressAt(double time) =>
-            Math.Clamp((time - RehearsalStartTime) / Math.Max(1, SpanDuration), 0, 1);
+            Math.Clamp((time - RehearsalStartTime) / Math.Max(1, SegmentDurationAt(0)), 0, 1);
 
         public double AvailableTrackingDuration(double headHitTime) =>
             Math.Max(1, EndTime - Math.Max(StartTime, headHitTime));
+
+        public void SetCustomSegments(IEnumerable<float> segments)
+        {
+            List<float> values = segments.Where(segment => float.IsFinite(segment) && Math.Abs(segment) >= 1).ToList();
+            if (values.Count == 0)
+                throw new ArgumentException("A slider requires at least one non-zero segment.", nameof(segments));
+
+            customSegmentArcAngles = values;
+            arcAngle = values[0];
+            repeatCount = values.Count - 1;
+            RefreshLegacyEditorMarker();
+        }
+
+        public void ReplaceFinalSegment(float segmentArcAngle)
+        {
+            List<float> segments = SegmentArcAngles.ToList();
+            segments[^1] = segmentArcAngle;
+            SetCustomSegments(segments);
+        }
+
+        public void AppendSegmentAtConstantSpeed(float segmentArcAngle)
+        {
+            float totalDistance = TotalAngularDistance;
+            double degreesPerMillisecond = totalDistance / Math.Max(1, Duration);
+            List<float> segments = SegmentArcAngles.ToList();
+            segments.Add(segmentArcAngle);
+            double addedDuration = Math.Abs(segmentArcAngle) / Math.Max(0.001, degreesPerMillisecond);
+            SetCustomSegments(segments);
+            Duration += addedDuration;
+        }
+
+        public bool RemoveFinalSegmentAtConstantSpeed()
+        {
+            if (SegmentCount <= 1)
+                return false;
+
+            float totalDistance = TotalAngularDistance;
+            double degreesPerMillisecond = totalDistance / Math.Max(1, Duration);
+            List<float> segments = SegmentArcAngles.ToList();
+            float removed = segments[^1];
+            segments.RemoveAt(segments.Count - 1);
+            double reducedDuration = Math.Max(1, Duration - Math.Abs(removed) / Math.Max(0.001, degreesPerMillisecond));
+            SetCustomSegments(segments);
+            Duration = reducedDuration;
+            return true;
+        }
+
+        private List<float> createLegacySegments()
+        {
+            var result = new List<float>(RepeatCount + 1);
+            for (int i = 0; i <= RepeatCount; i++)
+                result.Add(i % 2 == 0 ? ArcAngle : -ArcAngle);
+            return result;
+        }
 
         protected override void ApplyDefaultsToSelf(ControlPointInfo controlPointInfo, IBeatmapDifficultyInfo difficulty)
         {
@@ -126,11 +238,12 @@ namespace osu.Game.Rulesets.Sticks.Objects
                     ? new HitSampleInfo("slidertick", volume: sourceSample?.Volume ?? 100)
                     : sourceSample.With("slidertick");
 
-                for (int span = 0; span < SpanCount; span++)
+                for (int segment = 0; segment < SegmentCount; segment++)
                 {
-                    double spanStartTime = StartTime + span * SpanDuration;
+                    double segmentStartTime = SegmentStartTimeAt(segment);
+                    double segmentDuration = SegmentDurationAt(segment);
 
-                    for (double tickTime = spanStartTime + TickInterval; tickTime < spanStartTime + SpanDuration - 10; tickTime += TickInterval)
+                    for (double tickTime = segmentStartTime + TickInterval; tickTime < segmentStartTime + segmentDuration - 10; tickTime += TickInterval)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
 
@@ -146,50 +259,49 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 }
             }
 
-            for (int repeatIndex = 0; repeatIndex < RepeatCount; repeatIndex++)
+            for (int reversalIndex = 0; reversalIndex < SegmentCount - 1; reversalIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                double repeatTime = StartTime + (repeatIndex + 1) * SpanDuration;
-                int directionAfter = repeatIndex % 2 == 0 ? -Math.Sign(ArcAngle) : Math.Sign(ArcAngle);
-
+                double reversalTime = SegmentEndTimeAt(reversalIndex);
                 AddNested(new SticksSliderRepeat
                 {
-                    StartTime = repeatTime,
+                    StartTime = reversalTime,
                     SliderStartTime = StartTime,
-                    SpanDuration = SpanDuration,
-                    RepeatIndex = repeatIndex,
-                    DirectionAfter = directionAfter,
+                    SpanDuration = SegmentDurationAt(reversalIndex),
+                    RepeatIndex = reversalIndex,
+                    DirectionAfter = Math.Sign(SegmentArcAngleAt(reversalIndex + 1)),
                     Side = Side,
-                    Angle = AngleAt(repeatTime),
-                    Samples = samplesAtNode(repeatIndex + 1),
+                    Angle = AngleAt(reversalTime),
+                    Samples = samplesAtNode(reversalIndex + 1),
                 });
             }
 
-            double absoluteArc = Math.Abs(ArcAngle);
-            if (absoluteArc > 360)
+            for (int segment = 0; segment < SegmentCount; segment++)
             {
-                double loopDuration = SpanDuration * 360 / absoluteArc;
+                float segmentArc = SegmentArcAngleAt(segment);
+                double absoluteArc = Math.Abs(segmentArc);
+                if (absoluteArc <= 360)
+                    continue;
 
-                for (int span = 0; span < SpanCount; span++)
+                double segmentStart = SegmentStartTimeAt(segment);
+                double segmentDuration = SegmentDurationAt(segment);
+                double loopDuration = segmentDuration * 360 / absoluteArc;
+
+                for (int loop = 1; loop * 360 < absoluteArc - 0.001; loop++)
                 {
-                    int direction = Math.Sign(ArcAngle) * (span % 2 == 0 ? 1 : -1);
-
-                    for (int loop = 1; loop * 360 < absoluteArc - 0.001; loop++)
+                    double extensionTime = segmentStart + loop * loopDuration;
+                    AddNested(new SticksSliderExtension
                     {
-                        double extensionTime = StartTime + span * SpanDuration + loop * loopDuration;
-                        AddNested(new SticksSliderExtension
-                        {
-                            StartTime = extensionTime,
-                            SliderStartTime = StartTime,
-                            LoopDuration = loopDuration,
-                            LoopIndex = loop,
-                            Direction = direction,
-                            Side = Side,
-                            Angle = AngleAt(extensionTime),
-                            Samples = new[] { new HitSampleInfo("slidertick") },
-                        });
-                    }
+                        StartTime = extensionTime,
+                        SliderStartTime = StartTime,
+                        LoopDuration = loopDuration,
+                        LoopIndex = loop,
+                        Direction = Math.Sign(segmentArc),
+                        Side = Side,
+                        Angle = AngleAt(extensionTime),
+                        Samples = new[] { new HitSampleInfo("slidertick") },
+                    });
                 }
             }
 
@@ -199,7 +311,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 SliderStartTime = StartTime,
                 Side = Side,
                 Angle = AngleAt(EndTime),
-                Samples = samplesAtNode(RepeatCount + 1),
+                Samples = samplesAtNode(SegmentCount),
             });
         }
 

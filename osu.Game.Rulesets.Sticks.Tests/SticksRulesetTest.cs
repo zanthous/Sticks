@@ -109,10 +109,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Assert.Multiple(() =>
             {
-                Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(2, 1), Is.EqualTo(3));
-                Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(0, -1), Is.Zero);
-                Assert.That(SticksSelectionBlueprint.AdjustRepeatCount(16, 1), Is.EqualTo(16));
-
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, false), Is.EqualTo(82));
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, true), Is.EqualTo(75));
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(-82, true), Is.EqualTo(-75));
@@ -128,6 +124,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksEditorCoordinates.SnapAngleOffset(-22), Is.EqualTo(-15));
                 Assert.That(SticksEditorCoordinates.SnapAngleOffset(352.5f), Is.EqualTo(360));
                 Assert.That(SticksEditorCoordinates.SnapAngleOffset(-352.5f), Is.EqualTo(-360));
+
+                Assert.That(SticksSelectionBlueprint.ReversalArcTo(90, 0, 1, false), Is.EqualTo(-90));
+                Assert.That(SticksSelectionBlueprint.ReversalArcTo(90, 180, -1, false), Is.EqualTo(90));
+                Assert.That(SticksSelectionBlueprint.ReversalArcTo(90, 2, 1, true), Is.EqualTo(-90));
             });
         }
 
@@ -658,7 +658,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestCompletedSliderPathSnakesOutAcrossRepeats()
+        public void TestCompletedSliderPathClearsCurrentSegment()
         {
             var slider = new SticksSlider
             {
@@ -672,10 +672,44 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.RemainingPathRangeAt(1000), Is.EqualTo((0d, 1d)));
                 Assert.That(slider.RemainingPathRangeAt(1500), Is.EqualTo((0.5d, 1d)));
                 Assert.That(slider.RemainingPathRangeAt(2000), Is.EqualTo((0d, 1d)));
-                Assert.That(slider.RemainingPathRangeAt(2500), Is.EqualTo((0d, 0.5d)));
-                Assert.That(slider.RemainingPathRangeAt(3000), Is.EqualTo((0d, 0d)));
+                Assert.That(slider.RemainingPathRangeAt(2500), Is.EqualTo((0.5d, 1d)));
+                Assert.That(slider.RemainingPathRangeAt(3000), Is.EqualTo((1d, 1d)));
                 Assert.That(slider.CurrentSpanEndsWithReversal(1500), Is.True);
                 Assert.That(slider.CurrentSpanEndsWithReversal(2500), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestSegmentedSliderKeepsOneAngularSpeed()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3500,
+                Angle = 10,
+            };
+            slider.SetCustomSegments(new[] { 90f, -180f, 45f });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.TotalAngularDistance, Is.EqualTo(315));
+                Assert.That(slider.SegmentDurationAt(0), Is.EqualTo(1000).Within(0.001));
+                Assert.That(slider.SegmentDurationAt(1), Is.EqualTo(2000).Within(0.001));
+                Assert.That(slider.SegmentDurationAt(2), Is.EqualTo(500).Within(0.001));
+                Assert.That(slider.AngleAt(2000), Is.EqualTo(100).Within(0.001));
+                Assert.That(slider.AngleAt(4000), Is.EqualTo(-80).Within(0.001));
+                Assert.That(slider.AngleAt(4500), Is.EqualTo(-35).Within(0.001));
+            });
+
+            double speed = slider.TotalAngularDistance / slider.Duration;
+            slider.AppendSegmentAtConstantSpeed(-90);
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.Duration, Is.EqualTo(4500).Within(0.001));
+                Assert.That(slider.TotalAngularDistance / slider.Duration, Is.EqualTo(speed).Within(0.000001));
+                Assert.That(slider.RemoveFinalSegmentAtConstantSpeed(), Is.True);
+                Assert.That(slider.Duration, Is.EqualTo(3500).Within(0.001));
+                Assert.That(slider.TotalAngularDistance / slider.Duration, Is.EqualTo(speed).Within(0.000001));
             });
         }
 

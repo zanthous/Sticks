@@ -110,10 +110,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double headGrowth = SticksHitObject.ApproachGrowthProgress(cueProgress);
             headMarker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + 0.8 * headGrowth);
             (double remainingStart, double remainingEnd) = HitObject.RemainingPathRangeAt(now);
-            setVisibleRange(path, HitObject, remainingStart, remainingEnd);
+            int segmentIndex = active ? HitObject.SegmentIndexAt(now) : 0;
+            setVisibleRange(path, HitObject.SegmentStartAngleAt(segmentIndex), HitObject.SegmentArcAngleAt(segmentIndex), remainingStart, remainingEnd);
             path.Alpha = active ? 1 : 0;
             updateDirectionPreview(now, cueActive, active);
-            updateReversalOutline(now, cueActive, active, remainingStart, remainingEnd);
+            updateReversalOutline(now, cueActive, active, segmentIndex, remainingStart, remainingEnd);
 
             updateHeadCue(now, cueActive);
 
@@ -164,14 +165,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double rehearsalProgress = cueActive && now >= HitObject.RehearsalStartTime
                 ? HitObject.RehearsalProgressAt(now)
                 : 0;
-            setVisibleRange(directionPreview, HitObject, 0, active ? 1 : rehearsalProgress);
+            setVisibleRange(directionPreview, HitObject.Angle, HitObject.SegmentArcAngleAt(0), 0, active ? 1 : rehearsalProgress);
 
             directionPreview.Alpha = active
                 ? 0
                 : rehearsalProgress > 0 ? (float)(0.18 + rehearsalProgress * 0.1) : 0;
         }
 
-        private void updateReversalOutline(double now, bool cueActive, bool active, double remainingStart, double remainingEnd)
+        private void updateReversalOutline(double now, bool cueActive, bool active, int segmentIndex, double remainingStart, double remainingEnd)
         {
             reversalOutline.Alpha = 0;
             reversalPreviewOutline.Alpha = 0;
@@ -181,7 +182,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             if (active)
             {
-                setVisibleRange(reversalOutline, HitObject, remainingStart, remainingEnd);
+                setVisibleRange(reversalOutline, HitObject.SegmentStartAngleAt(segmentIndex), HitObject.SegmentArcAngleAt(segmentIndex), remainingStart, remainingEnd);
                 reversalOutline.Alpha = 1;
                 return;
             }
@@ -189,7 +190,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double rehearsalProgress = now >= HitObject.RehearsalStartTime
                 ? HitObject.RehearsalProgressAt(now)
                 : 0;
-            setVisibleRange(reversalPreviewOutline, HitObject, 0, rehearsalProgress);
+            setVisibleRange(reversalPreviewOutline, HitObject.Angle, HitObject.SegmentArcAngleAt(0), 0, rehearsalProgress);
             reversalPreviewOutline.Alpha = rehearsalProgress > 0 ? 1 : 0;
         }
 
@@ -370,15 +371,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             drawable.Colour = colour;
         }
 
-        private static void setVisibleRange(CircularProgress drawable, SticksSlider slider, double start, double end)
+        private static void setVisibleRange(CircularProgress drawable, float segmentStartAngle, float segmentArcAngle, double start, double end)
         {
             start = Math.Clamp(start, 0, 1);
             end = Math.Clamp(end, start, 1);
-            double clockwiseStart = slider.ArcAngle >= 0
-                ? slider.Angle + slider.ArcAngle * start
-                : slider.Angle + slider.ArcAngle * end;
+            double clockwiseStart = segmentArcAngle >= 0
+                ? segmentStartAngle + segmentArcAngle * start
+                : segmentStartAngle + segmentArcAngle * end;
             drawable.Rotation = (float)(90 + clockwiseStart);
-            drawable.Progress = (float)(Math.Abs(slider.ArcAngle) * (end - start) / 360);
+            drawable.Progress = (float)(Math.Abs(segmentArcAngle) * (end - start) / 360);
         }
 
         private static Color4 colourFor(StickSide side) => side == StickSide.Left

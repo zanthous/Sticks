@@ -9,6 +9,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
@@ -25,11 +26,14 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
     {
         private readonly SticksBlueprintPiece piece;
         private readonly SliderTailHandle? sliderTailHandle;
-        private readonly RepeatButton? decreaseRepeatsButton;
-        private readonly RepeatButton? increaseRepeatsButton;
+        private readonly SegmentButton? removeSegmentButton;
+        private readonly SegmentButton? appendSegmentButton;
+        private readonly CircularProgress? continuationPreview;
         private float dragArcAngle;
         private float lastDragPointerAngle;
         private float originalDragArcAngle;
+        private bool placingContinuation;
+        private float pendingContinuationArc;
 
         [Resolved]
         private EditorBeatmap? editorBeatmap { get; set; }
@@ -50,8 +54,17 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                     Dragged = dragTail,
                     DragEnded = endTailDrag,
                 });
-                AddInternal(decreaseRepeatsButton = new RepeatButton(false, () => adjustRepeats(-1)));
-                AddInternal(increaseRepeatsButton = new RepeatButton(true, () => adjustRepeats(1)));
+                AddInternal(removeSegmentButton = new SegmentButton(false, removeFinalSegment));
+                AddInternal(appendSegmentButton = new SegmentButton(true, beginContinuationPlacement));
+                AddInternal(continuationPreview = new CircularProgress
+                {
+                    Anchor = Anchor.TopLeft,
+                    Origin = Anchor.Centre,
+                    Position = new Vector2(SticksPlayfield.SIZE / 2),
+                    RoundedCaps = true,
+                    Alpha = 0,
+                    Depth = -19,
+                });
             }
         }
 
@@ -62,25 +75,26 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
             if (sliderTailHandle != null && HitObject is SticksSlider slider)
             {
-                sliderTailHandle.Position = SticksPlayfield.PointAt(
-                    slider.Angle + slider.ArcAngle,
-                    SticksPlayfield.RadiusFor(slider.Side));
+                float terminalAngle = slider.SegmentStartAngleAt(slider.SegmentCount);
+                sliderTailHandle.Position = SticksPlayfield.PointAt(terminalAngle, SticksPlayfield.RadiusFor(slider.Side));
                 sliderTailHandle.FillColour = slider.Side == StickSide.Left
                     ? SticksPlayfield.LEFT_COLOUR
                     : SticksPlayfield.RIGHT_COLOUR;
 
-                float tailAngle = slider.Angle + slider.ArcAngle;
-                float radians = (tailAngle + 90) * MathF.PI / 180;
+                float radians = (terminalAngle + 90) * MathF.PI / 180;
                 Vector2 tangent = new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * 27;
-                decreaseRepeatsButton!.Position = sliderTailHandle.Position - tangent;
-                increaseRepeatsButton!.Position = sliderTailHandle.Position + tangent;
-                decreaseRepeatsButton.Enabled = slider.RepeatCount > 0;
-                increaseRepeatsButton.Enabled = slider.RepeatCount < 16;
+                removeSegmentButton!.Position = sliderTailHandle.Position - tangent;
+                appendSegmentButton!.Position = sliderTailHandle.Position + tangent;
+                removeSegmentButton.Enabled = slider.SegmentCount > 1 && !placingContinuation;
+                appendSegmentButton.Enabled = slider.SegmentCount < 16 && !placingContinuation;
+
+                updateContinuationPreview(slider, terminalAngle);
             }
         }
 
         protected override void OnDeselected()
         {
+            placingContinuation = false;
             base.OnDeselected();
         }
 
@@ -89,9 +103,6 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             base.OnSelected();
             piece.Alpha = 1;
         }
-
-        public static int AdjustRepeatCount(int repeatCount, int direction) =>
-            Math.Clamp(repeatCount + Math.Sign(direction), 0, 16);
 
         public static float AdjustDraggedArcAngle(float rawArcAngle, bool snap)
         {
@@ -107,12 +118,25 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             return adjusted;
         }
 
+        public static float ReversalArcTo(float startAngle, float targetAngle, int previousDirection, bool snap)
+        {
+            int requiredDirection = Math.Sign(previousDirection) >= 0 ? -1 : 1;
+            float arc = SticksHitObject.DeltaAngle(startAngle, targetAngle);
+
+            if (requiredDirection > 0 && arc <= 0)
+                arc += 360;
+            else if (requiredDirection < 0 && arc >= 0)
+                arc -= 360;
+
+            return AdjustDraggedArcAngle(arc, snap);
+        }
+
         private bool beginTailDrag(DragStartEvent e)
         {
             if (HitObject is not SticksSlider slider || !tryGetPointerAngle(e.ScreenSpaceMousePosition, out lastDragPointerAngle))
                 return false;
 
-            originalDragArcAngle = dragArcAngle = slider.ArcAngle;
+            originalDragArcAngle = dragArcAngle = slider.SegmentArcAngleAt(slider.SegmentCount - 1);
             changeHandler?.BeginChange();
             return true;
         }
@@ -126,18 +150,18 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             lastDragPointerAngle = pointerAngle;
 
             float adjusted = AdjustDraggedArcAngle(dragArcAngle, e.ShiftPressed);
-            if (Math.Abs(slider.ArcAngle - adjusted) < 0.001f)
+            if (Math.Abs(slider.SegmentArcAngleAt(slider.SegmentCount - 1) - adjusted) < 0.001f)
                 return;
 
-            slider.ArcAngle = adjusted;
+            slider.ReplaceFinalSegment(adjusted);
             editorBeatmap?.Update(slider);
         }
 
         private void endTailDrag(DragEndEvent e)
         {
-            if (HitObject is SticksSlider slider && Math.Abs(slider.ArcAngle) < 1)
+            if (HitObject is SticksSlider slider && Math.Abs(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) < 1)
             {
-                slider.ArcAngle = MathF.CopySign(1, originalDragArcAngle);
+                slider.ReplaceFinalSegment(MathF.CopySign(1, originalDragArcAngle));
                 editorBeatmap?.Update(slider);
             }
 
@@ -147,14 +171,76 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private bool tryGetPointerAngle(Vector2 screenSpacePosition, out float angle) =>
             SticksEditorCoordinates.TryGetPlacement(piece.ToLocalSpace(screenSpacePosition), out _, out angle);
 
-        private void adjustRepeats(int direction)
+        private void beginContinuationPlacement()
         {
-            if (HitObject is not SticksSlider slider)
+            if (HitObject is not SticksSlider slider || slider.SegmentCount >= 16)
                 return;
 
-            int repeatCount = AdjustRepeatCount(slider.RepeatCount, direction);
-            if (repeatCount != slider.RepeatCount)
-                performUndoableChange(slider, () => slider.RepeatCount = repeatCount);
+            placingContinuation = true;
+            pendingContinuationArc = -Math.Sign(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) * 15;
+        }
+
+        private void removeFinalSegment()
+        {
+            if (HitObject is SticksSlider slider && slider.SegmentCount > 1)
+                performUndoableChange(slider, () => slider.RemoveFinalSegmentAtConstantSpeed());
+        }
+
+        protected override bool OnMouseDown(MouseDownEvent e)
+        {
+            if (!placingContinuation || HitObject is not SticksSlider slider)
+                return base.OnMouseDown(e);
+
+            if (e.Button == MouseButton.Right)
+            {
+                placingContinuation = false;
+                return true;
+            }
+
+            if (e.Button != MouseButton.Left)
+                return true;
+
+            float segment = pendingContinuationArc;
+            placingContinuation = false;
+            performUndoableChange(slider, () => slider.AppendSegmentAtConstantSpeed(segment));
+            return true;
+        }
+
+        protected override bool OnMouseMove(MouseMoveEvent e)
+        {
+            if (placingContinuation && HitObject is SticksSlider slider && tryGetPointerAngle(e.ScreenSpaceMousePosition, out float pointerAngle))
+            {
+                float terminalAngle = slider.SegmentStartAngleAt(slider.SegmentCount);
+                pendingContinuationArc = ReversalArcTo(
+                    terminalAngle,
+                    pointerAngle,
+                    Math.Sign(slider.SegmentArcAngleAt(slider.SegmentCount - 1)),
+                    e.ShiftPressed);
+            }
+
+            return base.OnMouseMove(e);
+        }
+
+        private void updateContinuationPreview(SticksSlider slider, float terminalAngle)
+        {
+            if (continuationPreview == null)
+                return;
+
+            if (!placingContinuation)
+            {
+                continuationPreview.Alpha = 0;
+                return;
+            }
+
+            float radius = SticksPlayfield.RadiusFor(slider.Side);
+            const float halfThickness = 4;
+            float outerRadius = radius + halfThickness;
+            continuationPreview.Size = new Vector2(outerRadius * 2);
+            continuationPreview.InnerRadius = 2 * halfThickness / outerRadius;
+            continuationPreview.Colour = slider.Side == StickSide.Left ? SticksPlayfield.LEFT_COLOUR : SticksPlayfield.RIGHT_COLOUR;
+            continuationPreview.Rotation = 90 + (pendingContinuationArc >= 0 ? terminalAngle : terminalAngle + pendingContinuationArc);
+            continuationPreview.Progress = Math.Abs(pendingContinuationArc) / 360;
+            continuationPreview.Alpha = 0.55f;
         }
 
         private void performUndoableChange(HitObject hitObject, Action mutation)
@@ -177,11 +263,19 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
         }
 
-        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
-            piece.ReceiveAt(screenSpacePos)
-            || sliderTailHandle?.ReceivePositionalInputAt(screenSpacePos) == true
-            || decreaseRepeatsButton?.ReceivePositionalInputAt(screenSpacePos) == true
-            || increaseRepeatsButton?.ReceivePositionalInputAt(screenSpacePos) == true;
+        public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
+        {
+            if (placingContinuation
+                && HitObject is SticksSlider slider
+                && SticksEditorCoordinates.TryGetPlacement(piece.ToLocalSpace(screenSpacePos), out StickSide side, out _)
+                && side == slider.Side)
+                return true;
+
+            return piece.ReceiveAt(screenSpacePos)
+                   || sliderTailHandle?.ReceivePositionalInputAt(screenSpacePos) == true
+                   || removeSegmentButton?.ReceivePositionalInputAt(screenSpacePos) == true
+                   || appendSegmentButton?.ReceivePositionalInputAt(screenSpacePos) == true;
+        }
 
         public override Vector2 ScreenSpaceSelectionPoint => piece.Marker.ScreenSpaceDrawQuad.Centre;
 
@@ -232,7 +326,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
         }
 
-        private partial class RepeatButton : CircularContainer
+        private partial class SegmentButton : CircularContainer
         {
             private readonly Action action;
             private bool enabled = true;
@@ -247,7 +341,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 }
             }
 
-            public RepeatButton(bool increase, Action action)
+            public SegmentButton(bool increase, Action action)
             {
                 this.action = action;
 
@@ -277,7 +371,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 };
             }
 
-            protected override bool OnMouseDown(MouseDownEvent e) => e.Button == MouseButton.Left;
+            protected override bool OnMouseDown(MouseDownEvent e) => Enabled && e.Button == MouseButton.Left;
 
             protected override bool OnClick(ClickEvent e)
             {

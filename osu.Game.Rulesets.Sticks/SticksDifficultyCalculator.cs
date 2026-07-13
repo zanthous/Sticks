@@ -75,12 +75,16 @@ namespace osu.Game.Rulesets.Sticks
 
                     if (current is SticksSlider slider)
                     {
-                        double effectiveSpanSeconds = Math.Max(0.025, slider.SpanDuration / 1000 / clockRate);
-                        double angularVelocity = Math.Abs(slider.ArcAngle) / effectiveSpanSeconds;
+                        double effectiveDurationSeconds = Math.Max(0.025, slider.Duration / 1000 / clockRate);
+                        double angularVelocity = slider.TotalAngularDistance / effectiveDurationSeconds;
                         double motionDemand = Math.Pow(angularVelocity / 100, 1.25);
-                        double reversalDemand = slider.RepeatCount == 0
+                        double shortestSegmentSeconds = Enumerable.Range(0, slider.SegmentCount)
+                                                                  .Select(slider.SegmentDurationAt)
+                                                                  .DefaultIfEmpty(slider.Duration)
+                                                                  .Min() / 1000 / clockRate;
+                        double reversalDemand = slider.SegmentCount == 1
                             ? 0
-                            : Math.Log2(slider.SpanCount + 1) * Math.Pow(0.4 / effectiveSpanSeconds, 1.1) * 0.6;
+                            : Math.Log2(slider.SegmentCount + 1) * Math.Pow(0.4 / Math.Max(0.025, shortestSegmentSeconds), 1.1) * 0.6;
 
                         demand = 0.6 + sameSideDemand * 0.3 + angleDemand * 0.3 + globalDemand * 0.35 + motionDemand + reversalDemand;
                     }

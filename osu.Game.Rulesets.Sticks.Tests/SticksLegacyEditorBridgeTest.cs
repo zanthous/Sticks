@@ -240,6 +240,57 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestStockChangeHandlerPreservesSegmentedSliderPath()
+        {
+            SticksRuleset ruleset = new SticksRuleset();
+            RulesetInfo persistedRuleset = ruleset.RulesetInfo.Clone();
+            var playable = new Beatmap<SticksHitObject>
+            {
+                BeatmapInfo = new BeatmapInfo(persistedRuleset.Clone()),
+            };
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                Side = StickSide.Left,
+                Angle = 0,
+            };
+            slider.SetCustomSegments(new[] { 90f, -180f });
+            playable.HitObjects.Add(slider);
+
+            var editorBeatmap = new EditorBeatmap(playable, beatmapInfo: new BeatmapInfo(persistedRuleset));
+            var changeHandler = new BeatmapEditorChangeHandler(editorBeatmap);
+            Assert.That(markerFilename(slider), Is.EqualTo("sticks-v2~s~l~0~3000~90_-180.wav"));
+            editorBeatmap.SelectedHitObjects.Add(slider);
+            editorBeatmap.PerformOnSelection(hitObject => ((SticksSlider)hitObject).AppendSegmentAtConstantSpeed(45));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(((SticksSlider)editorBeatmap.HitObjects.Single()).SegmentArcAngles, Is.EqualTo(new[] { 90f, -180f, 45f }));
+                Assert.That(markerFilename((SticksSlider)editorBeatmap.HitObjects.Single()), Is.EqualTo("sticks-v2~s~l~0~3500~90_-180_45.wav"));
+            });
+
+            changeHandler.RestoreState(-1);
+            Assert.Multiple(() =>
+            {
+                var undone = (SticksSlider)editorBeatmap.HitObjects.Single();
+                Assert.That(undone.HasCustomSegments, Is.True);
+                Assert.That(undone.SegmentArcAngles, Is.EqualTo(new[] { 90f, -180f }));
+                Assert.That(markerFilename(undone), Is.EqualTo("sticks-v2~s~l~0~3000~90_-180.wav"));
+                Assert.That(undone.Duration, Is.EqualTo(3000).Within(0.001));
+            });
+
+            changeHandler.RestoreState(1);
+            Assert.Multiple(() =>
+            {
+                var redone = (SticksSlider)editorBeatmap.HitObjects.Single();
+                Assert.That(redone.HasCustomSegments, Is.True);
+                Assert.That(redone.SegmentArcAngles, Is.EqualTo(new[] { 90f, -180f, 45f }));
+                Assert.That(redone.Duration, Is.EqualTo(3500).Within(0.001));
+            });
+        }
+
+        [Test]
         public void TestCarrierProjectionIsExcludedFromClipboardJson()
         {
             var flick = new SticksFlick
@@ -280,6 +331,33 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(roundTripped.Side, Is.EqualTo(StickSide.Right));
                 Assert.That(roundTripped.Angle, Is.EqualTo(271.25f));
                 Assert.That(markerFilename(roundTripped), Is.EqualTo("sticks-v1~f~r~271.25.wav"));
+            });
+        }
+
+        [Test]
+        public void TestSegmentedSliderPathSurvivesClipboardJson()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3500,
+                Side = StickSide.Right,
+                Angle = 30,
+            };
+            slider.SetCustomSegments(new[] { 90f, -180f, 45f });
+
+            string json = new ClipboardContent
+            {
+                HitObjects = new HitObject[] { slider },
+            }.Serialize();
+            var roundTripped = (SticksSlider)json.Deserialize<ClipboardContent>().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(json, Does.Contain("\"segments\""));
+                Assert.That(roundTripped.HasCustomSegments, Is.True);
+                Assert.That(roundTripped.SegmentArcAngles, Is.EqualTo(new[] { 90f, -180f, 45f }));
+                Assert.That(roundTripped.Duration, Is.EqualTo(3500));
             });
         }
 

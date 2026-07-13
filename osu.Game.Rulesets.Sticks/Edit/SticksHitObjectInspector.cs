@@ -26,15 +26,18 @@ namespace osu.Game.Rulesets.Sticks.Edit
             switch (sticks)
             {
                 case SticksSlider slider:
-                    AddHeader("Arc");
-                    AddValue($"{slider.ArcAngle:+0.###;-0.###;0}°");
-                    AddValue($"End {SticksHitObject.NormaliseAngle(slider.Angle + slider.ArcAngle):0.###}°");
-                    AddValue($"{Math.Abs(slider.ArcAngle) / Math.Max(0.001, slider.SpanDuration / 1000):0.##}°/s");
+                    AddHeader("Path");
+                    AddValue($"{slider.SegmentCount} segment{(slider.SegmentCount == 1 ? string.Empty : "s")}");
+                    AddValue($"{slider.TotalAngularDistance:0.###}° total");
+                    AddValue($"End {SticksHitObject.NormaliseAngle(slider.SegmentStartAngleAt(slider.SegmentCount)):0.###}°");
+                    AddValue($"{slider.TotalAngularDistance / Math.Max(0.001, slider.Duration / 1000):0.##}°/s (constant)");
                     AddHeader("Editor controls");
-                    AddValue("Drag tail: arc end");
+                    AddValue("Drag tail: final point");
                     AddValue("Shift + drag tail: snap 15°");
-                    AddValue("Tail − / +: reversals");
-                    AddValue("Timeline end handle: duration");
+                    AddValue("Tail +: place next reversal point");
+                    AddValue("Tail −: remove final point");
+                    AddValue("Right-click: cancel point placement");
+                    AddValue("Timeline end handle: duration / global speed");
                     break;
 
                 case SticksHold:

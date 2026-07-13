@@ -28,8 +28,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private StickSide displayedSide;
         private float displayedAngle;
         private int displayedKind;
-        private float displayedArcAngle;
-        private int displayedRepeatCount;
+        private int displayedSegmentSignature;
         private double displayedDuration;
 
         public Drawable Marker => selectionMarker;
@@ -76,16 +75,19 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         public void UpdateFrom(SticksHitObject hitObject)
         {
             int kind = hitObject is SticksSlider ? 2 : hitObject is SticksHold ? 1 : 0;
-            float arcAngle = hitObject is SticksSlider sliderValue ? sliderValue.ArcAngle : 0;
-            int repeatCount = hitObject is SticksSlider repeatSlider ? repeatSlider.RepeatCount : 0;
-            double duration = hitObject is SticksHold holdValue ? holdValue.Duration : 0;
+            int segmentSignature = hitObject is SticksSlider sliderValue ? segmentHash(sliderValue) : 0;
+            double duration = hitObject switch
+            {
+                SticksSlider sliderDuration => sliderDuration.Duration,
+                SticksHold holdValue => holdValue.Duration,
+                _ => 0,
+            };
 
             if (hasDisplayedGeometry
                 && displayedSide == hitObject.Side
                 && Math.Abs(displayedAngle - hitObject.Angle) < 0.001f
                 && displayedKind == kind
-                && Math.Abs(displayedArcAngle - arcAngle) < 0.001f
-                && displayedRepeatCount == repeatCount
+                && displayedSegmentSignature == segmentSignature
                 && Math.Abs(displayedDuration - duration) < 0.001)
                 return;
 
@@ -93,8 +95,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             displayedSide = hitObject.Side;
             displayedAngle = hitObject.Angle;
             displayedKind = kind;
-            displayedArcAngle = arcAngle;
-            displayedRepeatCount = repeatCount;
+            displayedSegmentSignature = segmentSignature;
             displayedDuration = duration;
 
             float radius = SticksPlayfield.RadiusFor(hitObject.Side);
@@ -116,11 +117,11 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                     detailText.Show();
                     body.Colour = colour;
                     body.Alpha = 0.5f;
-                    body.Vertices = arcVertices(radius, slider.Angle, slider.ArcAngle);
-                    tail.Position = SticksPlayfield.PointAt(slider.Angle + slider.ArcAngle, radius);
+                    body.Vertices = sliderVertices(radius, slider);
+                    tail.Position = SticksPlayfield.PointAt(slider.SegmentStartAngleAt(slider.SegmentCount), radius);
                     detailText.Position = labelPosition(slider.Side, slider.Angle);
-                    detailText.Text = slider.RepeatCount > 0
-                        ? $"{slider.ArcAngle:+0.#;-0.#;0}°  ×{slider.RepeatCount + 1}"
+                    detailText.Text = slider.SegmentCount > 1
+                        ? $"{slider.SegmentCount} segments  {slider.TotalAngularDistance:0.#}°"
                         : $"{slider.ArcAngle:+0.#;-0.#;0}°";
                     break;
 
@@ -170,6 +171,28 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 vertices.Add(SticksPlayfield.PointAt(startAngle + arcAngle * i / segments, radius));
 
             return vertices;
+        }
+
+        private static IReadOnlyList<Vector2> sliderVertices(float radius, SticksSlider slider)
+        {
+            var result = new List<Vector2>();
+            for (int segment = 0; segment < slider.SegmentCount; segment++)
+            {
+                IReadOnlyList<Vector2> vertices = arcVertices(radius, slider.SegmentStartAngleAt(segment), slider.SegmentArcAngleAt(segment));
+                for (int i = segment == 0 ? 0 : 1; i < vertices.Count; i++)
+                    result.Add(vertices[i]);
+            }
+
+            return result;
+        }
+
+        private static int segmentHash(SticksSlider slider)
+        {
+            var hash = new HashCode();
+            hash.Add(slider.SegmentCount);
+            for (int i = 0; i < slider.SegmentCount; i++)
+                hash.Add(slider.SegmentArcAngleAt(i));
+            return hash.ToHashCode();
         }
 
         private static IReadOnlyList<Vector2> radialTick(float angle, float radius, float halfLength) => new[]

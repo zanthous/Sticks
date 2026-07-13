@@ -24,6 +24,13 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private readonly Box tailFill;
         private readonly Circle selectionMarker;
         private readonly OsuSpriteText detailText;
+        private bool hasDisplayedGeometry;
+        private StickSide displayedSide;
+        private float displayedAngle;
+        private int displayedKind;
+        private float displayedArcAngle;
+        private int displayedRepeatCount;
+        private double displayedDuration;
 
         public Drawable Marker => selectionMarker;
 
@@ -68,6 +75,28 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         public void UpdateFrom(SticksHitObject hitObject)
         {
+            int kind = hitObject is SticksSlider ? 2 : hitObject is SticksHold ? 1 : 0;
+            float arcAngle = hitObject is SticksSlider sliderValue ? sliderValue.ArcAngle : 0;
+            int repeatCount = hitObject is SticksSlider repeatSlider ? repeatSlider.RepeatCount : 0;
+            double duration = hitObject is SticksHold holdValue ? holdValue.Duration : 0;
+
+            if (hasDisplayedGeometry
+                && displayedSide == hitObject.Side
+                && Math.Abs(displayedAngle - hitObject.Angle) < 0.001f
+                && displayedKind == kind
+                && Math.Abs(displayedArcAngle - arcAngle) < 0.001f
+                && displayedRepeatCount == repeatCount
+                && Math.Abs(displayedDuration - duration) < 0.001)
+                return;
+
+            hasDisplayedGeometry = true;
+            displayedSide = hitObject.Side;
+            displayedAngle = hitObject.Angle;
+            displayedKind = kind;
+            displayedArcAngle = arcAngle;
+            displayedRepeatCount = repeatCount;
+            displayedDuration = duration;
+
             float radius = SticksPlayfield.RadiusFor(hitObject.Side);
             Color4 colour = colourFor(hitObject.Side);
             Vector2 head = SticksPlayfield.PointAt(hitObject.Angle, radius);

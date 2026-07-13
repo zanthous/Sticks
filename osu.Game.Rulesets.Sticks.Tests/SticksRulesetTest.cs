@@ -147,6 +147,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestSelectedObjectsOutsideLifetimeDoNotForceBlueprintRendering()
+        {
+            var blueprint = new TestSticksSelectionBlueprint(new SticksFlick());
+            Assert.That(blueprint.ForcesRenderingOutsideLifetime, Is.False);
+        }
+
+        [Test]
         public void TestRingLayout()
         {
             var playfield = new SticksPlayfield();
@@ -656,6 +663,16 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private partial class TestSticksHitObjectContainer : SticksHitObjectContainer
         {
             public int CompareForTest(Drawable x, Drawable y) => Compare(x, y);
+        }
+
+        private partial class TestSticksSelectionBlueprint : SticksSelectionBlueprint
+        {
+            public bool ForcesRenderingOutsideLifetime => AlwaysShowWhenSelected;
+
+            public TestSticksSelectionBlueprint(SticksHitObject hitObject)
+                : base(hitObject)
+            {
+            }
         }
     }
 }

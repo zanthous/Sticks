@@ -25,8 +25,6 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         [Resolved]
         private IBeatSnapProvider? beatSnapProvider { get; set; }
 
-        protected override bool AlwaysShowWhenSelected => true;
-
         public SticksSelectionBlueprint(SticksHitObject hitObject)
             : base(hitObject)
         {

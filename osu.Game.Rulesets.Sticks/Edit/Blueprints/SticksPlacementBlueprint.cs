@@ -51,7 +51,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             if (PlacementActive == PlacementState.Waiting)
             {
                 if (validPointer && inputManager?.CurrentState.Keyboard.ShiftPressed == true)
-                    angle = SnapAngle(angle);
+                    angle = SticksEditorCoordinates.SnapAngle(angle);
 
                 CurrentPointerAngle = angle;
                 HasValidPosition = validPointer;
@@ -71,15 +71,6 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             SnapResult result = base.UpdateTimeAndPosition(screenSpacePosition, fallbackTime);
             TimeUpdated(result.Time ?? fallbackTime);
             return result;
-        }
-
-        public static float SnapAngle(float angle, float increment = 15)
-        {
-            if (!float.IsFinite(increment) || increment <= 0)
-                throw new ArgumentOutOfRangeException(nameof(increment));
-
-            float snapped = MathF.Round(angle / increment, MidpointRounding.AwayFromZero) * increment;
-            return SticksHitObject.NormaliseAngle(snapped);
         }
 
         protected virtual void ActivePointerMoved(Vector2 localPosition, float angle, bool isInLane)

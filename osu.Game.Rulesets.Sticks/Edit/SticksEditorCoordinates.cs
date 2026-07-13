@@ -35,5 +35,14 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         public static Vector2 PositionFor(StickSide side, float angle) =>
             SticksPlayfield.PointAt(angle, SticksPlayfield.RadiusFor(side));
+
+        public static float SnapAngle(float angle, float increment = 15)
+        {
+            if (!float.IsFinite(increment) || increment <= 0)
+                throw new ArgumentOutOfRangeException(nameof(increment));
+
+            float snapped = MathF.Round(angle / increment, MidpointRounding.AwayFromZero) * increment;
+            return SticksHitObject.NormaliseAngle(snapped);
+        }
     }
 }

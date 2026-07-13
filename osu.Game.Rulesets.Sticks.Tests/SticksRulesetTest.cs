@@ -118,10 +118,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksSelectionBlueprint.AdjustDuration(125, 125, -1), Is.EqualTo(125));
                 Assert.That(SticksSelectionBlueprint.AdjustDuration(50, 0, -1), Is.EqualTo(49));
 
-                Assert.That(SticksPlacementBlueprint<SticksFlick>.SnapAngle(7.49f), Is.EqualTo(0));
-                Assert.That(SticksPlacementBlueprint<SticksFlick>.SnapAngle(7.5f), Is.EqualTo(15));
-                Assert.That(SticksPlacementBlueprint<SticksFlick>.SnapAngle(82), Is.EqualTo(75));
-                Assert.That(SticksPlacementBlueprint<SticksFlick>.SnapAngle(352.5f), Is.EqualTo(0));
+                Assert.That(SticksEditorCoordinates.SnapAngle(7.49f), Is.EqualTo(0));
+                Assert.That(SticksEditorCoordinates.SnapAngle(7.5f), Is.EqualTo(15));
+                Assert.That(SticksEditorCoordinates.SnapAngle(82), Is.EqualTo(75));
+                Assert.That(SticksEditorCoordinates.SnapAngle(352.5f), Is.EqualTo(0));
             });
         }
 

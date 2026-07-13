@@ -44,6 +44,12 @@ namespace osu.Game.Rulesets.Sticks.Edit
             Vector2 movePosition = blueprints.First().originalSnapPositions.First() + distanceTravelled;
             SelectionBlueprint<HitObject> reference = blueprints.First().blueprint;
 
+            if (e.ShiftPressed && Composer.TryGetPlacement(movePosition, out StickSide side, out float angle))
+            {
+                angle = SticksEditorCoordinates.SnapAngle(angle);
+                movePosition = Composer.Playfield.ToScreenSpace(SticksEditorCoordinates.PositionFor(side, angle));
+            }
+
             return SelectionHandler.HandleMovement(new MoveSelectionEvent<HitObject>(
                 reference,
                 movePosition - reference.ScreenSpaceSelectionPoint));

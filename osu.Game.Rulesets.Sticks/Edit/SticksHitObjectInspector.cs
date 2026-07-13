@@ -31,6 +31,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     AddValue($"End {SticksHitObject.NormaliseAngle(slider.Angle + slider.ArcAngle):0.###}°");
                     AddValue($"{Math.Abs(slider.ArcAngle) / Math.Max(0.001, slider.SpanDuration / 1000):0.##}°/s");
                     AddHeader("Editor controls");
+                    AddValue("Drag tail: arc end");
+                    AddValue("Shift + drag tail: snap 15°");
                     AddValue("Shift + wheel: repeats");
                     AddValue("Ctrl + wheel: duration");
                     break;

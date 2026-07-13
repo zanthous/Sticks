@@ -126,6 +126,27 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestEditorMarkersRefreshLaneAndDirectionInPlace()
+        {
+            var arc = new SticksArcMarker(StickSide.Left, SticksPlayfield.LEFT_COLOUR);
+            arc.SetLane(StickSide.Right, SticksPlayfield.RIGHT_COLOUR);
+            arc.Angle = 135;
+
+            var sliderHead = new SticksSliderHeadMarker(StickSide.Left, 1, SticksPlayfield.LEFT_COLOUR);
+            sliderHead.SetLaneAndDirection(StickSide.Right, -1, SticksPlayfield.RIGHT_COLOUR);
+            sliderHead.Angle = 225;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(arc.Side, Is.EqualTo(StickSide.Right));
+                Assert.That(arc.Angle, Is.EqualTo(135));
+                Assert.That(sliderHead.Side, Is.EqualTo(StickSide.Right));
+                Assert.That(sliderHead.Direction, Is.EqualTo(-1));
+                Assert.That(sliderHead.Angle, Is.EqualTo(225));
+            });
+        }
+
+        [Test]
         public void TestRingLayout()
         {
             var playfield = new SticksPlayfield();

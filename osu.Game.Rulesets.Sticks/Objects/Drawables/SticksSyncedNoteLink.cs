@@ -12,14 +12,19 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     /// <summary>
     /// A single quiet visual grouping cue for a simultaneous two-stick chord.
-    /// Geometry is immutable after construction to avoid runtime graphics-buffer churn.
+    /// Geometry is rebuilt only when editor mutations change one of its endpoints.
     /// </summary>
     public partial class SticksSyncedNoteLink : CompositeDrawable
     {
         public const float INITIAL_ALPHA = 0.45f;
         public const float FINAL_ALPHA = 0.8f;
 
-        public ChordLinkStyle Style { get; }
+        public ChordLinkStyle Style { get; private set; }
+
+        private StickSide? displayedFirstSide;
+        private float displayedFirstAngle = float.NaN;
+        private StickSide? displayedSecondSide;
+        private float displayedSecondAngle = float.NaN;
 
         public SticksSyncedNoteLink(
             StickSide firstSide,
@@ -28,10 +33,33 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             float secondAngle,
             ChordLinkStyle style = ChordLinkStyle.ToCentre)
         {
-            Style = style;
             Size = new Vector2(SticksPlayfield.SIZE);
             Alpha = 0;
             Depth = 20;
+
+            SetGeometry(firstSide, firstAngle, secondSide, secondAngle, style);
+        }
+
+        public void SetGeometry(
+            StickSide firstSide,
+            float firstAngle,
+            StickSide secondSide,
+            float secondAngle,
+            ChordLinkStyle style)
+        {
+            if (displayedFirstSide == firstSide
+                && Math.Abs(displayedFirstAngle - firstAngle) < 0.001f
+                && displayedSecondSide == secondSide
+                && Math.Abs(displayedSecondAngle - secondAngle) < 0.001f
+                && Style == style)
+                return;
+
+            ClearInternal();
+            Style = style;
+            displayedFirstSide = firstSide;
+            displayedFirstAngle = firstAngle;
+            displayedSecondSide = secondSide;
+            displayedSecondAngle = secondAngle;
 
             Vector2 first = SticksPlayfield.PointAt(firstAngle, SticksPlayfield.RadiusFor(firstSide));
             Vector2 second = SticksPlayfield.PointAt(secondAngle, SticksPlayfield.RadiusFor(secondSide));

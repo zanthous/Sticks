@@ -21,7 +21,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         private const float tracking_magnitude = 0.56f;
 
-        private SticksArcMarker headMarker;
+        private readonly SticksArcMarker headMarker;
         private readonly SmoothPath durationRail;
         private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
@@ -154,14 +154,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             durationCursor.Position = railEnd;
 
             if (sideChanged)
-            {
-                RemoveInternal(headMarker, true);
-                AddInternal(headMarker = createHeadMarker());
-            }
-            else
-            {
-                headMarker.Angle = HitObject.Angle;
-            }
+                headMarker.SetLane(HitObject.Side, colourFor(HitObject.Side));
+            headMarker.Angle = HitObject.Angle;
 
             displayedSide = HitObject.Side;
             displayedAngle = HitObject.Angle;

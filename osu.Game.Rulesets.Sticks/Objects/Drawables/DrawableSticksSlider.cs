@@ -34,6 +34,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private bool headJudged;
         private bool headHit;
         private double headHitTime;
+        private StickSide? displayedSide;
 
         public new SticksSlider HitObject => (SticksSlider)base.HitObject;
 
@@ -92,6 +93,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
 
+            refreshEditorGeometry();
+
             double now = Time.Current;
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
             double cueDuration = HitObject.ApproachDuration;
@@ -107,7 +110,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             updateHeadCue(now, cueActive);
 
-            trackingMarker.Rotation = HitObject.AngleAt(now);
+            trackingMarker.Angle = HitObject.AngleAt(now);
             trackingMarker.Alpha = active ? 1 : 0;
 
             updateHeadJudgement(now);
@@ -127,6 +130,26 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             }
 
             lastPlaybackTime = now;
+        }
+
+        private void refreshEditorGeometry()
+        {
+            Color4 colour = colourFor(HitObject.Side);
+
+            if (displayedSide != HitObject.Side)
+            {
+                updateArcLane(path, HitObject.Side, 7, colour);
+                updateArcLane(directionPreview, HitObject.Side, 4, colour);
+                updateArcLane(reversalOutline, HitObject.Side, 8, Color4.White);
+                updateArcLane(reversalPreviewOutline, HitObject.Side, 5, Color4.White);
+                headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
+                trackingMarker.SetLane(HitObject.Side, colour);
+                displayedSide = HitObject.Side;
+            }
+
+            if (headMarker.Direction != HitObject.InitialDirection)
+                headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
+            headMarker.Angle = HitObject.Angle;
         }
 
         private void updateDirectionPreview(double now, bool cueActive, bool active)
@@ -292,6 +315,21 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Alpha = alpha,
                 Depth = depth,
             };
+        }
+
+        private static void updateArcLane(CircularProgress drawable, StickSide side, float halfThickness, Color4 colour)
+        {
+            float radius = SticksPlayfield.RadiusFor(side);
+            float outerRadius = radius + halfThickness;
+            Vector2 size = new Vector2(outerRadius * 2);
+
+            if (drawable.Size != size)
+            {
+                drawable.Size = size;
+                drawable.InnerRadius = 2 * halfThickness / outerRadius;
+            }
+
+            drawable.Colour = colour;
         }
 
         private static void setVisibleRange(CircularProgress drawable, SticksSlider slider, double start, double end)

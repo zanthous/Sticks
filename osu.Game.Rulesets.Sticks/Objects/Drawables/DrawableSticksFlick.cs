@@ -60,12 +60,30 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
 
+            if (marker.Side != HitObject.Side)
+            {
+                marker.SetLane(HitObject.Side, colourFor(HitObject.Side));
+                observedSequence = playfield.FlickSequence(HitObject.Side);
+            }
+            marker.Angle = HitObject.Angle;
+
             double approach = Math.Clamp((Time.Current - (HitObject.StartTime - HitObject.ApproachDuration)) / HitObject.ApproachDuration, 0, 1);
             double growth = SticksHitObject.ApproachGrowthProgress(approach);
             marker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + growth * 0.8);
 
             if (syncedNoteLink != null)
+            {
+                if (HitObject.SyncedNoteSide is StickSide linkedSide)
+                {
+                    syncedNoteLink.SetGeometry(
+                        HitObject.Side,
+                        HitObject.Angle,
+                        linkedSide,
+                        HitObject.SyncedNoteAngle,
+                        HitObject.ChordLinkStyle);
+                }
                 syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtGrowth(growth);
+            }
 
             long sequence = playfield.FlickSequence(HitObject.Side);
             if (sequence == observedSequence || Judged)

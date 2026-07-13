@@ -16,7 +16,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         private const float stroke_radius = 2.5f;
         private const float cap_half_length = 7;
-        private readonly StickSide side;
+        private StickSide side;
         private readonly SmoothPath arc;
         private readonly CircularProgress animatedArc;
         private readonly SmoothPath leadingCap;
@@ -44,6 +44,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             }
         }
 
+        public StickSide Side => side;
+
         public SticksArcMarker(StickSide side, Color4 colour, bool animatedSpan = false)
         {
             this.side = side;
@@ -67,11 +69,28 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Span = SticksHitObject.VISIBLE_ARC_SPAN;
         }
 
+        public void SetLane(StickSide newSide, Color4 colour)
+        {
+            side = newSide;
+
+            if (arc != null)
+                arc.Colour = colour;
+            if (animatedArc != null)
+                animatedArc.Colour = colour;
+
+            leadingCap.Colour = colour;
+            trailingCap.Colour = colour;
+            updateGeometry();
+        }
+
         private void updateGeometry()
         {
             float radius = SticksPlayfield.RadiusFor(side);
             if (animatedArc != null)
             {
+                float outerRadius = radius + stroke_radius;
+                animatedArc.Size = new Vector2(outerRadius * 2);
+                animatedArc.InnerRadius = 2 * stroke_radius / outerRadius;
                 animatedArc.Progress = span / 360;
                 animatedArc.Rotation = 90 - span / 2;
             }

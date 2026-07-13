@@ -23,8 +23,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         private const float stroke_radius = 2.5f;
         private const float cap_half_length = 7;
-        private readonly StickSide side;
-        private readonly int direction;
+        private StickSide side;
+        private int direction;
         private readonly SmoothPath widthArc;
         private readonly CircularProgress animatedWidthArc;
         private readonly SmoothPath leadingCap;
@@ -54,6 +54,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         }
 
         public int Direction => direction;
+
+        public StickSide Side => side;
 
         public SticksSliderHeadMarker(StickSide side, int direction, Color4 colour, bool animatedSpan = false)
         {
@@ -99,11 +101,31 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Span = SticksHitObject.VISIBLE_ARC_SPAN;
         }
 
+        public void SetLaneAndDirection(StickSide newSide, int newDirection, Color4 colour)
+        {
+            side = newSide;
+            direction = Math.Sign(newDirection) == 0 ? 1 : Math.Sign(newDirection);
+
+            if (widthArc != null)
+                widthArc.Colour = colour;
+            if (animatedWidthArc != null)
+                animatedWidthArc.Colour = colour;
+
+            leadingCap.Colour = colour;
+            trailingCap.Colour = colour;
+            colourPlate.Colour = colour;
+            directionArrow.Rotation = direction * 90;
+            updateGeometry();
+        }
+
         private void updateGeometry()
         {
             float radius = SticksPlayfield.RadiusFor(side);
             if (animatedWidthArc != null)
             {
+                float outerRadius = radius + stroke_radius;
+                animatedWidthArc.Size = new Vector2(outerRadius * 2);
+                animatedWidthArc.InnerRadius = 2 * stroke_radius / outerRadius;
                 animatedWidthArc.Progress = span / 360;
                 animatedWidthArc.Rotation = 90 - span / 2;
             }
@@ -114,6 +136,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             positionCap(leadingCap, radius, -span / 2);
             positionCap(trailingCap, radius, span / 2);
+            Vector2 centrePosition = SticksPlayfield.PointAt(0, radius);
+            colourPlate.Position = centrePosition;
+            directionArrow.Position = centrePosition;
         }
 
         private static SmoothPath createArc(Color4 colour, float alpha) => new SmoothPath

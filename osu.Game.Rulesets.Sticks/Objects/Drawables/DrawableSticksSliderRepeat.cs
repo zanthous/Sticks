@@ -14,6 +14,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private const float tracking_magnitude = 0.56f;
 
         private SticksPlayfield playfield = null!;
+        private readonly SticksSliderHeadMarker marker;
 
         public new SticksSliderRepeat HitObject => (SticksSliderRepeat)base.HitObject;
 
@@ -24,7 +25,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             Size = new Vector2(SticksPlayfield.SIZE);
 
-            AddInternal(new SticksSliderHeadMarker(hitObject.Side, hitObject.DirectionAfter, colourFor(hitObject.Side))
+            AddInternal(marker = new SticksSliderHeadMarker(hitObject.Side, hitObject.DirectionAfter, colourFor(hitObject.Side))
             {
                 Angle = hitObject.Angle,
                 Span = hitObject.PrimaryHitAngle,
@@ -33,6 +34,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         [BackgroundDependencyLoader]
         private void load(SticksPlayfield sticksPlayfield) => playfield = sticksPlayfield;
+
+        protected override void Update()
+        {
+            base.Update();
+
+            if (marker.Side != HitObject.Side || marker.Direction != HitObject.DirectionAfter)
+                marker.SetLaneAndDirection(HitObject.Side, HitObject.DirectionAfter, colourFor(HitObject.Side));
+            marker.Angle = HitObject.Angle;
+            marker.Span = HitObject.PrimaryHitAngle;
+        }
 
         protected override double InitialLifetimeOffset => HitObject.PreemptDuration;
 

@@ -218,12 +218,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             var centreLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 180);
+            var sharedAngleLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 360);
             Assert.Multiple(() =>
             {
                 Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Left), Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
                 Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Right), Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
                 Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(0), Is.EqualTo(0.45f).Within(0.001));
                 Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(1), Is.EqualTo(0.8f).Within(0.001));
+                Assert.That(centreLink.UsesAlternatingDashes, Is.False);
+                Assert.That(sharedAngleLink.UsesAlternatingDashes, Is.True);
+                Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.5f), Is.True);
+                Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.51f), Is.False);
             });
         }
 

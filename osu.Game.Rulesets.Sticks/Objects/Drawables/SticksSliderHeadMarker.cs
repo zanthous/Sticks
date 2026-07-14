@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Collections.Generic;
@@ -31,6 +31,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SmoothPath trailingCap;
         private readonly Circle colourPlate;
         private readonly SpriteIcon directionArrow;
+        private readonly bool reversalStyle;
         private float span;
 
         public float Angle
@@ -57,10 +58,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public StickSide Side => side;
 
-        public SticksSliderHeadMarker(StickSide side, int direction, Color4 colour, bool animatedSpan = false)
+        public SticksSliderHeadMarker(StickSide side, int direction, Color4 colour, bool animatedSpan = false, bool reversalStyle = false)
         {
             this.side = side;
             this.direction = Math.Sign(direction) == 0 ? 1 : Math.Sign(direction);
+            this.reversalStyle = reversalStyle;
 
             Anchor = Anchor.TopLeft;
             Origin = Anchor.Centre;
@@ -121,21 +123,37 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private void updateGeometry()
         {
             float radius = SticksPlayfield.RadiusFor(side);
+            float outsideAngle = -direction * span / 2;
+            float arcStart = reversalStyle ? Math.Min(0, outsideAngle) : -span / 2;
+            float arcEnd = reversalStyle ? Math.Max(0, outsideAngle) : span / 2;
+
             if (animatedWidthArc != null)
             {
                 float outerRadius = radius + stroke_radius;
                 animatedWidthArc.Size = new Vector2(outerRadius * 2);
                 animatedWidthArc.InnerRadius = 2 * stroke_radius / outerRadius;
-                animatedWidthArc.Progress = span / 360;
-                animatedWidthArc.Rotation = 90 - span / 2;
+                animatedWidthArc.Progress = (arcEnd - arcStart) / 360;
+                animatedWidthArc.Rotation = 90 + arcStart;
             }
             else
             {
-                widthArc.Vertices = arcVertices(radius, span);
+                widthArc.Vertices = arcVertices(radius, arcStart, arcEnd);
             }
 
-            positionCap(leadingCap, radius, -span / 2);
-            positionCap(trailingCap, radius, span / 2);
+            if (reversalStyle)
+            {
+                positionCap(leadingCap, radius, outsideAngle);
+                leadingCap.Alpha = 1;
+                trailingCap.Alpha = 0;
+            }
+            else
+            {
+                positionCap(leadingCap, radius, -span / 2);
+                positionCap(trailingCap, radius, span / 2);
+                leadingCap.Alpha = 1;
+                trailingCap.Alpha = 1;
+            }
+
             Vector2 centrePosition = SticksPlayfield.PointAt(0, radius);
             colourPlate.Position = centrePosition;
             directionArrow.Position = centrePosition;
@@ -167,14 +185,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             };
         }
 
-        private static IReadOnlyList<Vector2> arcVertices(float radius, float span)
+        private static IReadOnlyList<Vector2> arcVertices(float radius, float startAngle, float endAngle)
         {
             const int segments = 24;
             var vertices = new List<Vector2>(segments + 1);
 
             for (int i = 0; i <= segments; i++)
             {
-                float angle = -span / 2 + span * i / segments;
+                float angle = startAngle + (endAngle - startAngle) * i / segments;
                 vertices.Add(SticksPlayfield.PointAt(angle, radius));
             }
 

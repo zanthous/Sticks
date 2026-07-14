@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using osu.Framework.Allocation;
@@ -60,6 +60,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             if (Judged || Time.Current < HitObject.StartTime)
                 return;
+
+            if (ParentHitObject is not ISticksTrackingSource { TrackingAuthorised: true })
+            {
+                ApplyMinResult();
+                return;
+            }
 
             Vector2 stick = playfield.StickVector(HitObject.Side);
             float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);

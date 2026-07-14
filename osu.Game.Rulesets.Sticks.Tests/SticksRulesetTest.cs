@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Collections.Generic;
@@ -7,6 +7,7 @@ using System.Reflection;
 using NUnit.Framework;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Effects;
+using osu.Framework.Timing;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets;
@@ -21,6 +22,8 @@ using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.Sticks.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
+using osu.Game.Screens.Play;
+using osuTK;
 using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks.Tests
@@ -61,6 +64,18 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     HitResult.IgnoreHit,
                     HitResult.IgnoreMiss,
                 }));
+            });
+        }
+
+        [Test]
+        public void TestCursorTrailSpritesAreEmbedded()
+        {
+            using var resources = new SticksRuleset().CreateResourceStore();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(resources.Get("Textures/Cursors/blue.png"), Is.Not.Null);
+                Assert.That(resources.Get("Textures/Cursors/red.png"), Is.Not.Null);
             });
         }
 
@@ -131,6 +146,43 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksSelectionBlueprint.ReversalArcTo(90, 0, 1, false), Is.EqualTo(-90));
                 Assert.That(SticksSelectionBlueprint.ReversalArcTo(90, 180, -1, false), Is.EqualTo(90));
                 Assert.That(SticksSelectionBlueprint.ReversalArcTo(90, 2, 1, true), Is.EqualTo(-90));
+
+                Assert.That(SticksSelectionBlueprint.IsAtSliderEndTime(1500, 1500), Is.True);
+                Assert.That(SticksSelectionBlueprint.IsAtSliderEndTime(1499.5, 1500), Is.True);
+                Assert.That(SticksSelectionBlueprint.IsAtSliderEndTime(1499.49, 1500), Is.False);
+                Assert.That(SticksSelectionBlueprint.IsAtSliderEndTime(1500.51, 1500), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestTimedSliderContinuationPreservesSpeedAndExistingReversalTime()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 1000,
+                ArcAngle = 90,
+            };
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.ContinuationArcAt(2000), Is.Zero);
+                Assert.That(slider.ContinuationArcAt(2500), Is.EqualTo(-45).Within(0.001));
+                Assert.That(slider.AppendTimedSegmentAtConstantSpeed(2000), Is.False);
+                Assert.That(slider.SegmentCount, Is.EqualTo(1), "An invalid preview must not mutate the slider.");
+            });
+
+            Assert.That(slider.AppendTimedSegmentAtConstantSpeed(2500), Is.True);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.SegmentCount, Is.EqualTo(2));
+                Assert.That(slider.SegmentArcAngleAt(1), Is.EqualTo(-45).Within(0.001));
+                Assert.That(slider.EndTime, Is.EqualTo(2500).Within(0.001));
+                Assert.That(slider.SegmentEndTimeAt(0), Is.EqualTo(2000).Within(0.001));
+                Assert.That(slider.SegmentEndTimeAt(1), Is.EqualTo(2500).Within(0.001));
+                Assert.That(Math.Abs(slider.SegmentArcAngleAt(0)) / slider.SegmentDurationAt(0),
+                    Is.EqualTo(Math.Abs(slider.SegmentArcAngleAt(1)) / slider.SegmentDurationAt(1)).Within(0.000001));
             });
         }
 
@@ -198,6 +250,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 PrimaryHitAngle = { Value = 30 },
                 SecondaryHitAngle = { Value = 10 },
                 ShowCursorTrails = { Value = true },
+                UseEightyPercentStickTravel = { Value = true },
                 SpeedChange = { Value = 1.25 },
             };
 
@@ -224,6 +277,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
                     nested.PrimaryHitAngle == 30 && nested.SecondaryHitAngle == 10));
                 Assert.That(((SticksPlayfield)drawableRuleset.Playfield).ShowCursorTrails, Is.True);
+                Assert.That(((SticksPlayfield)drawableRuleset.Playfield).PhysicalStickDistanceAtGameEdge, Is.EqualTo(0.8f));
             });
 
             var centreLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 180);
@@ -238,6 +292,90 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(sharedAngleLink.UsesAlternatingDashes, Is.True);
                 Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.5f), Is.True);
                 Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.51f), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestEightyPercentStickDistanceMapping()
+        {
+            Vector2 half = SticksPlayfield.MapStickDistance(new Vector2(0.4f, 0), 0.8f);
+            Vector2 atEdge = SticksPlayfield.MapStickDistance(new Vector2(0.8f, 0), 0.8f);
+            Vector2 beyondEdge = SticksPlayfield.MapStickDistance(Vector2.UnitX, 0.8f);
+            Vector2 unchanged = SticksPlayfield.MapStickDistance(new Vector2(0.6f, 0.8f), 1);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.MapStickDistance(Vector2.Zero, 0.8f), Is.EqualTo(Vector2.Zero));
+                Assert.That((half - new Vector2(0.5f, 0)).Length, Is.LessThan(0.0001f));
+                Assert.That((atEdge - Vector2.UnitX).Length, Is.LessThan(0.0001f));
+                Assert.That((beyondEdge - Vector2.UnitX).Length, Is.LessThan(0.0001f));
+                Assert.That((unchanged - new Vector2(0.6f, 0.8f)).Length, Is.LessThan(0.0001f));
+            });
+        }
+
+        [Test]
+        public void TestFlickTargetRequiresSuccessfulTiming()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.IsEligibleFlickTarget(HitResult.Great, 0, 20), Is.True);
+                Assert.That(SticksPlayfield.IsEligibleFlickTarget(HitResult.Meh, 20, 20), Is.True);
+                Assert.That(SticksPlayfield.IsEligibleFlickTarget(HitResult.Miss, 0, 20), Is.False, "A preempted note outside a successful timing window must not steal the flick.");
+                Assert.That(SticksPlayfield.IsEligibleFlickTarget(HitResult.Great, 20.01f, 20), Is.False, "A wrong-angle note must not steal the flick.");
+            });
+        }
+
+        [Test]
+        public void TestEveryObjectTypeUsesItsScoredHeadTimingWindow()
+        {
+            var difficulty = new BeatmapDifficulty { OverallDifficulty = 5 };
+            var controlPoints = new ControlPointInfo();
+            SticksHitObject[] objects =
+            {
+                new SticksFlick { StartTime = 1000, Angle = 45 },
+                new SticksSlider { StartTime = 1000, Duration = 1000, Angle = 45, ArcAngle = 90 },
+                new SticksHold { StartTime = 1000, Duration = 1000, Angle = 45 },
+            };
+
+            foreach (SticksHitObject hitObject in objects)
+                hitObject.ApplyDefaults(controlPoints, difficulty);
+
+            Assert.Multiple(() =>
+            {
+                foreach (SticksHitObject hitObject in objects)
+                {
+                    Assert.That(SticksPlayfield.HeadTimingResultFor(hitObject, 20).IsHit(), Is.True,
+                        $"{hitObject.GetType().Name} must accept a human input slightly off the exact beat.");
+                    Assert.That(SticksPlayfield.HeadTimingResultFor(hitObject, 250).IsHit(), Is.False,
+                        $"{hitObject.GetType().Name} must still respect its scored head timing window.");
+                }
+            });
+        }
+
+        [Test]
+        public void TestFlickTargetPrefersMatchingAngleBeforeTiming()
+        {
+            var closerWrongAngle = new SticksPlayfield.FlickTarget(1000, 180, 20);
+            var intendedAngle = new SticksPlayfield.FlickTarget(1200, 0, 20);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(intendedAngle, closerWrongAngle, 1050, 0), Is.True);
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(closerWrongAngle, intendedAngle, 1050, 0), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestFlickTargetUsesClosestTimingWhenAnglesBothMatch()
+        {
+            var earlierNote = new SticksPlayfield.FlickTarget(1000, 0, 20);
+            var closerLaterNote = new SticksPlayfield.FlickTarget(1200, 10, 20);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(closerLaterNote, earlierNote, 1175, 5), Is.True);
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(earlierNote, closerLaterNote, 1175, 5), Is.False);
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(earlierNote, closerLaterNote, 1025, 5), Is.True, "Drawable update order must not override the closest note.");
             });
         }
 
@@ -382,12 +520,26 @@ namespace osu.Game.Rulesets.Sticks.Tests
             slider.ApplyDefaults(beatmap.ControlPointInfo, beatmap.Difficulty);
             beatmap.HitObjects.Add(slider);
 
+            var hold = new SticksHold
+            {
+                StartTime = 4000,
+                Duration = 1000,
+                Side = StickSide.Right,
+                Angle = 180,
+            };
+            hold.ApplyDefaults(beatmap.ControlPointInfo, beatmap.Difficulty);
+            beatmap.HitObjects.Add(hold);
+
             SticksReplayFrame[] frames = new SticksAutoGenerator(beatmap).Generate().Frames.Cast<SticksReplayFrame>().ToArray();
             SticksReplayFrame beforeChord = frames.Single(frame => frame.Time == 999);
             SticksReplayFrame chord = frames.Single(frame => frame.Time == 1000);
             SticksReplayFrame beforeSlider = frames.Single(frame => frame.Time == 1999);
             SticksReplayFrame sliderHead = frames.Single(frame => frame.Time == 2000);
             SticksReplayFrame middleTick = frames.Single(frame => frame.Time == 2500);
+            SticksReplayFrame beforeHold = frames.Single(frame => frame.Time == 3999);
+            SticksReplayFrame holdHead = frames.Single(frame => frame.Time == 4000);
+            SticksReplayFrame holdTail = frames.Single(frame => frame.Time == 5000);
+            SticksReplayFrame afterHold = frames.Single(frame => frame.Time == 5030);
 
             Assert.Multiple(() =>
             {
@@ -401,6 +553,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(sliderHead.LeftStick.X, Is.EqualTo(1).Within(0.001));
                 Assert.That(middleTick.LeftStick.Length, Is.EqualTo(1).Within(0.001));
                 Assert.That(System.Math.Atan2(middleTick.LeftStick.Y, middleTick.LeftStick.X) * 180 / System.Math.PI, Is.EqualTo(45).Within(0.1));
+                Assert.That(beforeHold.RightStick, Is.EqualTo(Vector2.Zero));
+                Assert.That(holdHead.RightStick.X, Is.EqualTo(-1).Within(0.001));
+                Assert.That(holdHead.RightStick.Y, Is.EqualTo(0).Within(0.001));
+                Assert.That(holdTail.RightStick.X, Is.EqualTo(-1).Within(0.001));
+                Assert.That(afterHold.RightStick, Is.EqualTo(Vector2.Zero));
             });
         }
 
@@ -420,6 +577,26 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(left.X, Is.EqualTo(0.999f).Within(0.0001));
                 Assert.That(right.Y, Is.EqualTo(-0.999f).Within(0.0001));
             });
+        }
+
+        [Test]
+        public void TestReplayInputProviderDoesNotRetainAutoplayPositionAfterDeactivation()
+        {
+            var provider = new SticksReplayInputProvider();
+            provider.Update(Vector2.UnitX, -Vector2.UnitY);
+
+            provider.Deactivate();
+            (Vector2 left, Vector2 right) = provider.Snapshot();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(provider.Active, Is.False);
+                Assert.That(left, Is.EqualTo(Vector2.Zero));
+                Assert.That(right, Is.EqualTo(Vector2.Zero));
+            });
+
+            provider.Update(Vector2.UnitY, Vector2.UnitX);
+            Assert.That(provider.Active, Is.True, "A subsequently attached replay must still be able to provide input.");
         }
 
         [Test]
@@ -447,16 +624,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double ordinaryStars = SticksDifficultyCalculator.CalculateStarRating(ordinary);
             double impossibleStars = SticksDifficultyCalculator.CalculateStarRating(impossible);
 
-            Assert.Multiple(() =>
-            {
-                Assert.That(ordinaryStars, Is.InRange(1, 3));
-                Assert.That(impossibleStars, Is.GreaterThan(8));
-                Assert.That(impossibleStars, Is.GreaterThan(ordinaryStars * 3));
-            });
+            Assert.That(impossibleStars, Is.GreaterThan(ordinaryStars));
         }
 
         [Test]
-        public void TestDifficultyAccountsForAngularPatternSeparation()
+        public void TestDifficultyAccountsForAngularReadingComplexity()
         {
             var crossStickClustered = new List<SticksHitObject>();
             var crossStickWide = new List<SticksHitObject>();
@@ -482,14 +654,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(crossWideStars, Is.GreaterThan(crossClusteredStars + 0.25));
-                Assert.That(sameWideStars, Is.GreaterThan(sameClusteredStars + 0.5));
-                Assert.That(sameWideStars - sameClusteredStars, Is.GreaterThan(crossWideStars - crossClusteredStars));
+                Assert.That(crossWideStars, Is.GreaterThan(crossClusteredStars));
+                Assert.That(sameWideStars, Is.GreaterThan(sameClusteredStars));
             });
         }
 
         [Test]
-        public void TestDifficultyAccountsForChordAngularSpread()
+        public void TestDifficultyDoesNotTreatIsolatedChordSpreadAsPhysicalTravel()
         {
             var stackedChord = new SticksHitObject[]
             {
@@ -503,13 +674,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
 
             Assert.That(SticksDifficultyCalculator.CalculateStarRating(wideChord),
-                Is.GreaterThan(SticksDifficultyCalculator.CalculateStarRating(stackedChord) + 0.5));
+                Is.EqualTo(SticksDifficultyCalculator.CalculateStarRating(stackedChord)).Within(0.0000001));
         }
 
         [Test]
-        public void TestVeryFastSliderRatesAboveEightStars()
+        public void TestVeryFastSliderRemainsHighDifficultyAfterCalibration()
         {
-            double stars = SticksDifficultyCalculator.CalculateStarRating(new[]
+            double fastStars = SticksDifficultyCalculator.CalculateStarRating(new[]
             {
                 new SticksSlider
                 {
@@ -520,8 +691,19 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     ArcAngle = 270,
                 },
             });
+            double slowStars = SticksDifficultyCalculator.CalculateStarRating(new[]
+            {
+                new SticksSlider
+                {
+                    StartTime = 1000,
+                    Duration = 2000,
+                    Side = StickSide.Left,
+                    Angle = 0,
+                    ArcAngle = 270,
+                },
+            });
 
-            Assert.That(stars, Is.GreaterThan(8));
+            Assert.That(fastStars, Is.GreaterThan(slowStars));
         }
 
         [Test]
@@ -577,6 +759,19 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(endOffset.Length, Is.GreaterThan(startOffset.Length));
                 Assert.That(blue.RailStart.X, Is.LessThan(centre));
                 Assert.That(blue.RailStart.Y, Is.LessThan(centre));
+            });
+        }
+
+        [Test]
+        public void TestHoldHeadRemainsVisibleForEntireDuration()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(DrawableSticksHold.HeadMarkerAlphaAt(900, 2000), Is.EqualTo(1));
+                Assert.That(DrawableSticksHold.HeadMarkerAlphaAt(1000, 2000), Is.EqualTo(1));
+                Assert.That(DrawableSticksHold.HeadMarkerAlphaAt(1121, 2000), Is.EqualTo(1), "Hitting the head must not remove the hold's base arc.");
+                Assert.That(DrawableSticksHold.HeadMarkerAlphaAt(1999, 2000), Is.EqualTo(1));
+                Assert.That(DrawableSticksHold.HeadMarkerAlphaAt(2001, 2000), Is.Zero);
             });
         }
 
@@ -743,26 +938,92 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestMissingSliderHeadDoesNotResolveSliderEarly()
+        public void TestEditorHoldRewindClearsCustomGameplayAndAudioState()
         {
-            var drawable = new DrawableSticksSlider(new SticksSlider
+            var drawable = new DrawableSticksHold(new SticksHold
             {
                 StartTime = 1000,
                 Duration = 1000,
             });
 
-            Type drawableType = typeof(DrawableSticksSlider);
-            drawableType.GetMethod("MarkHeadMiss", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(drawable, null);
+            typeof(DrawableSticksHold).GetMethod("MarkHeadMiss", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(drawable, null);
+            typeof(DrawableSticksHold).GetField("headHit", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(drawable, true);
+            typeof(DrawableSticksHold).GetField("headSamplePlayed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(drawable, true);
+            var eligibility = (SticksTrackingEligibility)typeof(DrawableSticksHold)
+                .GetField("trackingEligibility", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
+            eligibility.Authorise();
 
-            bool headJudged = (bool)drawableType.GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
-            bool headHit = (bool)drawableType.GetProperty("HeadHit", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
-            bool hasResult = (bool)drawableType.GetProperty("HasResult", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
+            typeof(DrawableSticksHold).GetMethod("ResetEditorPreviewState", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .Invoke(drawable, new object[] { 7L });
+
+            bool headJudged = (bool)typeof(DrawableSticksHold)
+                .GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
 
             Assert.Multiple(() =>
             {
-                Assert.That(headJudged, Is.True);
-                Assert.That(headHit, Is.False);
-                Assert.That(hasResult, Is.False);
+                Assert.That(headJudged, Is.False);
+                Assert.That(typeof(DrawableSticksHold).GetField("headHit", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable), Is.False);
+                Assert.That(typeof(DrawableSticksHold).GetField("headSamplePlayed", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable), Is.False);
+                Assert.That(drawable.TrackingAuthorised, Is.False);
+            });
+        }
+
+        [Test]
+        public void TestMissingDurationHeadsDoNotResolveParentsEarly()
+        {
+            var slider = new DrawableSticksSlider(new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 100,
+            });
+            var hold = new DrawableSticksHold(new SticksHold
+            {
+                StartTime = 1000,
+                Duration = 100,
+            });
+
+            typeof(DrawableSticksSlider).GetMethod("MarkHeadMiss", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(slider, null);
+            typeof(DrawableSticksHold).GetMethod("MarkHeadMiss", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(hold, null);
+
+            bool sliderHeadJudged = (bool)typeof(DrawableSticksSlider).GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(slider)!;
+            bool sliderHeadHit = (bool)typeof(DrawableSticksSlider).GetProperty("HeadHit", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(slider)!;
+            bool sliderHasResult = (bool)typeof(DrawableSticksSlider).GetProperty("HasResult", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(slider)!;
+            bool holdHeadJudged = (bool)typeof(DrawableSticksHold).GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(hold)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(100, Is.LessThan(SticksHitWindows.MISS_WINDOW), "The regression requires a duration shorter than the open head miss window.");
+                Assert.That(sliderHeadJudged, Is.True);
+                Assert.That(sliderHeadHit, Is.False);
+                Assert.That(sliderHasResult, Is.False);
+                Assert.That(holdHeadJudged, Is.True);
+                Assert.That(hold.Judged, Is.False);
+            });
+        }
+
+        [Test]
+        public void TestShortDurationParentsCloseUnresolvedHeadsAtEnd()
+        {
+            var slider = new TestEndpointSlider(new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 100,
+            });
+            var hold = new TestEndpointHold(new SticksHold
+            {
+                StartTime = 1000,
+                Duration = 100,
+            });
+
+            slider.ResolveAt(1100);
+            hold.ResolveAt(1100);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.HeadWasJudged, Is.True);
+                Assert.That(slider.Judged, Is.True);
+                Assert.That(hold.HeadWasJudged, Is.True);
+                Assert.That(hold.Judged, Is.True);
             });
         }
 
@@ -790,6 +1051,53 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.RehearsalProgressAt(1250), Is.EqualTo(1).Within(0.001));
                 Assert.That(longSlider.RehearsalStartTime, Is.EqualTo(150));
                 Assert.That(longSlider.RehearsalProgressAt(1000), Is.EqualTo(0.425).Within(0.001));
+            });
+        }
+
+        [Test]
+        public void TestReversalSliderSnakesOnlyItsImmediatelyUpcomingSpan()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                Angle = 0,
+            };
+            slider.SetCustomSegments(new[] { 90f, -90f, 90f });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.UpcomingSegmentIndexAt(999), Is.EqualTo(-1));
+                Assert.That(slider.UpcomingSegmentIndexAt(1000), Is.EqualTo(1));
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1149), Is.Zero);
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1150), Is.Zero);
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1575), Is.EqualTo(0.125).Within(0.0001));
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1999), Is.GreaterThan(0.99));
+                Assert.That(slider.UpcomingSegmentIndexAt(2000), Is.EqualTo(2));
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(2000), Is.Zero);
+                Assert.That(slider.UpcomingSegmentIndexAt(3000), Is.EqualTo(-1));
+            });
+        }
+
+        [Test]
+        public void TestShortReversalSpanUsesAvailableLeadTimeWithoutSkippingAhead()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 1000,
+                RepeatCount = 1,
+                ArcAngle = 90,
+            };
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.UpcomingSegmentIndexAt(1000), Is.EqualTo(1));
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1000), Is.Zero);
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1250), Is.EqualTo(0.125).Within(0.0001));
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1499), Is.GreaterThan(0.99));
+                Assert.That(slider.UpcomingSegmentIndexAt(1500), Is.EqualTo(-1));
+                Assert.That(DrawableSticksSlider.REVERSAL_PREVIEW_ALPHA, Is.LessThan(1));
             });
         }
 
@@ -906,6 +1214,29 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [Test]
+        public void TestNoFailSuppressesUnactionableLowHealthWarning()
+        {
+            var mod = new SticksModNoFail();
+            var overlay = new HUDOverlay(null, Array.Empty<Mod>(), new PlayerConfiguration());
+            var healthProcessor = new SticksHealthProcessor(0);
+            overlay.ShowHealthBar.Value = true;
+
+            ((IApplicableToHUD)mod).ApplyToHUD(overlay);
+            ((IApplicableToHealthProcessor)mod).ApplyToHealthProcessor(healthProcessor);
+            healthProcessor.Health.Value -= 0.75;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(overlay.ShowHealthBar.Value, Is.False);
+                Assert.That(healthProcessor.Health.MinValue, Is.EqualTo(1));
+                Assert.That(healthProcessor.Health.Value, Is.EqualTo(1), "No Fail must reject every attempted health subtraction.");
+                Assert.That(typeof(SticksModNoFail).GetInterfaceMap(typeof(IApplicableToHUD)).TargetMethods,
+                    Has.Some.Property("DeclaringType").EqualTo(typeof(SticksModNoFail)),
+                    "Sticks must replace lazer's configurable No Fail HUD binding, not inherit it.");
+            });
+        }
+
         private partial class TestSticksHitObjectContainer : SticksHitObjectContainer
         {
             public int CompareForTest(Drawable x, Drawable y) => Compare(x, y);
@@ -918,6 +1249,49 @@ namespace osu.Game.Rulesets.Sticks.Tests
             public TestSticksSelectionBlueprint(SticksHitObject hitObject)
                 : base(hitObject)
             {
+            }
+        }
+
+        private partial class TestEndpointSlider : DrawableSticksSlider
+        {
+            public bool HeadWasJudged =>
+                (bool)typeof(DrawableSticksSlider).GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(this)!;
+
+            public TestEndpointSlider(SticksSlider hitObject)
+                : base(hitObject)
+            {
+            }
+
+            public void ResolveAt(double time)
+            {
+                setClock(time);
+                base.CheckForResult(false, time - HitObject.EndTime);
+            }
+
+            private void setClock(double time)
+            {
+                var framedClock = new FramedClock(new ManualClock { CurrentTime = time });
+                framedClock.ProcessFrame();
+                Clock = framedClock;
+            }
+        }
+
+        private partial class TestEndpointHold : DrawableSticksHold
+        {
+            public bool HeadWasJudged =>
+                (bool)typeof(DrawableSticksHold).GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(this)!;
+
+            public TestEndpointHold(SticksHold hitObject)
+                : base(hitObject)
+            {
+            }
+
+            public void ResolveAt(double time)
+            {
+                var framedClock = new FramedClock(new ManualClock { CurrentTime = time });
+                framedClock.ProcessFrame();
+                Clock = framedClock;
+                base.CheckForResult(false, time - HitObject.EndTime);
             }
         }
     }

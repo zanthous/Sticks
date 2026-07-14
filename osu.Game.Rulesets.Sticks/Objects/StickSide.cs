@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {

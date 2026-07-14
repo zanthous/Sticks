@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;

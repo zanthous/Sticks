@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Collections.Generic;
@@ -162,6 +162,38 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public double RehearsalProgressAt(double time) =>
             Math.Clamp((time - RehearsalStartTime) / Math.Max(1, SegmentDurationAt(0)), 0, 1);
 
+        /// <summary>
+        /// Returns the segment which begins at the next reversal, or -1 when no reversal remains.
+        /// Only the immediately upcoming segment is previewed to keep chained reversals readable.
+        /// </summary>
+        public int UpcomingSegmentIndexAt(double time)
+        {
+            if (time < StartTime || time >= EndTime)
+                return -1;
+
+            int upcoming = SegmentIndexAt(time) + 1;
+            return upcoming < SegmentCount ? upcoming : -1;
+        }
+
+        /// <summary>
+        /// Returns the snaking progress for the segment after the current reversal. Its cue uses
+        /// the same approach duration and accelerated growth as a note head. When a span is shorter
+        /// than the approach duration, previewing starts at that span's beginning rather than showing
+        /// multiple future reversals simultaneously.
+        /// </summary>
+        public double UpcomingSegmentPreviewProgressAt(double time)
+        {
+            int upcoming = UpcomingSegmentIndexAt(time);
+            if (upcoming < 1)
+                return 0;
+
+            int current = upcoming - 1;
+            double reversalTime = SegmentStartTimeAt(upcoming);
+            double previewStart = Math.Max(SegmentStartTimeAt(current), reversalTime - ApproachDuration);
+            double linearProgress = Math.Clamp((time - previewStart) / Math.Max(1, reversalTime - previewStart), 0, 1);
+            return ApproachGrowthProgress(linearProgress);
+        }
+
         public double AvailableTrackingDuration(double headHitTime) =>
             Math.Max(1, EndTime - Math.Max(StartTime, headHitTime));
 
@@ -193,6 +225,39 @@ namespace osu.Game.Rulesets.Sticks.Objects
             double addedDuration = Math.Abs(segmentArcAngle) / Math.Max(0.001, degreesPerMillisecond);
             SetCustomSegments(segments);
             Duration += addedDuration;
+        }
+
+        /// <summary>
+        /// Calculates the reversed segment required to extend this slider to <paramref name="newEndTime"/>
+        /// without changing its angular speed or the timing of any existing segment.
+        /// </summary>
+        public float ContinuationArcAt(double newEndTime)
+        {
+            double addedDuration = newEndTime - EndTime;
+            if (!double.IsFinite(addedDuration) || addedDuration <= 0 || Duration <= 0 || TotalAngularDistance <= 0)
+                return 0;
+
+            double degreesPerMillisecond = TotalAngularDistance / Duration;
+            int direction = Math.Sign(SegmentArcAngleAt(SegmentCount - 1)) >= 0 ? -1 : 1;
+            double arc = direction * degreesPerMillisecond * addedDuration;
+            return double.IsFinite(arc) && Math.Abs(arc) <= float.MaxValue ? (float)arc : 0;
+        }
+
+        /// <summary>
+        /// Appends the timed continuation returned by <see cref="ContinuationArcAt"/>. No state is
+        /// changed when the requested end time cannot produce a valid segment.
+        /// </summary>
+        public bool AppendTimedSegmentAtConstantSpeed(double newEndTime)
+        {
+            float segmentArcAngle = ContinuationArcAt(newEndTime);
+            if (Math.Abs(segmentArcAngle) < 1)
+                return false;
+
+            List<float> segments = SegmentArcAngles.ToList();
+            segments.Add(segmentArcAngle);
+            SetCustomSegments(segments);
+            Duration = newEndTime - StartTime;
+            return true;
         }
 
         public bool RemoveFinalSegmentAtConstantSpeed()

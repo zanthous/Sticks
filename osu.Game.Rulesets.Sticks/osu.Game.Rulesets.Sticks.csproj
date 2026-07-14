@@ -5,8 +5,21 @@
     <OutputType>Library</OutputType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <RootNamespace>osu.Game.Rulesets.Sticks</RootNamespace>
+    <Authors>Zankai LLC</Authors>
+    <Company>Zankai LLC</Company>
+    <Copyright>Copyright (c) 2026 Zankai LLC</Copyright>
   </PropertyGroup>
   <ItemGroup>
+    <AssemblyMetadata Include="License" Value="PolyForm Noncommercial 1.0.0 with additional permissions" />
+    <AssemblyMetadata Include="LicenseUrl" Value="https://polyformproject.org/licenses/noncommercial/1.0.0/" />
+    <AssemblyMetadata Include="RequiredNotice" Value="Copyright (c) 2026 Zankai LLC." />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="ppy.osu.Game" Version="2026.702.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\cursors\*.png"
+                      Link="Resources\Textures\Cursors\%(Filename)%(Extension)"
+                      LogicalName="$(RootNamespace).Resources.Textures.Cursors.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

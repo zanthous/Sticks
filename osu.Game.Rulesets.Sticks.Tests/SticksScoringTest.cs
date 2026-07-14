@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System.Linq;
 using NUnit.Framework;
@@ -96,6 +96,107 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksJudgementDisplay.CombinedResult(timing, angle), Is.EqualTo(expected));
 
         [Test]
+        public void TestJudgementFeedbackPairsInterleavedNotesIndependently()
+        {
+            SticksFlick first = createFlick(1000, StickSide.Left, 0);
+            SticksFlick second = createFlick(1000, StickSide.Right, 180);
+            var firstAngle = (SticksAngleComponent)first.NestedHitObjects.Single();
+            var secondAngle = (SticksAngleComponent)second.NestedHitObjects.Single();
+            var display = new SticksJudgementDisplay();
+
+            // This is the ordering that a simultaneous chord is allowed to produce. A single
+            // pending timing slot would overwrite the first note before either angle arrived.
+            display.Process(result(first, HitResult.Great));
+            display.Process(result(second, HitResult.Ok));
+            display.Process(result(firstAngle, HitResult.Ok));
+
+            Assert.That(display.LastResult, Is.EqualTo(HitResult.Great));
+
+            display.Process(result(secondAngle, HitResult.Great));
+            Assert.That(display.LastResult, Is.EqualTo(HitResult.Great));
+        }
+
+        [Test]
+        public void TestJudgementFeedbackClearsPendingPairOnRevert()
+        {
+            SticksFlick flick = createFlick(1000, StickSide.Left, 0);
+            var angle = (SticksAngleComponent)flick.NestedHitObjects.Single();
+            var display = new SticksJudgementDisplay();
+            JudgementResult timingResult = result(flick, HitResult.Great);
+
+            display.Process(timingResult);
+            display.Revert(timingResult);
+            display.Process(result(angle, HitResult.Great));
+
+            Assert.That(display.LastResult, Is.Null);
+        }
+
+        [Test]
+        public void TestJudgementFeedbackUsesThinBottomBar()
+        {
+            var display = new SticksJudgementDisplay();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(display.Size.X, Is.EqualTo(SticksPlayfield.SIZE));
+                Assert.That(display.Size.Y, Is.EqualTo(SticksJudgementDisplay.BAR_HEIGHT));
+                Assert.That(SticksJudgementDisplay.DISPLAY_DURATION, Is.EqualTo(420));
+                Assert.That(SticksJudgementDisplay.FADE_DURATION, Is.EqualTo(100));
+                Assert.That(display.Position.Y + display.Size.Y, Is.EqualTo(SticksPlayfield.SIZE));
+            });
+        }
+
+        [Test]
+        public void TestJudgementFeedbackShowsSuccessfulActionCheckpoints()
+        {
+            var display = new SticksJudgementDisplay();
+            (SticksHitObject Object, HitResult Result)[] checkpoints =
+            {
+                (new SticksSliderTail(), HitResult.SliderTailHit),
+                (new SticksHoldTail(), HitResult.SliderTailHit),
+                (new SticksSliderRepeat(), HitResult.LargeTickHit),
+                (new SticksSliderExtension(), HitResult.LargeTickHit),
+            };
+
+            foreach ((SticksHitObject hitObject, HitResult hitResult) in checkpoints)
+            {
+                display.ResetDisplay();
+                display.Process(result(hitObject, hitResult));
+                Assert.That(display.LastResult, Is.EqualTo(hitResult), hitObject.GetType().Name);
+            }
+        }
+
+        [Test]
+        public void TestJudgementFeedbackDoesNotShowTrackingTicks()
+        {
+            var display = new SticksJudgementDisplay();
+
+            display.Process(result(new SticksSliderTick(), HitResult.LargeTickHit));
+            display.Process(result(new SticksHoldTick(), HitResult.LargeTickHit));
+
+            Assert.That(display.LastResult, Is.Null);
+        }
+
+        [Test]
+        public void TestJudgementFeedbackDoesNotDrawMisses()
+        {
+            SticksFlick flick = createFlick(1000, StickSide.Left, 0);
+            var angle = (SticksAngleComponent)flick.NestedHitObjects.Single();
+            var display = new SticksJudgementDisplay();
+
+            display.Process(result(flick, HitResult.Great));
+            display.Process(result(angle, HitResult.Miss));
+            display.Process(result(new SticksSliderTail(), HitResult.IgnoreMiss));
+            display.Process(result(new SticksSliderRepeat(), HitResult.LargeTickMiss));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(display.LastResult, Is.Null);
+                Assert.That(display.Alpha, Is.Zero);
+            });
+        }
+
+        [Test]
         public void TestSliderHasIndependentHeadComponentsAndIgnoreParent()
         {
             var controlPoints = new ControlPointInfo();
@@ -164,5 +265,18 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Type = type,
         };
+
+        private static SticksFlick createFlick(double startTime, StickSide side, float angle)
+        {
+            var flick = new SticksFlick
+            {
+                StartTime = startTime,
+                Side = side,
+                Angle = angle,
+            };
+
+            flick.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty());
+            return flick;
+        }
     }
 }

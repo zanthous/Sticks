@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System.Collections.Generic;
 using System.IO;
@@ -271,6 +271,83 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestOfficialTutorialConversionRemainsBeginnerDifficulty()
+        {
+            const string beatmapText = """
+                                       osu file format v14
+
+                                       [General]
+                                       AudioFilename: audio.mp3
+                                       Mode: 0
+
+                                       [Metadata]
+                                       Title:new beginnings
+                                       Artist:nekodex
+                                       Creator:pishifat
+                                       Version:tutorial
+
+                                       [Difficulty]
+                                       HPDrainRate:0
+                                       CircleSize:2
+                                       OverallDifficulty:0
+                                       ApproachRate:2
+                                       SliderMultiplier:0.7
+                                       SliderTickRate:1
+
+                                       [TimingPoints]
+                                       -28,461.538461538462,4,1,0,100,1,0
+
+                                       [HitObjects]
+                                       255,184,3664,69,4,3:1:0:0:
+                                       95,66,20279,5,4,0:0:0:0:
+                                       415,66,22125,1,4,0:3:0:0:
+                                       399,194,23048,1,2,1:3:0:0:
+                                       415,322,23971,1,4,0:1:0:0:
+                                       95,322,25818,1,4,0:3:0:0:
+                                       255,34,27202,5,2,0:3:0:0:
+                                       255,34,27664,1,4,0:0:0:0:
+                                       255,322,29510,1,4,0:3:0:0:
+                                       367,258,30433,1,2,0:3:0:0:
+                                       479,194,31356,1,4,0:0:0:0:
+                                       257,62,33202,1,4,0:3:0:0:
+                                       145,126,34125,1,2,0:3:0:0:
+                                       34,191,35048,1,4,0:2:0:0:
+                                       333,159,57202,6,0,P|256:40|175:157,1,335.999989746094,4|4,0:0|0:2,3:0:0:0:
+                                       175,159,60894,2,4,P|159:241|175:338,1,167.999994873047,4|2,0:1|0:3,3:2:0:0:
+                                       338,324,62741,2,4,P|350:242|334:160,2,167.999994873047,4|2|4,1:2|1:3|3:2,0:2:0:0:
+                                       256,192,75664,12,0,79356,3:3:0:0:
+                                       467,109,101510,38,0,B|381:142|277:94|346:61|243:12|155:51,1,335.999989746094,4|4,0:0|0:3,3:0:0:0:
+                                       36,191,104279,1,4,0:3:0:0:
+                                       63,279,104741,1,2,0:3:0:0:
+                                       94,365,105202,2,0,P|167:369|248:309,1,167.999994873047,4|2,0:0|0:3,3:0:0:0:
+                                       136,166,107048,2,0,P|126:84|168:13,1,167.999994873047,4|2,0:3|0:3,3:0:0:0:
+                                       260,24,108433,1,2,0:3:0:0:
+                                       351,36,108894,6,0,L|394:373,1,335.999989746094,4|4,0:0|0:3,3:0:0:0:
+                                       211,337,111664,1,6,0:3:0:0:
+                                       28,306,112587,2,0,L|9:125,2,167.999994873047,4|2|4,0:3|0:3|0:3,3:0:0:0:
+                                       211,337,115356,2,0,L|305:355,1,83.9999974365235,2|2,0:3|0:3,3:0:0:0:
+                                       384,337,116279,6,0,B|404:253|336:153|316:226|250:134|273:40,1,335.999989746094,4|4,0:0|0:3,3:0:0:0:
+                                       456,15,119048,1,2,0:3:0:0:
+                                       476,197,119972,2,0,B|404:244|287:215|349:171|239:140|159:194,1,335.999989746094,4|4,0:0|0:3,3:0:0:0:
+                                       40,336,122741,1,2,0:3:0:0:
+                                       221,370,123664,6,0,P|152:187|27:138,1,335.999989746094,4|4,0:1|0:3,3:0:0:0:
+                                       256,192,126433,12,4,129202,3:2:0:0:
+                                       """;
+
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(beatmapText));
+            using var reader = new LineBufferedReader(stream);
+            Beatmap source = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader);
+            IBeatmap converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert();
+            SticksDifficultyBreakdown difficulty = SticksDifficultyCalculator.CalculateDifficulty(
+                converted.HitObjects.Cast<SticksHitObject>(),
+                overallDifficulty: converted.Difficulty.OverallDifficulty);
+            string sliderSummary = string.Join(", ", converted.HitObjects.OfType<SticksSlider>()
+                .Select(slider => $"{slider.Duration:0}ms/{slider.TotalAngularDistance / (slider.Duration / 1000):0}deg-s"));
+
+            Assert.That(difficulty.StarRating, Is.LessThan(2), $"The official tutorial difficulty was {difficulty}. Sliders: {sliderSummary}");
+        }
+
+        [Test]
         public void TestDifficultyAdjustCanDisableAuthoredReversals()
         {
             var source = new Beatmap<HitObject>();
@@ -503,6 +580,39 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(approachingFlicks, Is.Not.Empty);
                 Assert.That(approachingFlicks, Has.All.Matches<SticksFlick>(flick => flick.Side != slider.Side));
                 Assert.That(2500 - SticksBeatmapConverter.VISIBILITY_PREEMPT, Is.LessThan(slider.EndTime));
+            });
+        }
+
+        [Test]
+        public void TestVisualReservationsOnBothSticksDoNotDeletePlayableNote()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 500,
+                Position = new Vector2(512, 192),
+            });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 1600,
+                Duration = 500,
+                Position = new Vector2(256, 0),
+            });
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 2200,
+                Position = new Vector2(0, 192),
+            });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(3));
+                Assert.That(converted.OfType<SticksFlick>().Single().StartTime, Is.EqualTo(2200));
             });
         }
 

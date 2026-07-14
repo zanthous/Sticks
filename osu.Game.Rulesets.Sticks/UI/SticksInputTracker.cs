@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -34,16 +34,24 @@ namespace osu.Game.Rulesets.Sticks.UI
             return true;
         }
 
-        public void Update(StickSide side, Vector2 value, double time)
+        public void Update(StickSide side, Vector2 value, double time) => Update(side, value, value, time);
+
+        /// <summary>
+        /// Updates a stick using its physical controller position for neutral charging and its
+        /// mapped gameplay position for edge crossing. This keeps the neutral requirement at
+        /// 50% physical travel even when a difficulty setting maps 80% travel to the playfield edge.
+        /// </summary>
+        public void Update(StickSide side, Vector2 physicalValue, Vector2 gameplayValue, double time)
         {
             TrackedStick stick = tracked(side);
-            float magnitude = Math.Clamp(value.Length, 0, 1);
-            stick.Vector = value.LengthSquared > 1 ? value.Normalized() : value;
+            float physicalMagnitude = Math.Clamp(physicalValue.Length, 0, 1);
+            float gameplayMagnitude = Math.Clamp(gameplayValue.Length, 0, 1);
+            stick.Vector = gameplayValue.LengthSquared > 1 ? gameplayValue.Normalized() : gameplayValue;
 
-            if (magnitude <= NEUTRAL_THRESHOLD)
+            if (physicalMagnitude <= NEUTRAL_THRESHOLD)
                 stick.NeutralReady = true;
 
-            if (stick.NeutralReady && stick.PreviousMagnitude < FLICK_THRESHOLD && magnitude >= FLICK_THRESHOLD)
+            if (stick.NeutralReady && stick.PreviousGameplayMagnitude < FLICK_THRESHOLD && gameplayMagnitude >= FLICK_THRESHOLD)
             {
                 float angle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Vector.Y, stick.Vector.X) * 180 / MathF.PI);
                 stick.Sequence++;
@@ -51,7 +59,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 stick.NeutralReady = false;
             }
 
-            stick.PreviousMagnitude = magnitude;
+            stick.PreviousGameplayMagnitude = gameplayMagnitude;
         }
 
         private TrackedStick tracked(StickSide side) => side == StickSide.Left ? left : right;
@@ -59,7 +67,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private sealed class TrackedStick
         {
             public Vector2 Vector;
-            public float PreviousMagnitude;
+            public float PreviousGameplayMagnitude;
             public bool NeutralReady = true;
             public long Sequence;
             public long ConsumedSequence;

@@ -1,32 +1,44 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
-using osu.Framework.Allocation;
+using System.Collections.Generic;
+using System.Linq;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Graphics;
+using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.Scoring;
 using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.UI
 {
     /// <summary>
-    /// A compact, mania-style last-judgement display. Each result replaces the previous one at
-    /// the exact centre of the playfield instead of accumulating multiple judgement drawables.
+    /// A compact last-judgement display. Each result replaces the previous one in a thin bar at
+    /// the bottom of the playfield instead of accumulating multiple judgement drawables.
     /// </summary>
-    public partial class SticksJudgementDisplay : CircularContainer
+    public partial class SticksJudgementDisplay : Container
     {
+        public const float BAR_HEIGHT = 4;
+        public const double DISPLAY_DURATION = 420;
+        public const double FADE_DURATION = 100;
+
+        private static readonly OsuColour colours = new OsuColour();
+
         private readonly Box fill;
-        private OsuColour colours = null!;
+        private readonly Dictionary<SticksAngleComponent, HitResult> pendingTimingResults = new Dictionary<SticksAngleComponent, HitResult>();
+        private readonly Dictionary<SticksAngleComponent, HitResult> pendingAngleResults = new Dictionary<SticksAngleComponent, HitResult>();
+
+        public HitResult? LastResult { get; private set; }
 
         public SticksJudgementDisplay()
         {
             Anchor = Anchor.TopLeft;
-            Origin = Anchor.Centre;
-            Position = new Vector2(SticksPlayfield.SIZE / 2);
-            Size = new Vector2(38);
-            Masking = true;
+            Origin = Anchor.TopLeft;
+            Position = new Vector2(0, SticksPlayfield.SIZE - BAR_HEIGHT);
+            Size = new Vector2(SticksPlayfield.SIZE, BAR_HEIGHT);
             Alpha = 0;
             AlwaysPresent = true;
             Depth = -10;
@@ -37,22 +49,91 @@ namespace osu.Game.Rulesets.Sticks.UI
             };
         }
 
-        [BackgroundDependencyLoader]
-        private void load(OsuColour colours) => this.colours = colours;
+        /// <summary>
+        /// Collects the independently-scored timing and angle halves of one note and displays
+        /// their combined grade once both have arrived. Results are paired by the generated
+        /// angle hit object, so simultaneous notes cannot overwrite one shared pending value.
+        /// </summary>
+        public void Process(JudgementResult result)
+        {
+            if (result.HitObject is not ISticksAccuracyComponent component)
+            {
+                if (isActionCheckpoint(result.HitObject))
+                    displayResult(result.Type);
+
+                return;
+            }
+
+            if (component.AccuracyComponent == SticksAccuracyComponent.Timing)
+            {
+                SticksAngleComponent angleComponent = result.HitObject.NestedHitObjects.OfType<SticksAngleComponent>().SingleOrDefault();
+                if (angleComponent == null)
+                    return;
+
+                if (pendingAngleResults.Remove(angleComponent, out HitResult angleResult))
+                    Display(result.Type, angleResult);
+                else
+                    pendingTimingResults[angleComponent] = result.Type;
+
+                return;
+            }
+
+            if (result.HitObject is not SticksAngleComponent angleHitObject)
+                return;
+
+            if (pendingTimingResults.Remove(angleHitObject, out HitResult timingResult))
+                Display(timingResult, result.Type);
+            else
+                pendingAngleResults[angleHitObject] = result.Type;
+        }
+
+        public void Revert(JudgementResult result)
+        {
+            SticksAngleComponent angleComponent = result.HitObject switch
+            {
+                SticksAngleComponent angle => angle,
+                ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Timing } =>
+                    result.HitObject.NestedHitObjects.OfType<SticksAngleComponent>().SingleOrDefault(),
+                _ => null,
+            };
+
+            if (angleComponent != null)
+            {
+                pendingTimingResults.Remove(angleComponent);
+                pendingAngleResults.Remove(angleComponent);
+            }
+
+            ResetDisplay();
+        }
 
         public void Display(HitResult timingResult, HitResult angleResult)
         {
-            fill.Colour = colours.ForHitResult(CombinedResult(timingResult, angleResult));
+            displayResult(CombinedResult(timingResult, angleResult));
+        }
+
+        private void displayResult(HitResult result)
+        {
+            // Misses already have audio feedback. Keeping them out of this display prevents a
+            // red flash from obscuring the next useful accuracy colour during dense patterns.
+            if (!result.IsHit())
+                return;
+
+            LastResult = result;
+            fill.Colour = colours.ForHitResult(result);
 
             ClearTransforms();
             Alpha = 1;
-            this.Delay(420).FadeOut(140);
+            this.Delay(DISPLAY_DURATION).FadeOut(FADE_DURATION);
         }
+
+        private static bool isActionCheckpoint(HitObject hitObject) => hitObject is
+            SticksSliderTail or SticksHoldTail or SticksSliderRepeat or SticksSliderExtension;
 
         public void ResetDisplay()
         {
             ClearTransforms();
             Alpha = 0;
+            LastResult = null;
         }
 
         public static HitResult CombinedResult(HitResult timingResult, HitResult angleResult)

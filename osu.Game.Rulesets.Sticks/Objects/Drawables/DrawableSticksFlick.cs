@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Collections.Generic;
@@ -106,7 +106,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
                 if (offset >= -SticksFlick.EARLY_HIT_WINDOW
                     && offset <= SticksFlick.LATE_HIT_WINDOW
-                    && playfield.TryConsumeFlick(HitObject.Side, flick.Sequence))
+                    && playfield.TryConsumeHeadFlick(this, HitObject.Side, flick.Sequence))
                 {
                     HitResult timingResult = HitObject.HitWindows?.ResultFor(offset) ?? HitResult.Great;
                     HitResult angleResult = HitObject.ResultForCurrentAngleError(angleError);

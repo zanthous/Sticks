@@ -1,7 +1,8 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Diagnostics;
+using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
@@ -12,8 +13,8 @@ using osu.Framework.Input;
 using osu.Framework.Input.Events;
 using osu.Framework.Logging;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
-using osu.Game.Rulesets.Sticks.Scoring;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
@@ -36,24 +37,25 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly CircularContainer leftCursor;
         private readonly CircularContainer rightCursor;
-        private readonly Container leftTrail;
-        private readonly Container rightTrail;
+        private readonly SticksCursorTrail leftTrail;
+        private readonly SticksCursorTrail rightTrail;
         private readonly SticksJudgementDisplay judgementDisplay;
-        private readonly Circle[] leftTrailDots;
-        private readonly Circle[] rightTrailDots;
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
         private readonly Process currentProcess = Process.GetCurrentProcess();
-        private double lastTrailSampleTime = double.NegativeInfinity;
         private double lastMemoryReportTime = double.NegativeInfinity;
         private bool trailsWereVisible;
         private float leftX;
         private float leftY;
         private float rightX;
         private float rightY;
-        private HitResult? pendingTimingResult;
-
         public bool ShowCursorTrails { get; set; }
+
+        /// <summary>
+        /// The physical stick magnitude represented as full distance for gameplay, gesture detection,
+        /// and the cursor.
+        /// </summary>
+        public float PhysicalStickDistanceAtGameEdge { get; set; } = 1;
 
         public CircularContainer LeftStickCursor => leftCursor;
 
@@ -70,8 +72,8 @@ namespace osu.Game.Rulesets.Sticks.UI
                 ring(GUIDE_RADIUS, Color4.White.Opacity(0.55f)),
                 HitObjectContainer,
                 judgementDisplay = new SticksJudgementDisplay(),
-                leftTrail = trail(LEFT_COLOUR, out leftTrailDots),
-                rightTrail = trail(RIGHT_COLOUR, out rightTrailDots),
+                leftTrail = new SticksCursorTrail("Cursors/blue"),
+                rightTrail = new SticksCursorTrail("Cursors/red"),
                 leftCursor = cursor(LEFT_COLOUR),
                 rightCursor = cursor(RIGHT_COLOUR),
             });
@@ -93,35 +95,139 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private void onNewResult(DrawableHitObject judgedObject, JudgementResult result)
         {
-            if (!DisplayJudgements.Value || result.HitObject is not ISticksAccuracyComponent component)
+            if (!DisplayJudgements.Value)
                 return;
 
-            if (component.AccuracyComponent == SticksAccuracyComponent.Timing)
-            {
-                pendingTimingResult = result.Type;
-                return;
-            }
-
-            if (pendingTimingResult is not HitResult timingResult)
-                return;
-
-            judgementDisplay.Display(timingResult, result.Type);
-            pendingTimingResult = null;
+            judgementDisplay.Process(result);
         }
 
-        private void onRevertResult(JudgementResult result)
-        {
-            pendingTimingResult = null;
-            judgementDisplay.ResetDisplay();
-        }
+        private void onRevertResult(JudgementResult result) => judgementDisplay.Revert(result);
 
         public Vector2 StickVector(StickSide side) => input.VectorFor(side);
+
+        public static Vector2 MapStickDistance(Vector2 value, float physicalDistanceAtGameEdge)
+        {
+            float length = value.Length;
+
+            if (length == 0)
+                return Vector2.Zero;
+
+            physicalDistanceAtGameEdge = Math.Clamp(physicalDistanceAtGameEdge, 0.01f, 1);
+            float gameDistance = Math.Min(length / physicalDistanceAtGameEdge, 1);
+            return value / length * gameDistance;
+        }
 
         public long FlickSequence(StickSide side) => input.SequenceFor(side);
 
         public SticksInputTracker.FlickEvent LastFlick(StickSide side) => input.LastFlickFor(side);
 
-        public bool TryConsumeFlick(StickSide side, long sequence) => input.TryConsumeFlick(side, sequence);
+        /// <summary>
+        /// Claims a flick for the best matching unjudged note head in this stick's overlapping hit windows.
+        /// This prevents whichever drawable happens to update first from stealing the gesture.
+        /// </summary>
+        public bool TryConsumeHeadFlick(DrawableHitObject requester, StickSide side, long sequence)
+        {
+            SticksInputTracker.FlickEvent flick = input.LastFlickFor(side);
+
+            if (flick.Sequence != sequence || findPreferredHeadTarget(side, flick) != requester)
+                return false;
+
+            return input.TryConsumeFlick(side, sequence);
+        }
+
+        /// <summary>
+        /// Claims a flick for duration-object tracking only when it is not a valid hit for a note head.
+        /// </summary>
+        public bool TryConsumeTrackingFlick(StickSide side, long sequence)
+        {
+            SticksInputTracker.FlickEvent flick = input.LastFlickFor(side);
+
+            if (flick.Sequence != sequence || findPreferredHeadTarget(side, flick) != null)
+                return false;
+
+            return input.TryConsumeFlick(side, sequence);
+        }
+
+        private DrawableHitObject findPreferredHeadTarget(StickSide side, SticksInputTracker.FlickEvent flick)
+        {
+            DrawableHitObject bestDrawable = null;
+            FlickTarget bestTarget = default;
+
+            foreach (DrawableHitObject drawable in HitObjectContainer.AliveObjects)
+            {
+                if (!tryGetFlickTarget(drawable, side, flick, out FlickTarget target))
+                    continue;
+
+                if (bestDrawable == null || IsBetterFlickTarget(target, bestTarget, flick.Time, flick.Angle))
+                {
+                    bestDrawable = drawable;
+                    bestTarget = target;
+                }
+            }
+
+            return bestDrawable;
+        }
+
+        private static bool tryGetFlickTarget(DrawableHitObject drawable, StickSide side, SticksInputTracker.FlickEvent flickEvent, out FlickTarget target)
+        {
+            SticksHitObject hitObject = drawable switch
+            {
+                DrawableSticksFlick flick when !flick.Judged => flick.HitObject,
+                DrawableSticksSlider slider when !slider.HeadJudged => slider.HitObject,
+                DrawableSticksHold hold when !hold.HeadJudged => hold.HitObject,
+                _ => null,
+            };
+
+            if (hitObject == null || hitObject.Side != side)
+            {
+                target = default;
+                return false;
+            }
+
+            target = new FlickTarget(hitObject.StartTime, hitObject.Angle, hitObject.LenientHalfAngle);
+            HitResult timingResult = HeadTimingResultFor(hitObject, flickEvent.Time - hitObject.StartTime);
+            float angleError = Math.Abs(SticksHitObject.DeltaAngle(flickEvent.Angle, hitObject.Angle));
+            return IsEligibleFlickTarget(timingResult, angleError, hitObject.LenientHalfAngle);
+        }
+
+        public static HitResult HeadTimingResultFor(SticksHitObject hitObject, double timeOffset)
+        {
+            SticksHitObject scoredHead = hitObject switch
+            {
+                SticksSlider slider => slider.NestedHitObjects.OfType<SticksSliderHead>().FirstOrDefault(),
+                SticksHold hold => hold.NestedHitObjects.OfType<SticksHoldHead>().FirstOrDefault(),
+                _ => hitObject,
+            };
+
+            return scoredHead?.HitWindows?.ResultFor(timeOffset) ?? HitResult.Miss;
+        }
+
+        public static bool IsEligibleFlickTarget(HitResult timingResult, float angleError, float lenientHalfAngle) =>
+            timingResult.IsHit() && angleError <= lenientHalfAngle;
+
+        public static bool IsBetterFlickTarget(FlickTarget candidate, FlickTarget current, double flickTime, float flickAngle)
+        {
+            float candidateAngleError = Math.Abs(SticksHitObject.DeltaAngle(flickAngle, candidate.Angle));
+            float currentAngleError = Math.Abs(SticksHitObject.DeltaAngle(flickAngle, current.Angle));
+            bool candidateAngleMatches = candidateAngleError <= candidate.LenientHalfAngle;
+            bool currentAngleMatches = currentAngleError <= current.LenientHalfAngle;
+
+            if (candidateAngleMatches != currentAngleMatches)
+                return candidateAngleMatches;
+
+            double candidateTimeError = Math.Abs(flickTime - candidate.StartTime);
+            double currentTimeError = Math.Abs(flickTime - current.StartTime);
+
+            if (candidateTimeError != currentTimeError)
+                return candidateTimeError < currentTimeError;
+
+            if (candidateAngleError != currentAngleError)
+                return candidateAngleError < currentAngleError;
+
+            return candidate.StartTime < current.StartTime;
+        }
+
+        public readonly record struct FlickTarget(double StartTime, float Angle, float LenientHalfAngle);
 
         public static float RadiusFor(StickSide side) => side == StickSide.Left ? OUTER_RADIUS : INNER_RADIUS;
 
@@ -166,17 +272,17 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             base.Update();
 
-            if (replayInputProvider.Active)
-            {
-                (Vector2 left, Vector2 right) = replayInputProvider.Snapshot();
-                leftX = left.X;
-                leftY = left.Y;
-                rightX = right.X;
-                rightY = right.Y;
-            }
+            var left = new Vector2(leftX, leftY);
+            var right = new Vector2(rightX, rightY);
 
-            input.Update(StickSide.Left, new Vector2(leftX, leftY), Time.Current);
-            input.Update(StickSide.Right, new Vector2(rightX, rightY), Time.Current);
+            if (replayInputProvider.Active)
+                (left, right) = replayInputProvider.Snapshot();
+
+            // Replay positions are deliberately kept separate from the physical axis fields.
+            // In editor test play autoplay can be detached at runtime; physical input must take
+            // over immediately rather than inheriting the replay's final held position.
+            input.Update(StickSide.Left, left, MapStickDistance(left, PhysicalStickDistanceAtGameEdge), Time.Current);
+            input.Update(StickSide.Right, right, MapStickDistance(right, PhysicalStickDistanceAtGameEdge), Time.Current);
             updateCursor(leftCursor, StickSide.Left);
             updateCursor(rightCursor, StickSide.Right);
             updateTrails();
@@ -212,38 +318,25 @@ namespace osu.Game.Rulesets.Sticks.UI
 
                 if (trailsWereVisible)
                 {
-                    resetTrail(leftTrailDots);
-                    resetTrail(rightTrailDots);
+                    leftTrail.Reset();
+                    rightTrail.Reset();
                     trailsWereVisible = false;
                 }
 
                 return;
             }
 
-            trailsWereVisible = true;
-            leftTrail.Alpha = 0.26f;
-            rightTrail.Alpha = 0.26f;
+            if (!trailsWereVisible)
+            {
+                leftTrail.Reset();
+                rightTrail.Reset();
+                trailsWereVisible = true;
+            }
 
-            if (Time.Current - lastTrailSampleTime < 16)
-                return;
-
-            lastTrailSampleTime = Time.Current;
-            appendTrailPoint(leftTrailDots, leftCursor.Position);
-            appendTrailPoint(rightTrailDots, rightCursor.Position);
-        }
-
-        private static void appendTrailPoint(Circle[] dots, Vector2 point)
-        {
-            for (int i = dots.Length - 1; i > 0; i--)
-                dots[i].Position = dots[i - 1].Position;
-
-            dots[0].Position = point;
-        }
-
-        private static void resetTrail(Circle[] dots)
-        {
-            foreach (Circle dot in dots)
-                dot.Position = new Vector2(SIZE / 2);
+            leftTrail.Alpha = 0.65f;
+            rightTrail.Alpha = 0.65f;
+            leftTrail.AddPosition(leftCursor.ScreenSpaceDrawQuad.Centre);
+            rightTrail.AddPosition(rightCursor.ScreenSpaceDrawQuad.Centre);
         }
 
         private static CircularContainer ring(float radius, Color4 colour) => new CircularContainer
@@ -262,32 +355,6 @@ namespace osu.Game.Rulesets.Sticks.UI
                 AlwaysPresent = true,
             },
         };
-
-        private static Container trail(Color4 colour, out Circle[] dots)
-        {
-            dots = new Circle[18];
-
-            for (int i = 0; i < dots.Length; i++)
-            {
-                dots[i] = new Circle
-                {
-                    Anchor = Anchor.TopLeft,
-                    Origin = Anchor.Centre,
-                    Position = new Vector2(SIZE / 2),
-                    Size = new Vector2(6 - i * 0.2f),
-                    Colour = colour,
-                    Alpha = 1 - i / (float)dots.Length,
-                };
-            }
-
-            return new Container
-            {
-                Size = new Vector2(SIZE),
-                Alpha = 0,
-                Depth = -15,
-                Children = dots,
-            };
-        }
 
         private static CircularContainer cursor(Color4 colour) => new CircularContainer
         {

@@ -1,0 +1,86 @@
+name: Tagged release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "true"
+
+jobs:
+  release:
+    name: Build and publish ruleset DLL
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v6
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore .\osu.Game.Rulesets.Sticks.sln
+
+      - name: Build and test release
+        run: dotnet test .\osu.Game.Rulesets.Sticks.sln --configuration Release --no-restore
+
+      - name: Stage release assets
+        shell: pwsh
+        run: |
+          $source = ".\osu.Game.Rulesets.Sticks\bin\Release\net8.0\osu.Game.Rulesets.Sticks.dll"
+          $output = ".\release"
+          $dll = Join-Path $output "osu.Game.Rulesets.Sticks.dll"
+          $checksum = "$dll.sha256"
+
+          if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+              throw "Expected release DLL was not produced: $source"
+          }
+
+          New-Item -ItemType Directory -Path $output -Force | Out-Null
+          Copy-Item -LiteralPath $source -Destination $dll -Force
+          Copy-Item -LiteralPath ".\LICENSE.md" -Destination $output -Force
+          Copy-Item -LiteralPath ".\THIRD_PARTY_NOTICES.md" -Destination $output -Force
+
+          $hash = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  osu.Game.Rulesets.Sticks.dll" | Set-Content -LiteralPath $checksum -Encoding utf8NoBOM
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $tag = $env:RELEASE_TAG
+          $assets = @(
+              ".\release\osu.Game.Rulesets.Sticks.dll",
+              ".\release\osu.Game.Rulesets.Sticks.dll.sha256",
+              ".\release\LICENSE.md",
+              ".\release\THIRD_PARTY_NOTICES.md"
+          )
+
+          gh release view $tag --json tagName *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+
+          if ($releaseExists) {
+              gh release upload $tag @assets --clobber
+          }
+          else {
+              gh release create $tag @assets --verify-tag --generate-notes --title "Sticks $tag"
+          }
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Failed to publish release assets for $tag."
+          }

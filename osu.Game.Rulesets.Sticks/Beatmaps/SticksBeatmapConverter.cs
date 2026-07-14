@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 #nullable enable
 
@@ -219,10 +219,23 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 double beatLength = validBeatLength(timing.BeatLength);
                 StickSide side;
 
-                StickSide[] occupied = activeSliders.Select(slider => slider.side).Distinct().ToArray();
-                StickSide[] available = new[] { StickSide.Left, StickSide.Right }
-                                        .Where(candidate => !occupied.Contains(candidate) && !usedSidesAtTimestamp.Contains(candidate))
-                                        .ToArray();
+                StickSide[] visuallyOccupied = activeSliders.Select(slider => slider.side).Distinct().ToArray();
+                StickSide[] physicallyOccupied = activeSliders.Where(slider => slider.endTime >= current.StartTime - 0.01)
+                                                              .Select(slider => slider.side)
+                                                              .Distinct()
+                                                              .ToArray();
+                StickSide[] cleanAvailable = new[] { StickSide.Left, StickSide.Right }
+                                             .Where(candidate => !visuallyOccupied.Contains(candidate) && !usedSidesAtTimestamp.Contains(candidate))
+                                             .ToArray();
+                StickSide[] playableAvailable = new[] { StickSide.Left, StickSide.Right }
+                                                .Where(candidate => !physicallyOccupied.Contains(candidate) && !usedSidesAtTimestamp.Contains(candidate))
+                                                .ToArray();
+
+                // Prefer a side whose approach animation will not overlap an existing duration object.
+                // If both sides are only visually reserved, preserve the source note rather than treating
+                // that reservation as physical occupancy and silently deleting it.
+                bool usingVisibilityFallback = cleanAvailable.Length == 0 && playableAvailable.Length > 0;
+                StickSide[] available = cleanAvailable.Length > 0 ? cleanAvailable : playableAvailable;
 
                 if (available.Length == 0)
                 {
@@ -235,6 +248,16 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 if (available.Length == 1)
                 {
                     side = available[0];
+                }
+                else if (usingVisibilityFallback)
+                {
+                    // Minimise the unavoidable overlap by choosing the lane whose obstructing
+                    // duration object finished first.
+                    side = available.OrderBy(candidate => activeSliders.Where(slider => slider.side == candidate)
+                                                                         .Select(slider => slider.endTime)
+                                                                         .DefaultIfEmpty(double.NegativeInfinity)
+                                                                         .Max())
+                                    .First();
                 }
                 else if (isDuration)
                 {

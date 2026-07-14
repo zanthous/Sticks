@@ -1,6 +1,8 @@
+TODO replace with human written version
+
 # Sticks for osu!lazer
 
-Sticks is a standalone external ruleset prototype for dual-analogue controllers. It requires no osu!lazer patches.
+Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 
 - Left stick: blue outer ring.
 - Right stick: red inner ring.
@@ -16,6 +18,8 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 Approach Rate is a persistent player preference rather than beatmap difficulty. Set it under **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. The default is AR 5 / 850 ms, and the selected value is reused across maps without requiring a mod.
 
 The ruleset provides Easy, Hard Rock, No Fail, Sudden Death, Perfect, Half Time, Double Time, Autoplay, and Difficulty Adjust. Circle Size controls both angular grading bands (`30°` at CS 3 and below, `20°` at CS 4, and `15°` at CS 5.4 and above); player AR remains independent of these difficulty mods. Difficulty Adjust can override the two angle bands, playback speed, reversal conversion, and cursor trails.
+
+Star difficulty separately models same-stick neutral-reset speed, angular reading complexity, continuous slider/hold control, and two-stick coordination. Per-object strain is aggregated with diminishing standard-style weighting, so sustained patterns matter without scaling linearly with map length. CS uses the grading bands actually applied to the objects, OD contributes through timing windows and a mild accuracy factor, and player AR is intentionally excluded.
 
 The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Slider arcs are quantised from rhythm duration and source gesture direction; they do not trace Tau's polar slider representation.
 
@@ -35,6 +39,15 @@ osu.Game.Rulesets.Sticks\bin\Release\net8.0\osu.Game.Rulesets.Sticks.dll
 ```
 
 Use **Settings → Open osu! folder** if you do not know where lazer's data folder is.
+
+## Tagged releases
+
+Pushing a tag beginning with `v` runs the full test suite and creates or updates the matching GitHub Release. The release contains the directly installable `osu.Game.Rulesets.Sticks.dll` and its SHA-256 checksum.
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## In-client editor
 
@@ -70,4 +83,9 @@ Player-replay recording support remains incomplete in this prototype.
 - `osu.Game.Rulesets.Sticks.Tests/`: unit and format-compatibility tests.
 - `Mapper/`: standalone authored-map tooling and its documentation.
 
-The project is licensed under the MIT License. See `LICENCE`.
+## License
+
+Sticks is source-available for noncommercial use, with additional permission
+for monetized gameplay media and events. Zankai LLC retains commercial rights,
+and ppy Pty Ltd has a separate grant for official osu! products and services.
+See [LICENSE.md](LICENSE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

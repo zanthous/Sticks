@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Collections.Generic;
@@ -11,14 +11,17 @@ using osu.Framework.Graphics.Shapes;
 using osu.Game.Audio;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
+using osu.Game.Screens.Edit;
+using osu.Game.Screens.Play;
 using osu.Game.Skinning;
 using osuTK;
 using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
-    public partial class DrawableSticksHold : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
+    public partial class DrawableSticksHold : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable, ISticksTrackingSource
     {
         private const float tracking_magnitude = 0.56f;
 
@@ -27,6 +30,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
         private readonly Container nestedHitObjectContainer;
+        private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
         private Vector2 railStart;
         private Vector2 railEnd;
         private StickSide displayedSide;
@@ -37,7 +41,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private bool headJudged;
         private bool headHit;
         private bool headSamplePlayed;
-        private long observedSequence;
+        private double previousEditorTime = double.NaN;
+
+        [Resolved(CanBeNull = true)]
+        private Editor editor { get; set; }
+
+        [Resolved(CanBeNull = true)]
+        private Player player { get; set; }
 
         public new SticksHold HitObject => (SticksHold)base.HitObject;
 
@@ -46,6 +56,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public override bool DisplayResult => false;
 
         public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.CreatePlayableSamples();
+
+        internal bool HeadJudged => headJudged;
+
+        public bool TrackingAuthorised => trackingEligibility.IsAuthorised;
 
         public Vector2 RailStart
         {
@@ -114,7 +128,20 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private void load(SticksPlayfield sticksPlayfield)
         {
             playfield = sticksPlayfield;
-            observedSequence = playfield.FlickSequence(HitObject.Side);
+            trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            // Native judgement results rewind automatically in the editor, but the hold's
+            // parallel gesture/audio state is custom and must follow the head result explicitly.
+            OnRevertResult += (drawable, _) =>
+            {
+                if (drawable is DrawableSticksHoldHead)
+                    ResetEditorPreviewState(playfield.FlickSequence(HitObject.Side));
+            };
         }
 
         protected override void Update()
@@ -124,6 +151,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             refreshGeometry();
 
             double now = Time.Current;
+            updateEditorState(now);
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
             double approachProgress = Math.Clamp((now - (HitObject.StartTime - HitObject.ApproachDuration)) / Math.Max(1, HitObject.ApproachDuration), 0, 1);
             double headGrowth = SticksHitObject.ApproachGrowthProgress(approachProgress);
@@ -134,11 +162,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             durationCursor.Position = Vector2.Lerp(railEnd, railStart, (float)progress);
 
             updateHeadJudgement(now);
-            updateHeadCue(now);
+            headMarker.Alpha = HeadMarkerAlphaAt(now, HitObject.EndTime);
 
             // Like a standard slider, tracking can resume after the head or any intermediate
             // checkpoint was missed. Only checkpoints crossed while away are lost.
-            bool currentlyTracking = active && isStickInRange();
+            bool currentlyTracking = active && TrackingAuthorised && isStickInRange();
             updateHoldingSample(currentlyTracking && !Judged);
         }
 
@@ -163,7 +191,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (sideChanged)
             {
                 headMarker.SetLane(HitObject.Side, colourFor(HitObject.Side));
-                observedSequence = playfield.FlickSequence(HitObject.Side);
+                trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
             }
 
             headMarker.Angle = HitObject.Angle;
@@ -181,19 +209,37 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateHeadJudgement(double now)
         {
-            if (headJudged || Judged)
+            if (Judged)
                 return;
 
             long sequence = playfield.FlickSequence(HitObject.Side);
-            if (sequence != observedSequence)
-            {
-                observedSequence = sequence;
-                SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
-                double offset = flick.Time - HitObject.StartTime;
+            SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
+            double offset = flick.Time - HitObject.StartTime;
+            HitResult headTimingResult = drawableHead.HitObject.HitWindows?.ResultFor(offset) ?? HitResult.Great;
+            bool canAttemptHead = !headJudged
+                                  && headTimingResult.IsHit();
 
-                if (offset >= -SticksFlick.EARLY_HIT_WINDOW
-                    && offset <= SticksFlick.LATE_HIT_WINDOW
-                    && playfield.TryConsumeFlick(HitObject.Side, flick.Sequence))
+            bool sawNewGesture = trackingEligibility.Observe(
+                    sequence,
+                    flick,
+                    HitObject.StartTime - SticksFlick.EARLY_HIT_WINDOW,
+                    HitObject.EndTime,
+                    HitObject.Angle,
+                    HitObject.LenientHalfAngle,
+                    out bool canAuthoriseTracking);
+            bool canStartTracking = canAuthoriseTracking
+                                    && (canAttemptHead || flick.Time >= HitObject.StartTime);
+
+            if (sawNewGesture
+                && (canAttemptHead || canStartTracking)
+                && (canAttemptHead
+                    ? playfield.TryConsumeHeadFlick(this, HitObject.Side, flick.Sequence)
+                    : playfield.TryConsumeTrackingFlick(HitObject.Side, flick.Sequence)))
+            {
+                if (canStartTracking)
+                    trackingEligibility.Authorise();
+
+                if (canAttemptHead)
                 {
                     float angleError = Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, HitObject.Angle));
                     headJudged = true;
@@ -202,43 +248,26 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
                     if (headHit)
                         playHeadSample();
-
-                    return;
                 }
             }
 
             double timeOffset = now - HitObject.StartTime;
-            if (drawableHead.HitObject.HitWindows is not null
+            if (!headJudged
+                && drawableHead.HitObject.HitWindows is not null
                 && !drawableHead.HitObject.HitWindows.CanBeHit(timeOffset))
-                markHeadMiss();
+                MarkHeadMiss();
         }
 
-        private void markHeadMiss()
+        internal void MarkHeadMiss()
         {
             if (headJudged)
                 return;
 
             headJudged = true;
-            drawableHead.ApplyMiss();
+            drawableHead?.ApplyMiss();
         }
 
-        private void updateHeadCue(double now)
-        {
-            if (now < HitObject.StartTime)
-            {
-                headMarker.Alpha = 1;
-                return;
-            }
-
-            double timeSinceStart = now - HitObject.StartTime;
-            if (timeSinceStart <= 120)
-            {
-                headMarker.Alpha = 1 - (float)(timeSinceStart / 120);
-                return;
-            }
-
-            headMarker.Alpha = 0;
-        }
+        public static float HeadMarkerAlphaAt(double time, double endTime) => time <= endTime ? 1 : 0;
 
         protected override void CheckForResult(bool userTriggered, double timeOffset)
         {
@@ -246,6 +275,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 return;
 
             updateHoldingSample(false);
+
+            // Short converted holds can end while their head is still inside its late miss
+            // window. Resolve that head before the parent so its two accuracy components cannot
+            // remain invisibly outstanding after the hold has disappeared.
+            MarkHeadMiss();
 
             // The independently-scored head, ticks and tail own all hold gameplay results.
             ApplyMaxResult();
@@ -262,7 +296,52 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             base.PlaySamples();
         }
 
+        private void updateEditorState(double now)
+        {
+            if (editor == null)
+                return;
+
+            bool rewoundBeforeHead = !double.IsNaN(previousEditorTime)
+                                      && now < previousEditorTime
+                                      && now < HitObject.StartTime;
+            bool nativeHeadResultWasReverted = headJudged
+                                               && drawableHead != null
+                                               && !drawableHead.Judged;
+
+            if (rewoundBeforeHead || nativeHeadResultWasReverted)
+                ResetEditorPreviewState(playfield.FlickSequence(HitObject.Side));
+
+            // Compose preview has no Player and uses an autoplay replay only to animate gameplay.
+            // Play the authored head sample deterministically when crossing the object. F5 test
+            // play does have a Player, so misses there must remain silent like normal gameplay.
+            if (player == null
+                && !headSamplePlayed
+                && DrawableSticksSlider.CrossedStartTime(previousEditorTime, now, HitObject.StartTime))
+                playHeadSample();
+
+            previousEditorTime = now;
+        }
+
+        internal void ResetEditorPreviewState(long currentSequence)
+        {
+            headSamplePlayed = false;
+            headJudged = false;
+            headHit = false;
+            trackingEligibility.Reset(currentSequence);
+            updateHoldingSample(false);
+        }
+
         protected override double InitialLifetimeOffset => HitObject.ApproachDuration;
+
+        protected override void OnApply()
+        {
+            base.OnApply();
+
+            // Editing a hold re-applies it with newly-created nested drawables. Do not attach
+            // that fresh head to state retained by the previous preview pass.
+            if (editor != null)
+                ResetEditorPreviewState(playfield != null ? playfield.FlickSequence(HitObject.Side) : 0);
+        }
 
         void ISticksApproachRateAdjustable.RefreshApproachTransforms()
         {
@@ -321,6 +400,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         protected override void OnFree()
         {
+            // Clear RequestedPlaying before discarding the custom loop's samples. Otherwise an
+            // editor re-apply can reload them while the sound still claims to be playing and it
+            // will never start again.
+            if (editor != null)
+                ResetEditorPreviewState(playfield != null ? playfield.FlickSequence(HitObject.Side) : 0);
+            else
+                updateHoldingSample(false);
+
             base.OnFree();
             holdingSample?.ClearSamples();
         }

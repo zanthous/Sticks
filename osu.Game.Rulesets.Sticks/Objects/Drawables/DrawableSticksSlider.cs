@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Collections.Generic;
@@ -13,31 +13,38 @@ using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Screens.Edit;
+using osu.Game.Screens.Play;
 using osuTK;
 using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
-    public partial class DrawableSticksSlider : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
+    public partial class DrawableSticksSlider : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable, ISticksTrackingSource
     {
+        public const float REVERSAL_PREVIEW_ALPHA = 0.28f;
+
         private readonly CircularProgress path;
+        private readonly CircularProgress reversalPathPreview;
         private readonly CircularProgress reversalOutline;
         private readonly CircularProgress reversalPreviewOutline;
         private readonly CircularProgress directionPreview;
         private readonly SticksArcMarker trackingMarker;
         private readonly SticksSliderHeadMarker headMarker;
         private readonly Container nestedHitObjectContainer;
+        private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
         private SticksPlayfield playfield = null!;
         private DrawableSticksSliderHead drawableHead = null!;
         private bool headJudged;
         private bool headHit;
-        private long observedSequence;
         private StickSide? displayedSide;
         private bool headSamplePlayed;
         private double previousEditorTime = double.NaN;
 
         [Resolved(CanBeNull = true)]
         private Editor editor { get; set; }
+
+        [Resolved(CanBeNull = true)]
+        private Player player { get; set; }
 
         public new SticksSlider HitObject => (SticksSlider)base.HitObject;
 
@@ -53,6 +60,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         internal bool HasResult => Judged;
 
+        public bool TrackingAuthorised => trackingEligibility.IsAuthorised;
+
         public DrawableSticksSlider(SticksSlider hitObject)
             : base(hitObject)
         {
@@ -65,6 +74,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 AlwaysPresent = true,
                 Depth = -20,
             });
+
+            // This is deliberately behind the opaque active path. As the played portion is
+            // erased, the translucent upcoming reversal is revealed without covering it.
+            AddInternal(reversalPathPreview = createArc(hitObject, 7, 0, 9));
 
             AddInternal(reversalPreviewOutline = createArc(hitObject, 5, 0, 11, Color4.White));
 
@@ -95,7 +108,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private void load(SticksPlayfield sticksPlayfield)
         {
             playfield = sticksPlayfield;
-            observedSequence = playfield.FlickSequence(HitObject.Side);
+            trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
         }
 
         protected override void Update()
@@ -116,6 +129,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             int segmentIndex = active ? HitObject.SegmentIndexAt(now) : 0;
             setVisibleRange(path, HitObject.SegmentStartAngleAt(segmentIndex), HitObject.SegmentArcAngleAt(segmentIndex), remainingStart, remainingEnd);
             path.Alpha = active ? 1 : 0;
+            updateReversalPathPreview(now, active);
             updateDirectionPreview(now, cueActive, active);
             updateReversalOutline(now, cueActive, active, segmentIndex, remainingStart, remainingEnd);
 
@@ -134,18 +148,41 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (displayedSide != HitObject.Side)
             {
                 updateArcLane(path, HitObject.Side, 7, colour);
+                updateArcLane(reversalPathPreview, HitObject.Side, 7, colour);
                 updateArcLane(directionPreview, HitObject.Side, 4, colour);
                 updateArcLane(reversalOutline, HitObject.Side, 8, Color4.White);
                 updateArcLane(reversalPreviewOutline, HitObject.Side, 5, Color4.White);
                 headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
                 trackingMarker.SetLane(HitObject.Side, colour);
                 displayedSide = HitObject.Side;
-                observedSequence = playfield.FlickSequence(HitObject.Side);
+                trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
             }
 
             if (headMarker.Direction != HitObject.InitialDirection)
                 headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
             headMarker.Angle = HitObject.Angle;
+        }
+
+        private void updateReversalPathPreview(double now, bool active)
+        {
+            int upcomingSegment = active ? HitObject.UpcomingSegmentIndexAt(now) : -1;
+            double previewProgress = upcomingSegment >= 0
+                ? HitObject.UpcomingSegmentPreviewProgressAt(now)
+                : 0;
+
+            if (previewProgress <= 0)
+            {
+                reversalPathPreview.Alpha = 0;
+                return;
+            }
+
+            setVisibleRange(
+                reversalPathPreview,
+                HitObject.SegmentStartAngleAt(upcomingSegment),
+                HitObject.SegmentArcAngleAt(upcomingSegment),
+                0,
+                previewProgress);
+            reversalPathPreview.Alpha = REVERSAL_PREVIEW_ALPHA;
         }
 
         private void updateDirectionPreview(double now, bool cueActive, bool active)
@@ -184,19 +221,40 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateHeadJudgement(double now)
         {
-            if (headJudged || Judged)
+            if (Judged)
                 return;
 
             long sequence = playfield.FlickSequence(HitObject.Side);
-            if (sequence != observedSequence)
-            {
-                observedSequence = sequence;
-                SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
-                double offset = flick.Time - HitObject.StartTime;
+            SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
+            double offset = flick.Time - HitObject.StartTime;
+            HitResult headTimingResult = drawableHead.HitObject.HitWindows?.ResultFor(offset) ?? HitResult.Great;
+            bool canAttemptHead = !headJudged
+                                  && headTimingResult.IsHit();
+            float trackingAngle = canAttemptHead
+                ? HitObject.Angle
+                : HitObject.AngleAt(Math.Clamp(flick.Time, HitObject.StartTime, HitObject.EndTime));
 
-                if (offset >= -SticksFlick.EARLY_HIT_WINDOW
-                    && offset <= SticksFlick.LATE_HIT_WINDOW
-                    && playfield.TryConsumeFlick(HitObject.Side, flick.Sequence))
+            bool sawNewGesture = trackingEligibility.Observe(
+                    sequence,
+                    flick,
+                    HitObject.StartTime - SticksFlick.EARLY_HIT_WINDOW,
+                    HitObject.EndTime,
+                    trackingAngle,
+                    HitObject.LenientHalfAngle,
+                    out bool canAuthoriseTracking);
+            bool canStartTracking = canAuthoriseTracking
+                                    && (canAttemptHead || flick.Time >= HitObject.StartTime);
+
+            if (sawNewGesture
+                && (canAttemptHead || canStartTracking)
+                && (canAttemptHead
+                    ? playfield.TryConsumeHeadFlick(this, HitObject.Side, flick.Sequence)
+                    : playfield.TryConsumeTrackingFlick(HitObject.Side, flick.Sequence)))
+            {
+                if (canStartTracking)
+                    trackingEligibility.Authorise();
+
+                if (canAttemptHead)
                 {
                     float angleError = Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, HitObject.Angle));
                     headJudged = true;
@@ -205,13 +263,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
                     if (headHit)
                         playHeadSample();
-
-                    return;
                 }
             }
 
             double timeOffset = now - HitObject.StartTime;
-            if (drawableHead.HitObject.HitWindows is not null
+            if (!headJudged
+                && drawableHead.HitObject.HitWindows is not null
                 && !drawableHead.HitObject.HitWindows.CanBeHit(timeOffset))
                 MarkHeadMiss();
         }
@@ -249,6 +306,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (Judged || Time.Current < HitObject.EndTime)
                 return;
 
+            // A converted slider may be shorter than the head's late miss window. Once the
+            // parent resolves it no longer checks head input, so close any still-open head first
+            // rather than leaving its timing and angle components permanently unjudged.
+            MarkHeadMiss();
+
             // Modern standard-style slider scoring lives entirely on the independent head,
             // ticks, reversals and tail. The parent only resolves its visual lifetime.
             ApplyMaxResult();
@@ -277,7 +339,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 headHit = false;
             }
 
-            if (!headSamplePlayed && CrossedStartTime(previousEditorTime, now, HitObject.StartTime))
+            // Only compose preview receives an automatic authored sample. In F5 editor test
+            // play, actual head acquisition must remain authoritative just like normal play.
+            if (player == null
+                && !headSamplePlayed
+                && CrossedStartTime(previousEditorTime, now, HitObject.StartTime))
                 playHeadSample();
 
             previousEditorTime = now;

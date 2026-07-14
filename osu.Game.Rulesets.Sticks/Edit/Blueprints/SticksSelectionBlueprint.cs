@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 #nullable enable
 
@@ -29,14 +29,20 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private readonly SegmentButton? removeSegmentButton;
         private readonly SegmentButton? appendSegmentButton;
         private readonly CircularProgress? continuationPreview;
+        private readonly EndpointPreviewMarker? continuationEndpointPreview;
         private float dragArcAngle;
         private float lastDragPointerAngle;
         private float originalDragArcAngle;
         private bool placingContinuation;
         private float pendingContinuationArc;
 
+        private const double endpoint_time_tolerance = 0.5;
+
         [Resolved]
         private EditorBeatmap? editorBeatmap { get; set; }
+
+        [Resolved]
+        private EditorClock editorClock { get; set; } = null!;
 
         [Resolved(CanBeNull = true)]
         private IEditorChangeHandler? changeHandler { get; set; }
@@ -65,8 +71,11 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                     Alpha = 0,
                     Depth = -19,
                 });
+                AddInternal(continuationEndpointPreview = new EndpointPreviewMarker());
             }
         }
+
+        protected override bool AlwaysShowWhenSelected => placingContinuation;
 
         protected override void Update()
         {
@@ -75,6 +84,11 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
             if (sliderTailHandle != null && HitObject is SticksSlider slider)
             {
+                bool atSliderEnd = isAtSliderEnd(slider);
+
+                if (placingContinuation)
+                    pendingContinuationArc = slider.ContinuationArcAt(editorClock.CurrentTimeAccurate);
+
                 float terminalAngle = slider.SegmentStartAngleAt(slider.SegmentCount);
                 sliderTailHandle.Position = SticksPlayfield.PointAt(terminalAngle, SticksPlayfield.RadiusFor(slider.Side));
                 sliderTailHandle.FillColour = slider.Side == StickSide.Left
@@ -85,6 +99,10 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 Vector2 tangent = new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * 27;
                 removeSegmentButton!.Position = sliderTailHandle.Position - tangent;
                 appendSegmentButton!.Position = sliderTailHandle.Position + tangent;
+                appendSegmentButton.IconRotation = terminalAngle - Math.Sign(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) * 90;
+                sliderTailHandle.Available = !placingContinuation;
+                removeSegmentButton.Available = atSliderEnd && !placingContinuation;
+                appendSegmentButton.Available = atSliderEnd && !placingContinuation;
                 removeSegmentButton.Enabled = slider.SegmentCount > 1 && !placingContinuation;
                 appendSegmentButton.Enabled = slider.SegmentCount < 16 && !placingContinuation;
 
@@ -131,6 +149,13 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             return AdjustDraggedArcAngle(arc, snap);
         }
 
+        public static bool IsAtSliderEndTime(double currentTime, double sliderEndTime) =>
+            double.IsFinite(currentTime)
+            && double.IsFinite(sliderEndTime)
+            && Math.Abs(currentTime - sliderEndTime) <= endpoint_time_tolerance;
+
+        private bool isAtSliderEnd(SticksSlider slider) => IsAtSliderEndTime(editorClock.CurrentTimeAccurate, slider.EndTime);
+
         private bool beginTailDrag(DragStartEvent e)
         {
             if (HitObject is not SticksSlider slider || !tryGetPointerAngle(e.ScreenSpaceMousePosition, out lastDragPointerAngle))
@@ -173,11 +198,11 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         private void beginContinuationPlacement()
         {
-            if (HitObject is not SticksSlider slider || slider.SegmentCount >= 16)
+            if (HitObject is not SticksSlider slider || slider.SegmentCount >= 16 || !isAtSliderEnd(slider))
                 return;
 
             placingContinuation = true;
-            pendingContinuationArc = -Math.Sign(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) * 15;
+            pendingContinuationArc = 0;
         }
 
         private void removeFinalSegment()
@@ -200,35 +225,24 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             if (e.Button != MouseButton.Left)
                 return true;
 
-            float segment = pendingContinuationArc;
+            double newEndTime = editorClock.CurrentTimeAccurate;
+            if (Math.Abs(slider.ContinuationArcAt(newEndTime)) < 1)
+                return true;
+
             placingContinuation = false;
-            performUndoableChange(slider, () => slider.AppendSegmentAtConstantSpeed(segment));
+            performUndoableChange(slider, () => slider.AppendTimedSegmentAtConstantSpeed(newEndTime));
             return true;
-        }
-
-        protected override bool OnMouseMove(MouseMoveEvent e)
-        {
-            if (placingContinuation && HitObject is SticksSlider slider && tryGetPointerAngle(e.ScreenSpaceMousePosition, out float pointerAngle))
-            {
-                float terminalAngle = slider.SegmentStartAngleAt(slider.SegmentCount);
-                pendingContinuationArc = ReversalArcTo(
-                    terminalAngle,
-                    pointerAngle,
-                    Math.Sign(slider.SegmentArcAngleAt(slider.SegmentCount - 1)),
-                    e.ShiftPressed);
-            }
-
-            return base.OnMouseMove(e);
         }
 
         private void updateContinuationPreview(SticksSlider slider, float terminalAngle)
         {
-            if (continuationPreview == null)
+            if (continuationPreview == null || continuationEndpointPreview == null)
                 return;
 
-            if (!placingContinuation)
+            if (!placingContinuation || Math.Abs(pendingContinuationArc) < 1)
             {
                 continuationPreview.Alpha = 0;
+                continuationEndpointPreview.Alpha = 0;
                 return;
             }
 
@@ -241,6 +255,14 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             continuationPreview.Rotation = 90 + (pendingContinuationArc >= 0 ? terminalAngle : terminalAngle + pendingContinuationArc);
             continuationPreview.Progress = Math.Abs(pendingContinuationArc) / 360;
             continuationPreview.Alpha = 0.55f;
+
+            continuationEndpointPreview.Position = SticksPlayfield.PointAt(
+                terminalAngle + pendingContinuationArc,
+                radius);
+            continuationEndpointPreview.FillColour = slider.Side == StickSide.Left
+                ? SticksPlayfield.LEFT_COLOUR
+                : SticksPlayfield.RIGHT_COLOUR;
+            continuationEndpointPreview.Alpha = 1;
         }
 
         private void performUndoableChange(HitObject hitObject, Action mutation)
@@ -265,11 +287,13 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
         {
-            if (placingContinuation
-                && HitObject is SticksSlider slider
-                && SticksEditorCoordinates.TryGetPlacement(piece.ToLocalSpace(screenSpacePos), out StickSide side, out _)
-                && side == slider.Side)
-                return true;
+            if (placingContinuation)
+            {
+                Vector2 localPosition = piece.ToLocalSpace(screenSpacePos);
+                if (localPosition.X >= 0 && localPosition.X <= SticksPlayfield.SIZE
+                                         && localPosition.Y >= 0 && localPosition.Y <= SticksPlayfield.SIZE)
+                    return true;
+            }
 
             return piece.ReceiveAt(screenSpacePos)
                    || sliderTailHandle?.ReceivePositionalInputAt(screenSpacePos) == true
@@ -284,6 +308,17 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private partial class SliderTailHandle : CircularContainer
         {
             private readonly Box fill;
+            private bool available = true;
+
+            public bool Available
+            {
+                get => available;
+                set
+                {
+                    available = value;
+                    Alpha = value ? 1 : 0;
+                }
+            }
 
             public Func<DragStartEvent, bool>? DragStarted { get; init; }
 
@@ -308,10 +343,13 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 Child = fill = new Box { RelativeSizeAxes = Axes.Both };
             }
 
-            protected override bool OnMouseDown(MouseDownEvent e) => e.Button == MouseButton.Left;
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
+                Available && base.ReceivePositionalInputAt(screenSpacePos);
+
+            protected override bool OnMouseDown(MouseDownEvent e) => Available && e.Button == MouseButton.Left;
 
             protected override bool OnDragStart(DragStartEvent e) =>
-                e.Button == MouseButton.Left && (DragStarted?.Invoke(e) ?? false);
+                Available && e.Button == MouseButton.Left && (DragStarted?.Invoke(e) ?? false);
 
             protected override void OnDrag(DragEvent e)
             {
@@ -326,10 +364,52 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
         }
 
+        private partial class EndpointPreviewMarker : CircularContainer
+        {
+            private readonly Box fill;
+
+            public Color4 FillColour
+            {
+                set => fill.Colour = value;
+            }
+
+            public override bool HandlePositionalInput => false;
+
+            public EndpointPreviewMarker()
+            {
+                Anchor = Anchor.TopLeft;
+                Origin = Anchor.Centre;
+                Size = new Vector2(22);
+                Masking = true;
+                BorderThickness = 3;
+                BorderColour = Color4.White;
+                Depth = -22;
+                Alpha = 0;
+                Child = fill = new Box { RelativeSizeAxes = Axes.Both };
+            }
+        }
+
         private partial class SegmentButton : CircularContainer
         {
             private readonly Action action;
+            private readonly SpriteIcon icon;
             private bool enabled = true;
+            private bool available;
+
+            public float IconRotation
+            {
+                set => icon.Rotation = value;
+            }
+
+            public bool Available
+            {
+                get => available;
+                set
+                {
+                    available = value;
+                    updateState();
+                }
+            }
 
             public bool Enabled
             {
@@ -337,7 +417,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 set
                 {
                     enabled = value;
-                    Alpha = value ? 1 : 0.3f;
+                    updateState();
                 }
             }
 
@@ -352,6 +432,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 BorderThickness = 2;
                 BorderColour = Color4.White;
                 Depth = -21;
+                Alpha = 0;
                 Children = new Drawable[]
                 {
                     new Box
@@ -360,22 +441,28 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                         Colour = Color4.Black,
                         Alpha = 0.7f,
                     },
-                    new SpriteIcon
+                    icon = new SpriteIcon
                     {
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre,
-                        Size = new Vector2(11),
-                        Icon = increase ? FontAwesome.Solid.Plus : FontAwesome.Solid.Minus,
+                        Size = new Vector2(increase ? 14 : 11),
+                        Icon = increase ? FontAwesome.Solid.AngleDoubleRight : FontAwesome.Solid.Minus,
                         Colour = Color4.White,
+                        Shadow = increase,
                     },
                 };
             }
 
-            protected override bool OnMouseDown(MouseDownEvent e) => Enabled && e.Button == MouseButton.Left;
+            private void updateState() => Alpha = Available ? (Enabled ? 1 : 0.3f) : 0;
+
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
+                Available && base.ReceivePositionalInputAt(screenSpacePos);
+
+            protected override bool OnMouseDown(MouseDownEvent e) => Available && Enabled && e.Button == MouseButton.Left;
 
             protected override bool OnClick(ClickEvent e)
             {
-                if (e.Button != MouseButton.Left || !Enabled)
+                if (e.Button != MouseButton.Left || !Available || !Enabled)
                     return false;
 
                 action();

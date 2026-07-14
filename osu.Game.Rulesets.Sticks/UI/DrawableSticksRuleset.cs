@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System.Collections.Generic;
 using osu.Framework.Allocation;
@@ -54,6 +54,15 @@ namespace osu.Game.Rulesets.Sticks.UI
         protected override ReplayInputHandler CreateReplayInputHandler(Replay replay) => new SticksFramedReplayInputHandler(replay, replayInputProvider);
 
         protected override ReplayRecorder CreateReplayRecorder(Score score) => new SticksReplayRecorder(score);
+
+        public override void SetReplayScore(Score replayScore)
+        {
+            // Unlike a normal player, editor test play can toggle autoplay on and off while the
+            // same drawable ruleset remains alive. Do not retain the last bot stick position
+            // while lazer replaces or removes its replay handler.
+            replayInputProvider.Deactivate();
+            base.SetReplayScore(replayScore);
+        }
 
         public override DrawableHitObject<SticksHitObject> CreateDrawableRepresentation(SticksHitObject hitObject)
         {

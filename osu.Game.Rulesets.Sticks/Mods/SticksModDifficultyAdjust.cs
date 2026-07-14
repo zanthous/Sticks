@@ -1,4 +1,4 @@
-// Copyright (c) Zanthous. Licensed under the MIT Licence.
+// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
 using System.Linq;
@@ -54,7 +54,10 @@ namespace osu.Game.Rulesets.Sticks.Mods
         [SettingSource("Show cursor trails", "Show a short trail behind both stick cursors.", LAST_SETTING_ORDER + 4)]
         public BindableBool ShowCursorTrails { get; } = new BindableBool();
 
-        [SettingSource("Speed", "Adjust gameplay and audio playback speed.", LAST_SETTING_ORDER + 5, SettingControlType = typeof(MultiplierSettingsSlider))]
+        [SettingSource("80% stick travel", "Treat 80% physical stick distance as the edge of the playfield.", LAST_SETTING_ORDER + 5)]
+        public BindableBool UseEightyPercentStickTravel { get; } = new BindableBool();
+
+        [SettingSource("Speed", "Adjust gameplay and audio playback speed.", LAST_SETTING_ORDER + 6, SettingControlType = typeof(MultiplierSettingsSlider))]
         public BindableDouble SpeedChange { get; } = new BindableDouble(1)
         {
             MinValue = 0.5,
@@ -92,7 +95,10 @@ namespace osu.Game.Rulesets.Sticks.Mods
         public void ApplyToDrawableRuleset(DrawableRuleset<SticksHitObject> drawableRuleset)
         {
             if (drawableRuleset.Playfield is SticksPlayfield playfield)
+            {
                 playfield.ShowCursorTrails = ShowCursorTrails.Value;
+                playfield.PhysicalStickDistanceAtGameEdge = UseEightyPercentStickTravel.Value ? 0.8f : 1;
+            }
         }
 
         private void applyAngles(SticksHitObject hitObject)

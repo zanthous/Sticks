@@ -190,16 +190,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Duration = 1000,
             };
 
-            Assert.That(slider.ShowSyncedNoteLink, Is.True);
-            Assert.That(slider.ChordLinkStyle, Is.EqualTo(ChordLinkStyle.ToCentre));
-
             var mod = new SticksModDifficultyAdjust
             {
                 PrimaryHitAngle = { Value = 30 },
                 SecondaryHitAngle = { Value = 10 },
                 ShowCursorTrails = { Value = true },
-                ShowSyncedNoteLinks = { Value = true },
-                ChordLinkStyle = { Value = ChordLinkStyle.ToCentre },
             };
 
             var difficulty = new BeatmapDifficulty { ApproachRate = 5 };
@@ -218,29 +213,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.ResultForCurrentAngleError(15), Is.EqualTo(HitResult.Great));
                 Assert.That(slider.ResultForCurrentAngleError(15.01f), Is.EqualTo(HitResult.Ok));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
-                    nested.PrimaryHitAngle == 30 && nested.SecondaryHitAngle == 10 && nested.ShowSyncedNoteLink));
+                    nested.PrimaryHitAngle == 30 && nested.SecondaryHitAngle == 10));
                 Assert.That(((SticksPlayfield)drawableRuleset.Playfield).ShowCursorTrails, Is.True);
-                Assert.That(slider.ShowSyncedNoteLink, Is.True);
-                Assert.That(slider.ChordLinkStyle, Is.EqualTo(ChordLinkStyle.ToCentre));
             });
 
-            var centreLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 180, slider.ChordLinkStyle);
+            var centreLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 180);
             Assert.Multiple(() =>
             {
-                Assert.That(centreLink.Style, Is.EqualTo(ChordLinkStyle.ToCentre));
                 Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Left), Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
                 Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Right), Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
                 Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(0), Is.EqualTo(0.45f).Within(0.001));
                 Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(1), Is.EqualTo(0.8f).Within(0.001));
-            });
-
-            mod.ShowSyncedNoteLinks.Value = false;
-            mod.ChordLinkStyle.Value = ChordLinkStyle.BetweenNotes;
-            mod.ApplyToHitObject(slider);
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.ShowSyncedNoteLink, Is.False);
-                Assert.That(slider.ChordLinkStyle, Is.EqualTo(ChordLinkStyle.BetweenNotes));
             });
         }
 

@@ -19,8 +19,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public const float INITIAL_ALPHA = 0.45f;
         public const float FINAL_ALPHA = 0.8f;
 
-        public ChordLinkStyle Style { get; private set; }
-
         private StickSide? displayedFirstSide;
         private float displayedFirstAngle = float.NaN;
         private StickSide? displayedSecondSide;
@@ -30,32 +28,28 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             StickSide firstSide,
             float firstAngle,
             StickSide secondSide,
-            float secondAngle,
-            ChordLinkStyle style = ChordLinkStyle.ToCentre)
+            float secondAngle)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
             Alpha = 0;
             Depth = 20;
 
-            SetGeometry(firstSide, firstAngle, secondSide, secondAngle, style);
+            SetGeometry(firstSide, firstAngle, secondSide, secondAngle);
         }
 
         public void SetGeometry(
             StickSide firstSide,
             float firstAngle,
             StickSide secondSide,
-            float secondAngle,
-            ChordLinkStyle style)
+            float secondAngle)
         {
             if (displayedFirstSide == firstSide
                 && Math.Abs(displayedFirstAngle - firstAngle) < 0.001f
                 && displayedSecondSide == secondSide
-                && Math.Abs(displayedSecondAngle - secondAngle) < 0.001f
-                && Style == style)
+                && Math.Abs(displayedSecondAngle - secondAngle) < 0.001f)
                 return;
 
             ClearInternal();
-            Style = style;
             displayedFirstSide = firstSide;
             displayedFirstAngle = firstAngle;
             displayedSecondSide = secondSide;
@@ -63,30 +57,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             Vector2 first = SticksPlayfield.PointAt(firstAngle, SticksPlayfield.RadiusFor(firstSide));
             Vector2 second = SticksPlayfield.PointAt(secondAngle, SticksPlayfield.RadiusFor(secondSide));
-
-            if (style == ChordLinkStyle.ToCentre)
-            {
-                Vector2 centre = new Vector2(SticksPlayfield.SIZE / 2);
-                AddInternal(path(first, centre, ColourFor(firstSide)));
-                AddInternal(path(second, centre, ColourFor(secondSide)));
-                return;
-            }
-
-            Vector2 delta = second - first;
-            float length = delta.Length;
-
-            if (length < 100)
-            {
-                AddInternal(path(first, second));
-                return;
-            }
-
-            // Long opposite-side links leave the centre quiet instead of bisecting it with a solid bar.
-            Vector2 direction = delta / Math.Max(1, length);
-            Vector2 midpoint = (first + second) / 2;
-            const float centre_gap = 14;
-            AddInternal(path(first, midpoint - direction * centre_gap));
-            AddInternal(path(midpoint + direction * centre_gap, second));
+            Vector2 centre = new Vector2(SticksPlayfield.SIZE / 2);
+            AddInternal(path(first, centre, ColourFor(firstSide)));
+            AddInternal(path(second, centre, ColourFor(secondSide)));
         }
 
         private static SmoothPath path(Vector2 start, Vector2 end, Color4? colour = null) => new SmoothPath

@@ -32,14 +32,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             Size = new Vector2(SticksPlayfield.SIZE);
 
-            if (hitObject.ShowSyncedNoteLink && hitObject.SyncedNoteSide is StickSide linkedSide)
+            if (hitObject.SyncedNoteSide is StickSide linkedSide)
             {
                 AddInternal(syncedNoteLink = new SticksSyncedNoteLink(
                     hitObject.Side,
                     hitObject.Angle,
                     linkedSide,
-                    hitObject.SyncedNoteAngle,
-                    hitObject.ChordLinkStyle));
+                    hitObject.SyncedNoteAngle));
             }
 
             AddInternal(marker = new SticksArcMarker(hitObject.Side, colourFor(hitObject.Side), true)
@@ -79,8 +78,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                         HitObject.Side,
                         HitObject.Angle,
                         linkedSide,
-                        HitObject.SyncedNoteAngle,
-                        HitObject.ChordLinkStyle);
+                        HitObject.SyncedNoteAngle);
                 }
                 syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtGrowth(growth);
             }

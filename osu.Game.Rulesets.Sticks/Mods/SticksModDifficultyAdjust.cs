@@ -47,12 +47,6 @@ namespace osu.Game.Rulesets.Sticks.Mods
         [SettingSource("Show cursor trails", "Show a short trail behind both stick cursors.", 3)]
         public BindableBool ShowCursorTrails { get; } = new BindableBool();
 
-        [SettingSource("Show synced-note links", "Draw a subtle tether between flicks which must be played together. Enabled by default; toggle off to hide it.", 4)]
-        public BindableBool ShowSyncedNoteLinks { get; } = new BindableBool(true);
-
-        [SettingSource("Chord link style", "Choose whether chord notes connect to each other or independently to the playfield centre.", 5)]
-        public Bindable<ChordLinkStyle> ChordLinkStyle { get; } = new Bindable<ChordLinkStyle>(global::osu.Game.Rulesets.Sticks.Objects.ChordLinkStyle.ToCentre);
-
         public void ApplyToHitObject(HitObject hitObject)
         {
             if (hitObject is SticksHitObject sticksObject)
@@ -75,8 +69,6 @@ namespace osu.Game.Rulesets.Sticks.Mods
         {
             hitObject.PrimaryHitAngle = PrimaryHitAngle.Value;
             hitObject.SecondaryHitAngle = SecondaryHitAngle.Value;
-            hitObject.ShowSyncedNoteLink = ShowSyncedNoteLinks.Value;
-            hitObject.ChordLinkStyle = ChordLinkStyle.Value;
 
             foreach (HitObject nested in hitObject.NestedHitObjects)
             {

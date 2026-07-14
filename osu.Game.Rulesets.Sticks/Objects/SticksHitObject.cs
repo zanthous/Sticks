@@ -168,10 +168,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
             return playableSamples;
         }
 
-        public bool ShowSyncedNoteLink { get; set; } = true;
-
-        public ChordLinkStyle ChordLinkStyle { get; set; } = global::osu.Game.Rulesets.Sticks.Objects.ChordLinkStyle.ToCentre;
-
         public StickSide? SyncedNoteSide { get; set; }
 
         public float SyncedNoteAngle { get; set; }

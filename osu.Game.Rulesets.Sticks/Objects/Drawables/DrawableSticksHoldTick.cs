@@ -1,0 +1,57 @@
+// Copyright (c) Zanthous. Licensed under the MIT Licence.
+
+using System;
+using osu.Framework.Allocation;
+using osu.Game.Rulesets.Objects.Drawables;
+using osu.Game.Rulesets.Sticks.UI;
+using osuTK;
+
+namespace osu.Game.Rulesets.Sticks.Objects.Drawables
+{
+    public partial class DrawableSticksHoldTick : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
+    {
+        private const float tracking_magnitude = 0.56f;
+
+        private SticksPlayfield playfield = null!;
+
+        public new SticksHoldTick HitObject => (SticksHoldTick)base.HitObject;
+
+        public override bool HandlePositionalInput => false;
+
+        public DrawableSticksHoldTick(SticksHoldTick hitObject)
+            : base(hitObject)
+        {
+            Alpha = 0;
+            AlwaysPresent = true;
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(SticksPlayfield sticksPlayfield) => playfield = sticksPlayfield;
+
+        protected override double InitialLifetimeOffset => HitObject.PreemptDuration;
+
+        void ISticksApproachRateAdjustable.RefreshApproachTransforms()
+        {
+            if (Judged)
+                return;
+
+            LifetimeStart = HitObject.StartTime - InitialLifetimeOffset;
+            UpdateState(State.Value, true);
+        }
+
+        protected override void CheckForResult(bool userTriggered, double timeOffset)
+        {
+            if (Judged || Time.Current < HitObject.StartTime)
+                return;
+
+            Vector2 stick = playfield.StickVector(HitObject.Side);
+            float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
+            float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, HitObject.Angle));
+
+            if (stick.Length >= tracking_magnitude && angleError <= HitObject.LenientHalfAngle)
+                ApplyMaxResult();
+            else
+                ApplyMinResult();
+        }
+    }
+}

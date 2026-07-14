@@ -20,8 +20,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     public partial class DrawableSticksSlider : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
     {
-        private const float tracking_magnitude = 0.56f;
-
         private readonly CircularProgress path;
         private readonly CircularProgress reversalOutline;
         private readonly CircularProgress reversalPreviewOutline;
@@ -30,11 +28,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SticksSliderHeadMarker headMarker;
         private readonly Container nestedHitObjectContainer;
         private SticksPlayfield playfield = null!;
-        private double trackedTime;
-        private double lastPlaybackTime = double.NaN;
+        private DrawableSticksSliderHead drawableHead = null!;
         private bool headJudged;
         private bool headHit;
-        private double headHitTime;
+        private long observedSequence;
         private StickSide? displayedSide;
         private bool headSamplePlayed;
         private double previousEditorTime = double.NaN;
@@ -45,6 +42,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public new SticksSlider HitObject => (SticksSlider)base.HitObject;
 
         public override bool HandlePositionalInput => false;
+
+        public override bool DisplayResult => false;
 
         public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.CreatePlayableSamples();
 
@@ -93,7 +92,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(SticksPlayfield sticksPlayfield) => playfield = sticksPlayfield;
+        private void load(SticksPlayfield sticksPlayfield)
+        {
+            playfield = sticksPlayfield;
+            observedSequence = playfield.FlickSequence(HitObject.Side);
+        }
 
         protected override void Update()
         {
@@ -122,22 +125,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             trackingMarker.Alpha = active ? 1 : 0;
 
             updateHeadJudgement(now);
-
-            if (active && headHit && !Judged)
-            {
-                float expectedAngle = HitObject.AngleAt(now);
-                Vector2 stick = playfield.StickVector(HitObject.Side);
-                float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
-                float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, expectedAngle));
-
-                if (stick.Length >= tracking_magnitude
-                    && angleError <= HitObject.LenientHalfAngle
-                    && !double.IsNaN(lastPlaybackTime)
-                    && now > lastPlaybackTime)
-                    trackedTime += Math.Min(50, now - lastPlaybackTime);
-            }
-
-            lastPlaybackTime = now;
         }
 
         private void refreshEditorGeometry()
@@ -153,6 +140,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
                 trackingMarker.SetLane(HitObject.Side, colour);
                 displayedSide = HitObject.Side;
+                observedSequence = playfield.FlickSequence(HitObject.Side);
             }
 
             if (headMarker.Direction != HitObject.InitialDirection)
@@ -199,28 +187,43 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (headJudged || Judged)
                 return;
 
-            double headWindow = HitObject.HitWindows?.WindowFor(HitResult.Miss) ?? 0;
-            if (now < HitObject.StartTime - headWindow)
-                return;
-
-            Vector2 stick = playfield.StickVector(HitObject.Side);
-            float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
-            float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, HitObject.Angle));
-
-            if (stick.Length >= tracking_magnitude && angleError <= HitObject.LenientHalfAngle)
+            long sequence = playfield.FlickSequence(HitObject.Side);
+            if (sequence != observedSequence)
             {
-                headJudged = true;
-                headHit = true;
-                headHitTime = now;
-                playHeadSample();
+                observedSequence = sequence;
+                SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
+                double offset = flick.Time - HitObject.StartTime;
+
+                if (offset >= -SticksFlick.EARLY_HIT_WINDOW
+                    && offset <= SticksFlick.LATE_HIT_WINDOW
+                    && playfield.TryConsumeFlick(HitObject.Side, flick.Sequence))
+                {
+                    float angleError = Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, HitObject.Angle));
+                    headJudged = true;
+                    drawableHead.ApplyHead(offset, angleError);
+                    headHit = drawableHead.BothComponentsHit;
+
+                    if (headHit)
+                        playHeadSample();
+
+                    return;
+                }
             }
-            else if (now > HitObject.StartTime + headWindow)
-            {
+
+            double timeOffset = now - HitObject.StartTime;
+            if (drawableHead.HitObject.HitWindows is not null
+                && !drawableHead.HitObject.HitWindows.CanBeHit(timeOffset))
                 MarkHeadMiss();
-            }
         }
 
-        internal void MarkHeadMiss() => headJudged = true;
+        internal void MarkHeadMiss()
+        {
+            if (headJudged)
+                return;
+
+            headJudged = true;
+            drawableHead?.ApplyMiss();
+        }
 
         private void updateHeadCue(double now, bool cueActive)
         {
@@ -246,11 +249,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (Judged || Time.Current < HitObject.EndTime)
                 return;
 
-            double trackedFraction = trackedTime / HitObject.AvailableTrackingDuration(headHitTime);
-            if (headHit && trackedFraction >= SticksSlider.REQUIRED_TRACKING_FRACTION)
-                ApplyMaxResult();
-            else
-                ApplyMinResult();
+            // Modern standard-style slider scoring lives entirely on the independent head,
+            // ticks, reversals and tail. The parent only resolves its visual lifetime.
+            ApplyMaxResult();
         }
 
         private void playHeadSample()
@@ -274,9 +275,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 headSamplePlayed = false;
                 headJudged = false;
                 headHit = false;
-                headHitTime = 0;
-                trackedTime = 0;
-                lastPlaybackTime = double.NaN;
             }
 
             if (!headSamplePlayed && CrossedStartTime(previousEditorTime, now, HitObject.StartTime))
@@ -306,16 +304,21 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.AddNestedHitObject(hitObject);
             nestedHitObjectContainer.Add(hitObject);
+
+            if (hitObject is DrawableSticksSliderHead head)
+                drawableHead = head;
         }
 
         protected override void ClearNestedHitObjects()
         {
             base.ClearNestedHitObjects();
             nestedHitObjectContainer.Clear(false);
+            drawableHead = null!;
         }
 
         protected override DrawableHitObject CreateNestedHitObject(HitObject hitObject) => hitObject switch
         {
+            SticksSliderHead head => new DrawableSticksSliderHead(head),
             SticksSliderTick tick => new DrawableSticksSliderTick(tick),
             SticksSliderRepeat repeat => new DrawableSticksSliderRepeat(repeat),
             SticksSliderExtension extension => new DrawableSticksSliderExtension(extension),

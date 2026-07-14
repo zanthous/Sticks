@@ -5,11 +5,11 @@ using osu.Game.Rulesets.Sticks.Scoring;
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {
-    public class SticksFlick : SticksHitObject, ISticksAccuracyComponent
+    /// <summary>
+    /// The timing half of a hold-head judgement.
+    /// </summary>
+    public class SticksHoldHead : SticksHitObject, ISticksAccuracyComponent
     {
-        public const double EARLY_HIT_WINDOW = SticksHitWindows.MISS_WINDOW;
-        public const double LATE_HIT_WINDOW = SticksHitWindows.MISS_WINDOW;
-
         public SticksAccuracyComponent AccuracyComponent => SticksAccuracyComponent.Timing;
 
         protected override void CreateNestedHitObjects(CancellationToken cancellationToken)

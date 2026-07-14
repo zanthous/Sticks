@@ -8,15 +8,16 @@ using Newtonsoft.Json;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Objects.Types;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Beatmaps;
+using osu.Game.Rulesets.Sticks.Scoring;
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {
     public class SticksSlider : SticksHitObject, IHasRepeats
     {
-        public const double REQUIRED_TRACKING_FRACTION = 0.5;
-
         private double duration;
 
         public double Duration
@@ -231,6 +232,13 @@ namespace osu.Game.Rulesets.Sticks.Objects
             base.CreateNestedHitObjects(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
+            AddNested(new SticksSliderHead
+            {
+                StartTime = StartTime,
+                Side = Side,
+                Angle = Angle,
+            });
+
             if (double.IsFinite(TickInterval) && TickInterval > 0)
             {
                 HitSampleInfo sourceSample = Samples.FirstOrDefault(sample => sample.Name == HitSampleInfo.HIT_NORMAL) ?? Samples.FirstOrDefault();
@@ -314,6 +322,10 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 Samples = samplesAtNode(SegmentCount),
             });
         }
+
+        public override Judgement CreateJudgement() => new SticksIgnoreJudgement();
+
+        protected override HitWindows CreateHitWindows() => HitWindows.Empty;
 
         private IList<HitSampleInfo> samplesAtNode(int nodeIndex)
         {

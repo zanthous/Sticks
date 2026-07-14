@@ -60,7 +60,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(tail.PreemptDuration, Is.EqualTo(slider.Duration + tail.ApproachDuration));
                 Assert.That(tail.Side, Is.EqualTo(slider.Side));
                 Assert.That(tail.Angle, Is.EqualTo(slider.AngleAt(slider.EndTime)).Within(0.001));
-                Assert.That(drawableSlider.AttachedNestedObjects, Is.EqualTo(4));
+                Assert.That(drawableSlider.AttachedNestedObjects, Is.EqualTo(5));
                 Assert.That(converted[3].Side, Is.Not.EqualTo(slider.Side));
                 Assert.That(converted, Has.All.Matches<SticksHitObject>(hitObject => hitObject.Samples.Count > 0));
             });
@@ -413,7 +413,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD,
-                    Is.EqualTo(SticksFlick.EARLY_HIT_WINDOW + SticksFlick.LATE_HIT_WINDOW));
+                    Is.EqualTo(260), "Physical alternation spacing must remain independent of broad miss windows.");
                 Assert.That(converted, Has.Length.EqualTo(2));
                 Assert.That(converted[0], Is.TypeOf<SticksFlick>());
                 Assert.That(converted[1], Is.TypeOf<SticksSlider>());

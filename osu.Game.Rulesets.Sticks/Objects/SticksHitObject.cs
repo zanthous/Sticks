@@ -28,6 +28,18 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public const float PRECISE_HALF_ANGLE = VISIBLE_ARC_SPAN / 2;
         public const float LENIENT_HALF_ANGLE = VISIBLE_ARC_SPAN;
 
+        public const float EASY_CIRCLE_SIZE = 3;
+        public const float DEFAULT_CIRCLE_SIZE = 4;
+        public const float HARD_CIRCLE_SIZE = 5.4f;
+
+        public const float EASY_HIT_ANGLE = 30;
+        public const float DEFAULT_HIT_ANGLE = 20;
+        public const float HARD_HIT_ANGLE = 15;
+
+        private static readonly double circle_size_curve_exponent =
+            Math.Log((DEFAULT_HIT_ANGLE - HARD_HIT_ANGLE) / (EASY_HIT_ANGLE - HARD_HIT_ANGLE))
+            / Math.Log(1 - (DEFAULT_CIRCLE_SIZE - EASY_CIRCLE_SIZE) / (HARD_CIRCLE_SIZE - EASY_CIRCLE_SIZE));
+
         public float PrimaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
 
         public float SecondaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
@@ -177,6 +189,24 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public static double ApproachDurationFor(float approachRate) =>
             IBeatmapDifficultyInfo.DifficultyRange(approachRate, 1200, 850, 500);
 
+        /// <summary>
+        /// Computes the full width of both angular grading bands from circle size.
+        /// The curve reaches its 20 degree reference at CS 4 while easing out towards
+        /// the 15 degree lower bound, rather than changing abruptly near CS 5.4.
+        /// </summary>
+        public static float HitAngleForCircleSize(float circleSize)
+        {
+            if (circleSize <= EASY_CIRCLE_SIZE)
+                return EASY_HIT_ANGLE;
+
+            if (circleSize >= HARD_CIRCLE_SIZE)
+                return HARD_HIT_ANGLE;
+
+            double progress = (circleSize - EASY_CIRCLE_SIZE) / (HARD_CIRCLE_SIZE - EASY_CIRCLE_SIZE);
+            double remaining = Math.Clamp(1 - progress, 0, 1);
+            return (float)(HARD_HIT_ANGLE + (EASY_HIT_ANGLE - HARD_HIT_ANGLE) * Math.Pow(remaining, circle_size_curve_exponent));
+        }
+
         public void ApplyPlayerApproachRate(float approachRate)
         {
             ApproachDuration = ApproachDurationFor(approachRate);
@@ -190,6 +220,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public override Judgement CreateJudgement() => new SticksJudgement();
 
+        protected override HitWindows CreateHitWindows() => new SticksHitWindows();
+
         public HitResult ResultForCurrentAngleError(float angleError)
         {
             angleError = Math.Abs(angleError);
@@ -201,6 +233,21 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 return HitResult.Ok;
 
             return HitResult.Miss;
+        }
+
+        /// <summary>
+        /// Resolves the two equally-weighted parts of a Sticks note. A note only succeeds when
+        /// both its timing and angular requirements succeed; either failure makes both recorded
+        /// components misses so no partial accuracy is awarded for a physically missed note.
+        /// </summary>
+        public static (HitResult Timing, HitResult Angle) ResolveComponentResults(HitResult timingResult, HitResult angleResult)
+        {
+            bool timingHit = timingResult is HitResult.Great or HitResult.Ok or HitResult.Meh;
+            bool angleHit = angleResult is HitResult.Great or HitResult.Ok;
+
+            return timingHit && angleHit
+                ? (timingResult, angleResult)
+                : (HitResult.Miss, HitResult.Miss);
         }
 
         public static HitResult ResultForAngleError(float angleError)
@@ -224,6 +271,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
         protected override void ApplyDefaultsToSelf(ControlPointInfo controlPointInfo, IBeatmapDifficultyInfo difficulty)
         {
             base.ApplyDefaultsToSelf(controlPointInfo, difficulty);
+            PrimaryHitAngle = SecondaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize);
             ApproachDuration = ApproachDurationFor(difficulty.ApproachRate);
         }
 

@@ -7,11 +7,15 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 - Flick notes require returning to neutral, then crossing outward at the target angle near the hit time.
 - Circular sliders require continuously following the displayed angular path with the assigned stick.
 - Directional holds require acquiring an angle and sustaining it; blue duration rails extend outward and red duration rails extend toward the centre.
+- Flick and hold/slider heads grade timing and angle equally. Their combined `300 / 200 / 175 / 100 / 75 / miss` grade appears as a single coloured circle at screen centre; failing either required component is a miss.
+- Holds use slider-style independent head, beat tick, and tail checkpoints. Leaving the target loses only checkpoints crossed while away, and tracking/audio resume on return.
 - Standard circles convert to flicks. Standard sliders and other duration objects convert to generated circular slider patterns.
 - Source hold notes and spinners convert to directional holds.
 - Autoplay drives both analogue sticks at the current render update rate, including neutral flick preparation and continuous slider/reversal tracking. Interpolated replay positions go directly to the playfield without synthesising thousands of logged framework joystick events; physical controllers still use lazer's normal joystick path.
 
 Approach Rate is a persistent player preference rather than beatmap difficulty. Set it under **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. The default is AR 5 / 850 ms, and the selected value is reused across maps without requiring a mod.
+
+The ruleset provides Easy, Hard Rock, No Fail, Sudden Death, Perfect, Half Time, Double Time, Autoplay, and Difficulty Adjust. Circle Size controls both angular grading bands (`30°` at CS 3 and below, `20°` at CS 4, and `15°` at CS 5.4 and above); player AR remains independent of these difficulty mods. Difficulty Adjust can override the two angle bands, playback speed, reversal conversion, and cursor trails.
 
 The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Slider arcs are quantised from rhythm duration and source gesture direction; they do not trace Tau's polar slider representation.
 

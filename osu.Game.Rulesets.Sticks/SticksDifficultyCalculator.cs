@@ -8,7 +8,10 @@ using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
 using osu.Game.Rulesets.Difficulty.Skills;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.Scoring;
 using osu.Game.Utils;
 
 namespace osu.Game.Rulesets.Sticks
@@ -27,7 +30,27 @@ namespace osu.Game.Rulesets.Sticks
                 return new DifficultyAttributes(mods, 0);
 
             double stars = CalculateStarRating(objects, ModUtils.CalculateRateWithMods(mods));
-            return new DifficultyAttributes(mods, stars) { MaxCombo = objects.Length };
+            return new DifficultyAttributes(mods, stars) { MaxCombo = maxComboFor(beatmap.HitObjects) };
+        }
+
+        private static int maxComboFor(IEnumerable<HitObject> hitObjects)
+        {
+            int combo = 0;
+
+            foreach (HitObject hitObject in hitObjects)
+            {
+                bool isComboNeutralAngle = hitObject is ISticksAccuracyComponent
+                {
+                    AccuracyComponent: SticksAccuracyComponent.Angle,
+                };
+
+                if (!isComboNeutralAngle && hitObject.Judgement.MaxResult.AffectsCombo())
+                    combo++;
+
+                combo += maxComboFor(hitObject.NestedHitObjects);
+            }
+
+            return combo;
         }
 
         public static double CalculateStarRating(IEnumerable<SticksHitObject> hitObjects, double clockRate = 1)

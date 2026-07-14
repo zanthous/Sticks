@@ -34,7 +34,10 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         // a shorter approach, while unusually slow player overrides may exceed this window.
         public const double VISIBILITY_PREEMPT = 850;
 
-        public const double RAPID_ALTERNATION_THRESHOLD = SticksFlick.EARLY_HIT_WINDOW + SticksFlick.LATE_HIT_WINDOW;
+        // This is a physical readability threshold, not a hit-window duration. Standard-style
+        // miss windows are intentionally broad and must not cause playable half-beat patterns to
+        // be deleted merely because two notes fall within each other's judgement lifetime.
+        public const double RAPID_ALTERNATION_THRESHOLD = 260;
 
         private readonly Dictionary<HitObject, ConversionPlan> plans = new Dictionary<HitObject, ConversionPlan>();
         private readonly Dictionary<HitObject, ConversionPlan> generatedChordPartners = new Dictionary<HitObject, ConversionPlan>();

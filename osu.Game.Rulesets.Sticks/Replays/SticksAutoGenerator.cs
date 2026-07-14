@@ -68,7 +68,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
         private static void addSlider(StickTrack track, SticksSlider slider)
         {
             track.Set(slider.StartTime - neutral_lead_time, Vector2.Zero);
-            track.Set(slider.StartTime - 1, vectorAt(slider.Angle));
+            track.Set(slider.StartTime - 1, Vector2.Zero);
+            track.Set(slider.StartTime, vectorAt(slider.Angle));
 
             for (double time = slider.StartTime; time < slider.EndTime; time += slider_sample_interval)
                 track.Set(time, vectorAt(slider.AngleAt(time)));
@@ -89,7 +90,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
         private static void addHold(StickTrack track, SticksHold hold)
         {
             Vector2 direction = vectorAt(hold.Angle);
-            track.Set(hold.StartTime - 1, direction);
+            track.Set(hold.StartTime - neutral_lead_time, Vector2.Zero);
+            track.Set(hold.StartTime - 1, Vector2.Zero);
             track.Set(hold.StartTime, direction);
             track.Set(hold.EndTime, direction);
             track.Set(hold.EndTime + edge_release_delay, Vector2.Zero);

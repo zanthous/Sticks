@@ -64,7 +64,10 @@ namespace osu.Game.Rulesets.Sticks
 
         public override ScoreProcessor CreateScoreProcessor() => new SticksScoreProcessor(this);
 
-        public override HealthProcessor CreateHealthProcessor(double drainStartTime) => new SticksHealthProcessor();
+        public override HealthProcessor CreateHealthProcessor(double drainStartTime) => new SticksHealthProcessor(drainStartTime);
+
+        public override ScoreMultiplierCalculator CreateScoreMultiplierCalculator(ScoreMultiplierContext context) =>
+            new SticksScoreMultiplierCalculator(context);
 
         public override IConvertibleReplayFrame CreateConvertibleReplayFrame() => new SticksReplayFrame();
 
@@ -75,6 +78,18 @@ namespace osu.Game.Rulesets.Sticks
         public override IEnumerable<Mod> GetModsFor(ModType type) => type switch
         {
             ModType.Automation => new Mod[] { new SticksModAutoplay() },
+            ModType.DifficultyReduction => new Mod[]
+            {
+                new SticksModEasy(),
+                new SticksModNoFail(),
+                new SticksModHalfTime(),
+            },
+            ModType.DifficultyIncrease => new Mod[]
+            {
+                new SticksModHardRock(),
+                new MultiMod(new SticksModSuddenDeath(), new SticksModPerfect()),
+                new SticksModDoubleTime(),
+            },
             ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust() },
             _ => Array.Empty<Mod>(),
         };
@@ -83,9 +98,12 @@ namespace osu.Game.Rulesets.Sticks
         {
             HitResult.Great,
             HitResult.Ok,
+            HitResult.Meh,
             HitResult.Miss,
             HitResult.LargeTickHit,
             HitResult.LargeTickMiss,
+            HitResult.SliderTailHit,
+            HitResult.IgnoreHit,
             HitResult.IgnoreMiss,
         };
 

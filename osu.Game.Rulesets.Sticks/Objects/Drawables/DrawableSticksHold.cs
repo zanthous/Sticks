@@ -5,11 +5,12 @@ using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Audio;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
-using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Skinning;
 using osuTK;
@@ -25,20 +26,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SmoothPath durationRail;
         private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
+        private readonly Container nestedHitObjectContainer;
         private Vector2 railStart;
         private Vector2 railEnd;
         private StickSide displayedSide;
         private float displayedAngle = float.NaN;
         private double displayedDuration = double.NaN;
         private SticksPlayfield playfield = null!;
-        private bool headAcquired;
-        private double trackedTime;
-        private double lastPlaybackTime = double.NaN;
-        private bool currentlyTracking;
+        private DrawableSticksHoldHead drawableHead = null!;
+        private bool headJudged;
+        private bool headHit;
+        private bool headSamplePlayed;
+        private long observedSequence;
 
         public new SticksHold HitObject => (SticksHold)base.HitObject;
 
         public override bool HandlePositionalInput => false;
+
+        public override bool DisplayResult => false;
 
         public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.CreatePlayableSamples();
 
@@ -64,6 +69,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             : base(hitObject)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
+
+            AddInternal(nestedHitObjectContainer = new Container
+            {
+                RelativeSizeAxes = Axes.Both,
+                AlwaysPresent = true,
+                Depth = -20,
+            });
 
             AddInternal(durationRail = new SmoothPath
             {
@@ -99,7 +111,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(SticksPlayfield sticksPlayfield) => playfield = sticksPlayfield;
+        private void load(SticksPlayfield sticksPlayfield)
+        {
+            playfield = sticksPlayfield;
+            observedSequence = playfield.FlickSequence(HitObject.Side);
+        }
 
         protected override void Update()
         {
@@ -117,22 +133,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             durationCursor.Alpha = active ? 0.9f : 0;
             durationCursor.Position = Vector2.Lerp(railEnd, railStart, (float)progress);
 
-            updateHeadAcquisition(now);
-            currentlyTracking = false;
+            updateHeadJudgement(now);
+            updateHeadCue(now);
 
-            if (active && headAcquired && !Judged)
-            {
-                currentlyTracking = isStickInRange();
-
-                if (currentlyTracking
-                    && !double.IsNaN(lastPlaybackTime)
-                    && now > lastPlaybackTime)
-                    trackedTime += Math.Min(50, now - lastPlaybackTime);
-            }
-
-            updateHoldingSample(active && headAcquired && currentlyTracking && !Judged);
-
-            lastPlaybackTime = now;
+            // Like a standard slider, tracking can resume after the head or any intermediate
+            // checkpoint was missed. Only checkpoints crossed while away are lost.
+            bool currentlyTracking = active && isStickInRange();
+            updateHoldingSample(currentlyTracking && !Judged);
         }
 
         private void refreshGeometry()
@@ -154,7 +161,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             durationCursor.Position = railEnd;
 
             if (sideChanged)
+            {
                 headMarker.SetLane(HitObject.Side, colourFor(HitObject.Side));
+                observedSequence = playfield.FlickSequence(HitObject.Side);
+            }
+
             headMarker.Angle = HitObject.Angle;
 
             displayedSide = HitObject.Side;
@@ -168,24 +179,65 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Span = HitObject.PrimaryHitAngle * 0.2f,
         };
 
-        private void updateHeadAcquisition(double now)
+        private void updateHeadJudgement(double now)
         {
-            if (headAcquired || Judged)
+            if (headJudged || Judged)
                 return;
 
-            double window = HitObject.HitWindows?.WindowFor(HitResult.Miss) ?? 0;
-            if (now < HitObject.StartTime - window || now > HitObject.StartTime + window)
-                return;
-
-            Vector2 stick = playfield.StickVector(HitObject.Side);
-            float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
-            float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, HitObject.Angle));
-
-            if (stick.Length >= tracking_magnitude && angleError <= HitObject.LenientHalfAngle)
+            long sequence = playfield.FlickSequence(HitObject.Side);
+            if (sequence != observedSequence)
             {
-                headAcquired = true;
-                base.PlaySamples();
+                observedSequence = sequence;
+                SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
+                double offset = flick.Time - HitObject.StartTime;
+
+                if (offset >= -SticksFlick.EARLY_HIT_WINDOW
+                    && offset <= SticksFlick.LATE_HIT_WINDOW
+                    && playfield.TryConsumeFlick(HitObject.Side, flick.Sequence))
+                {
+                    float angleError = Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, HitObject.Angle));
+                    headJudged = true;
+                    drawableHead.ApplyHead(offset, angleError);
+                    headHit = drawableHead.BothComponentsHit;
+
+                    if (headHit)
+                        playHeadSample();
+
+                    return;
+                }
             }
+
+            double timeOffset = now - HitObject.StartTime;
+            if (drawableHead.HitObject.HitWindows is not null
+                && !drawableHead.HitObject.HitWindows.CanBeHit(timeOffset))
+                markHeadMiss();
+        }
+
+        private void markHeadMiss()
+        {
+            if (headJudged)
+                return;
+
+            headJudged = true;
+            drawableHead.ApplyMiss();
+        }
+
+        private void updateHeadCue(double now)
+        {
+            if (now < HitObject.StartTime)
+            {
+                headMarker.Alpha = 1;
+                return;
+            }
+
+            double timeSinceStart = now - HitObject.StartTime;
+            if (timeSinceStart <= 120)
+            {
+                headMarker.Alpha = 1 - (float)(timeSinceStart / 120);
+                return;
+            }
+
+            headMarker.Alpha = 0;
         }
 
         protected override void CheckForResult(bool userTriggered, double timeOffset)
@@ -193,16 +245,21 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (Judged || Time.Current < HitObject.EndTime)
                 return;
 
-            double trackedFraction = trackedTime / Math.Max(1, HitObject.Duration);
             updateHoldingSample(false);
 
-            if (headAcquired && isStickInRange())
-                base.PlaySamples();
+            // The independently-scored head, ticks and tail own all hold gameplay results.
+            ApplyMaxResult();
+        }
 
-            if (headAcquired && trackedFraction >= SticksHold.REQUIRED_TRACKING_FRACTION)
-                ApplyMaxResult();
-            else
-                ApplyMinResult();
+        private void playHeadSample()
+        {
+            if (headSamplePlayed)
+                return;
+
+            headSamplePlayed = true;
+            Samples.Volume.Value = 1;
+            Samples.Frequency.Value = 1;
+            base.PlaySamples();
         }
 
         protected override double InitialLifetimeOffset => HitObject.ApproachDuration;
@@ -216,10 +273,33 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             UpdateState(State.Value, true);
         }
 
+        protected override void AddNestedHitObject(DrawableHitObject hitObject)
+        {
+            base.AddNestedHitObject(hitObject);
+            nestedHitObjectContainer.Add(hitObject);
+
+            if (hitObject is DrawableSticksHoldHead head)
+                drawableHead = head;
+        }
+
+        protected override void ClearNestedHitObjects()
+        {
+            base.ClearNestedHitObjects();
+            nestedHitObjectContainer.Clear(false);
+            drawableHead = null!;
+        }
+
+        protected override DrawableHitObject CreateNestedHitObject(HitObject hitObject) => hitObject switch
+        {
+            SticksHoldHead head => new DrawableSticksHoldHead(head),
+            SticksHoldTick tick => new DrawableSticksHoldTick(tick),
+            SticksHoldTail tail => new DrawableSticksHoldTail(tail),
+            _ => base.CreateNestedHitObject(hitObject),
+        };
+
         public override void PlaySamples()
         {
-            // Hold start and end samples are played manually; automatic result playback
-            // would otherwise duplicate the end sound.
+            // The head plays manually, while ticks and the tail own their feedback samples.
         }
 
         protected override void LoadSamples()
@@ -266,7 +346,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             return stick.Length >= tracking_magnitude && angleError <= HitObject.LenientHalfAngle;
         }
 
-        protected override void UpdateInitialTransforms() => this.FadeInFromZero(Math.Min(120, HitObject.ApproachDuration / 3));
+        protected override void UpdateInitialTransforms() => this.Show();
 
         protected override void UpdateHitStateTransforms(ArmedState state)
         {

@@ -53,9 +53,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 {
                     HitResult.Great,
                     HitResult.Ok,
+                    HitResult.Meh,
                     HitResult.Miss,
                     HitResult.LargeTickHit,
                     HitResult.LargeTickMiss,
+                    HitResult.SliderTailHit,
+                    HitResult.IgnoreHit,
                     HitResult.IgnoreMiss,
                 }));
             });
@@ -195,6 +198,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 PrimaryHitAngle = { Value = 30 },
                 SecondaryHitAngle = { Value = 10 },
                 ShowCursorTrails = { Value = true },
+                SpeedChange = { Value = 1.25 },
             };
 
             var difficulty = new BeatmapDifficulty { ApproachRate = 5 };
@@ -212,6 +216,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.LenientHalfAngle, Is.EqualTo(20));
                 Assert.That(slider.ResultForCurrentAngleError(15), Is.EqualTo(HitResult.Great));
                 Assert.That(slider.ResultForCurrentAngleError(15.01f), Is.EqualTo(HitResult.Ok));
+                Assert.That(mod.ApplyToRate(0), Is.EqualTo(1.25));
+                Assert.That(mod.ApplyToRate(0, 0.8), Is.EqualTo(1));
+                Assert.That(mod.IncompatibleMods, Does.Contain(typeof(ModRateAdjust)));
+                Assert.That(mod.IncompatibleMods, Does.Contain(typeof(ModTimeRamp)));
+                Assert.That(mod.IncompatibleMods, Does.Contain(typeof(ModAdaptiveSpeed)));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
                     nested.PrimaryHitAngle == 30 && nested.SecondaryHitAngle == 10));
                 Assert.That(((SticksPlayfield)drawableRuleset.Playfield).ShowCursorTrails, Is.True);
@@ -229,6 +238,93 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(sharedAngleLink.UsesAlternatingDashes, Is.True);
                 Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.5f), Is.True);
                 Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.51f), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestDifficultyAdjustLeavesCircleSizeAnglesUntouchedByDefault()
+        {
+            var flick = new SticksFlick();
+            flick.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty { CircleSize = 3 });
+
+            var mod = new SticksModDifficultyAdjust
+            {
+                SpeedChange = { Value = 1.25 },
+            };
+
+            mod.ApplyToHitObject(flick);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(mod.PrimaryHitAngle.Value, Is.Null);
+                Assert.That(mod.SecondaryHitAngle.Value, Is.Null);
+                Assert.That(flick.PrimaryHitAngle, Is.EqualTo(30));
+                Assert.That(flick.SecondaryHitAngle, Is.EqualTo(30));
+            });
+        }
+
+        [Test]
+        public void TestCircleSizeControlsDefaultHitAngles()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksHitObject.HitAngleForCircleSize(0), Is.EqualTo(30));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(3), Is.EqualTo(30));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(4), Is.EqualTo(20).Within(0.0001f));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(5.4f), Is.EqualTo(15));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(10), Is.EqualTo(15));
+            });
+
+            float previous = SticksHitObject.HitAngleForCircleSize(3);
+
+            for (float circleSize = 3.05f; circleSize <= 5.4f; circleSize += 0.05f)
+            {
+                float current = SticksHitObject.HitAngleForCircleSize(circleSize);
+                Assert.That(current, Is.LessThan(previous), $"CS {circleSize} should produce a tighter angle than the preceding step.");
+                previous = current;
+            }
+
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 1000,
+            };
+
+            slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty
+            {
+                CircleSize = 4,
+                SliderTickRate = 1,
+            });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.PrimaryHitAngle, Is.EqualTo(20).Within(0.0001f));
+                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(20).Within(0.0001f));
+                Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
+                    Math.Abs(nested.PrimaryHitAngle - 20) < 0.0001f && Math.Abs(nested.SecondaryHitAngle - 20) < 0.0001f));
+            });
+        }
+
+        [Test]
+        public void TestEasyUsesDifficultyValuesWithoutChangingApproachRate()
+        {
+            var difficulty = new BeatmapDifficulty
+            {
+                CircleSize = 5,
+                OverallDifficulty = 8,
+                DrainRate = 6,
+                ApproachRate = 7,
+            };
+
+            new SticksModEasy().ApplyToDifficulty(difficulty);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(difficulty.CircleSize, Is.EqualTo(2.5f));
+                Assert.That(difficulty.OverallDifficulty, Is.EqualTo(4));
+                Assert.That(difficulty.DrainRate, Is.EqualTo(3));
+                Assert.That(difficulty.ApproachRate, Is.EqualTo(7));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize), Is.EqualTo(30));
             });
         }
 
@@ -289,6 +385,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksReplayFrame[] frames = new SticksAutoGenerator(beatmap).Generate().Frames.Cast<SticksReplayFrame>().ToArray();
             SticksReplayFrame beforeChord = frames.Single(frame => frame.Time == 999);
             SticksReplayFrame chord = frames.Single(frame => frame.Time == 1000);
+            SticksReplayFrame beforeSlider = frames.Single(frame => frame.Time == 1999);
+            SticksReplayFrame sliderHead = frames.Single(frame => frame.Time == 2000);
             SticksReplayFrame middleTick = frames.Single(frame => frame.Time == 2500);
 
             Assert.Multiple(() =>
@@ -299,6 +397,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(chord.LeftStick.Y, Is.EqualTo(0).Within(0.001));
                 Assert.That(chord.RightStick.X, Is.EqualTo(0).Within(0.001));
                 Assert.That(chord.RightStick.Y, Is.EqualTo(1).Within(0.001));
+                Assert.That(beforeSlider.LeftStick, Is.EqualTo(osuTK.Vector2.Zero));
+                Assert.That(sliderHead.LeftStick.X, Is.EqualTo(1).Within(0.001));
                 Assert.That(middleTick.LeftStick.Length, Is.EqualTo(1).Within(0.001));
                 Assert.That(System.Math.Atan2(middleTick.LeftStick.Y, middleTick.LeftStick.X) * 180 / System.Math.PI, Is.EqualTo(45).Within(0.1));
             });
@@ -462,7 +562,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(blue.RailEnd.X - centre, Is.GreaterThan(blue.RailStart.X - centre));
                 Assert.That(red.RailEnd.X - centre, Is.LessThan(red.RailStart.X - centre));
-                Assert.That(SticksHold.REQUIRED_TRACKING_FRACTION, Is.EqualTo(0.65));
             });
 
             blue.HitObject.Angle = 225;
@@ -607,7 +706,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestSliderTrackingWindowBeginsAtHeadHit()
+        public void TestSliderUsesIndependentStandardStyleCheckpoints()
         {
             var slider = new SticksSlider
             {
@@ -617,10 +716,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(SticksSlider.REQUIRED_TRACKING_FRACTION, Is.EqualTo(0.5));
-                Assert.That(slider.AvailableTrackingDuration(900), Is.EqualTo(1000));
-                Assert.That(slider.AvailableTrackingDuration(1200), Is.EqualTo(800));
-                Assert.That(new SticksSliderTailJudgement().MaxResult, Is.EqualTo(HitResult.Great));
+                Assert.That(slider.CreateJudgement().MaxResult, Is.EqualTo(HitResult.IgnoreHit));
+                Assert.That(new SticksSliderTailJudgement().MaxResult, Is.EqualTo(HitResult.SliderTailHit));
                 Assert.That(new SticksSliderTailJudgement().MinResult, Is.EqualTo(HitResult.IgnoreMiss));
                 Assert.That(new SticksSliderTickJudgement().MaxResult, Is.EqualTo(HitResult.LargeTickHit));
                 Assert.That(new SticksSliderTickJudgement().MinResult, Is.EqualTo(HitResult.LargeTickMiss));
@@ -749,6 +846,63 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.RemoveFinalSegmentAtConstantSpeed(), Is.True);
                 Assert.That(slider.Duration, Is.EqualTo(3500).Within(0.001));
                 Assert.That(slider.TotalAngularDistance / slider.Duration, Is.EqualTo(speed).Within(0.000001));
+            });
+        }
+
+        [Test]
+        public void TestStandardDifficultyModsAreAvailable()
+        {
+            Mod[] reductions = new SticksRuleset().GetModsFor(ModType.DifficultyReduction).ToArray();
+            Mod[] increases = new SticksRuleset().GetModsFor(ModType.DifficultyIncrease).ToArray();
+            var failModes = (MultiMod)increases.Single(mod => mod is MultiMod);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(reductions.Any(mod => mod is SticksModEasy), Is.True);
+                Assert.That(reductions.Any(mod => mod is SticksModNoFail), Is.True);
+                Assert.That(reductions.Any(mod => mod is SticksModHalfTime), Is.True);
+                Assert.That(increases.Any(mod => mod is SticksModHardRock), Is.True);
+                Assert.That(increases.Any(mod => mod is SticksModDoubleTime), Is.True);
+                Assert.That(failModes.Mods.Any(mod => mod is SticksModSuddenDeath), Is.True);
+                Assert.That(failModes.Mods.Any(mod => mod is SticksModPerfect), Is.True);
+                Assert.That(new SticksRuleset().CreateHealthProcessor(1234), Is.TypeOf<SticksHealthProcessor>());
+            });
+        }
+
+        [Test]
+        public void TestHardRockDoesNotChangePlayerApproachRate()
+        {
+            var difficulty = new BeatmapDifficulty
+            {
+                ApproachRate = 7,
+                CircleSize = 4,
+                DrainRate = 5,
+                OverallDifficulty = 5,
+            };
+
+            new SticksModHardRock().ApplyToDifficulty(difficulty);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(difficulty.ApproachRate, Is.EqualTo(7));
+                Assert.That(difficulty.CircleSize, Is.EqualTo(5.2).Within(0.001));
+                Assert.That(difficulty.DrainRate, Is.EqualTo(7));
+                Assert.That(difficulty.OverallDifficulty, Is.EqualTo(7));
+            });
+        }
+
+        [Test]
+        public void TestStandardScoreMultipliers()
+        {
+            var calculator = new SticksScoreMultiplierCalculator(new ScoreMultiplierContext(new BeatmapDifficulty()));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(calculator.CalculateFor(new Mod[] { new SticksModEasy() }), Is.EqualTo(0.8));
+                Assert.That(calculator.CalculateFor(new Mod[] { new SticksModNoFail() }), Is.EqualTo(0.5));
+                Assert.That(calculator.CalculateFor(new Mod[] { new SticksModHalfTime() }), Is.EqualTo(0.55).Within(0.001));
+                Assert.That(calculator.CalculateFor(new Mod[] { new SticksModHardRock() }), Is.EqualTo(1.09));
+                Assert.That(calculator.CalculateFor(new Mod[] { new SticksModDoubleTime() }), Is.EqualTo(1.23).Within(0.001));
             });
         }
 

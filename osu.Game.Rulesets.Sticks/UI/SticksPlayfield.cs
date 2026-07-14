@@ -13,6 +13,10 @@ using osu.Framework.Input.Events;
 using osu.Framework.Logging;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Replays;
+using osu.Game.Rulesets.Sticks.Scoring;
+using osu.Game.Rulesets.Objects.Drawables;
+using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -34,6 +38,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly CircularContainer rightCursor;
         private readonly Container leftTrail;
         private readonly Container rightTrail;
+        private readonly SticksJudgementDisplay judgementDisplay;
         private readonly Circle[] leftTrailDots;
         private readonly Circle[] rightTrailDots;
         private readonly SticksInputTracker input = new SticksInputTracker();
@@ -46,6 +51,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private float leftY;
         private float rightX;
         private float rightY;
+        private HitResult? pendingTimingResult;
 
         public bool ShowCursorTrails { get; set; }
 
@@ -63,11 +69,50 @@ namespace osu.Game.Rulesets.Sticks.UI
             {
                 ring(GUIDE_RADIUS, Color4.White.Opacity(0.55f)),
                 HitObjectContainer,
+                judgementDisplay = new SticksJudgementDisplay(),
                 leftTrail = trail(LEFT_COLOUR, out leftTrailDots),
                 rightTrail = trail(RIGHT_COLOUR, out rightTrailDots),
                 leftCursor = cursor(LEFT_COLOUR),
                 rightCursor = cursor(RIGHT_COLOUR),
             });
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+            NewResult += onNewResult;
+            RevertResult += onRevertResult;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            NewResult -= onNewResult;
+            RevertResult -= onRevertResult;
+            base.Dispose(isDisposing);
+        }
+
+        private void onNewResult(DrawableHitObject judgedObject, JudgementResult result)
+        {
+            if (!DisplayJudgements.Value || result.HitObject is not ISticksAccuracyComponent component)
+                return;
+
+            if (component.AccuracyComponent == SticksAccuracyComponent.Timing)
+            {
+                pendingTimingResult = result.Type;
+                return;
+            }
+
+            if (pendingTimingResult is not HitResult timingResult)
+                return;
+
+            judgementDisplay.Display(timingResult, result.Type);
+            pendingTimingResult = null;
+        }
+
+        private void onRevertResult(JudgementResult result)
+        {
+            pendingTimingResult = null;
+            judgementDisplay.ResetDisplay();
         }
 
         public Vector2 StickVector(StickSide side) => input.VectorFor(side);

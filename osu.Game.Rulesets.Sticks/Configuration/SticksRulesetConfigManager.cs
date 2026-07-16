@@ -17,7 +17,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         protected override void InitialiseDefaults()
         {
             base.InitialiseDefaults();
-            SetDefault(SticksRulesetSetting.ApproachRate, 5f, 0f, 10f, 0.1f);
+            SetDefault(SticksRulesetSetting.ApproachRate, 5f, 0f, 12f, 0.1f);
         }
 
         public override TrackedSettings CreateTrackedSettings() => new TrackedSettings

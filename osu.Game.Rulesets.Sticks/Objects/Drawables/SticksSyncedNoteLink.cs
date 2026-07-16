@@ -109,6 +109,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public static float AlphaAtGrowth(double growth) =>
             (float)(INITIAL_ALPHA + Math.Clamp(growth, 0, 1) * (FINAL_ALPHA - INITIAL_ALPHA));
 
+        /// <summary>
+        /// Duration objects remain alive after their head, so their chord cue needs its own short
+        /// departure instead of lingering across the full slider or hold.
+        /// </summary>
+        public static float AlphaAtHeadCue(double time, double headTime, double growth)
+        {
+            if (time < headTime)
+                return AlphaAtGrowth(growth);
+
+            return FINAL_ALPHA * (float)Math.Clamp(1 - (time - headTime) / 120, 0, 1);
+        }
+
         public static Color4 ColourFor(StickSide side) => side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
             : SticksPlayfield.RIGHT_COLOUR;

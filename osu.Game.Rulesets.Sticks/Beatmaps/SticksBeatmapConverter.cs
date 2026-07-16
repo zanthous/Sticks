@@ -41,7 +41,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         private readonly Dictionary<HitObject, ConversionPlan> plans = new Dictionary<HitObject, ConversionPlan>();
         private readonly Dictionary<HitObject, ConversionPlan> generatedChordPartners = new Dictionary<HitObject, ConversionPlan>();
-        private readonly Dictionary<HitObject, ConversionPlan> chordLinkTargets = new Dictionary<HitObject, ConversionPlan>();
         private readonly HashSet<HitObject> generatedHoldSources = new HashSet<HitObject>();
         private readonly Dictionary<HitObject, double> generatedFlickHoldDurations = new Dictionary<HitObject, double>();
         private readonly Ruleset targetRuleset;
@@ -66,17 +65,45 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             // while ordinary gameplay keeps the custom online ID (-1).
             converted.BeatmapInfo.Ruleset = targetRuleset.RulesetInfo.Clone();
 
-            foreach (IGrouping<double, SticksFlick> group in converted.HitObjects.OfType<SticksFlick>().GroupBy(flick => flick.StartTime))
-            {
-                SticksFlick[] simultaneous = group.ToArray();
-                if (simultaneous.Length != 2 || simultaneous[0].Side == simultaneous[1].Side)
-                    continue;
-
-                simultaneous[0].SyncedNoteSide = simultaneous[1].Side;
-                simultaneous[0].SyncedNoteAngle = simultaneous[1].Angle;
-            }
+            AssignSyncedNoteLinks(converted.HitObjects);
 
             return converted;
+        }
+
+        /// <summary>
+        /// Assigns one visual link owner to each simultaneous two-stick chord. Chord heads may be
+        /// flicks, sliders, or holds; the gesture at their shared start time is what matters.
+        /// </summary>
+        public static void AssignSyncedNoteLinks(IEnumerable<SticksHitObject> hitObjects)
+        {
+            SticksHitObject[] ordered = hitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
+
+            foreach (SticksHitObject hitObject in ordered)
+            {
+                hitObject.SyncedNoteSide = null;
+                hitObject.SyncedNoteAngle = 0;
+            }
+
+            for (int groupStart = 0; groupStart < ordered.Length;)
+            {
+                int groupEnd = groupStart + 1;
+                while (groupEnd < ordered.Length && Math.Abs(ordered[groupEnd].StartTime - ordered[groupStart].StartTime) < 0.01)
+                    groupEnd++;
+
+                if (groupEnd - groupStart == 2)
+                {
+                    SticksHitObject owner = ordered[groupStart];
+                    SticksHitObject partner = ordered[groupStart + 1];
+
+                    if (owner.Side != partner.Side)
+                    {
+                        owner.SyncedNoteSide = partner.Side;
+                        owner.SyncedNoteAngle = partner.Angle;
+                    }
+                }
+
+                groupStart = groupEnd;
+            }
         }
 
         protected override IEnumerable<SticksHitObject> ConvertHitObject(HitObject original, IBeatmap beatmap, CancellationToken cancellationToken)
@@ -159,12 +186,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Angle = plan.Angle,
                     Samples = normalisedConversionSamples(),
                 };
-
-                if (chordLinkTargets.TryGetValue(original, out ConversionPlan linkedPlan))
-                {
-                    flick.SyncedNoteSide = linkedPlan.Side;
-                    flick.SyncedNoteAngle = linkedPlan.Angle;
-                }
 
                 yield return flick;
 
@@ -343,7 +364,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     {
                         Angle = SticksHitObject.NormaliseAngle(anchor + offset),
                     };
-                    chordLinkTargets[flicks[0]] = plans[flicks[1]];
                 }
 
                 groupStart = groupEnd;
@@ -464,7 +484,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 true);
 
             generatedChordPartners[current] = partner;
-            chordLinkTargets[current] = partner;
             return true;
         }
 

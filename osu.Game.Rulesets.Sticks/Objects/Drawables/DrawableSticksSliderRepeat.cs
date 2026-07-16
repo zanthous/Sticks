@@ -20,19 +20,26 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public override bool HandlePositionalInput => false;
 
+        public DrawableSticksSliderRepeat()
+            : this(null!)
+        {
+        }
+
         public DrawableSticksSliderRepeat(SticksSliderRepeat hitObject)
             : base(hitObject)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
 
+            StickSide side = hitObject?.Side ?? StickSide.Left;
+            int direction = hitObject?.DirectionAfter ?? 1;
             AddInternal(marker = new SticksSliderHeadMarker(
-                hitObject.Side,
-                hitObject.DirectionAfter,
-                colourFor(hitObject.Side),
+                side,
+                direction,
+                colourFor(side),
                 reversalStyle: true)
             {
-                Angle = hitObject.Angle,
-                Span = hitObject.PrimaryHitAngle,
+                Angle = hitObject?.Angle ?? 0,
+                Span = hitObject?.PrimaryHitAngle ?? SticksHitObject.VISIBLE_ARC_SPAN,
             });
         }
 

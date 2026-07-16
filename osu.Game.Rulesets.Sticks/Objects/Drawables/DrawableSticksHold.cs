@@ -31,6 +31,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly PausableSkinnableSound holdingSample;
         private readonly Container nestedHitObjectContainer;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
+        private SticksSyncedNoteLink syncedNoteLink;
         private Vector2 railStart;
         private Vector2 railEnd;
         private StickSide displayedSide;
@@ -121,6 +122,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 MinimumSampleVolume = MINIMUM_SAMPLE_VOLUME,
             });
 
+            ensureSyncedNoteLink();
             refreshGeometry();
         }
 
@@ -155,6 +157,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
             double approachProgress = Math.Clamp((now - (HitObject.StartTime - HitObject.ApproachDuration)) / Math.Max(1, HitObject.ApproachDuration), 0, 1);
             double headGrowth = SticksHitObject.ApproachGrowthProgress(approachProgress);
+            updateSyncedNoteLink(now, headGrowth);
             headMarker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + 0.8 * headGrowth);
             double progress = Math.Clamp((now - HitObject.StartTime) / Math.Max(1, HitObject.Duration), 0, 1);
             durationRail.Alpha = now < HitObject.EndTime ? 0.38f : 0;
@@ -206,6 +209,41 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Angle = HitObject.Angle,
             Span = HitObject.PrimaryHitAngle * 0.2f,
         };
+
+        private void ensureSyncedNoteLink()
+        {
+            if (HitObject.SyncedNoteSide is not StickSide linkedSide)
+            {
+                if (syncedNoteLink != null)
+                    syncedNoteLink.Alpha = 0;
+                return;
+            }
+
+            if (syncedNoteLink == null)
+            {
+                AddInternal(syncedNoteLink = new SticksSyncedNoteLink(
+                    HitObject.Side,
+                    HitObject.Angle,
+                    linkedSide,
+                    HitObject.SyncedNoteAngle));
+            }
+            else
+            {
+                syncedNoteLink.SetGeometry(
+                    HitObject.Side,
+                    HitObject.Angle,
+                    linkedSide,
+                    HitObject.SyncedNoteAngle);
+            }
+        }
+
+        private void updateSyncedNoteLink(double now, double headGrowth)
+        {
+            ensureSyncedNoteLink();
+
+            if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
+                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
+        }
 
         private void updateHeadJudgement(double now)
         {

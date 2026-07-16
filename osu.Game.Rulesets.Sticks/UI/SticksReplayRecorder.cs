@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using osu.Game.Rulesets.Replays;
+using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.UI;
 using osu.Game.Scoring;
@@ -11,12 +12,39 @@ namespace osu.Game.Rulesets.Sticks.UI
 {
     public partial class SticksReplayRecorder : ReplayRecorder<SticksAction>
     {
-        public SticksReplayRecorder(Score score)
+        private readonly SticksPlayfield playfield;
+
+        public SticksReplayRecorder(Score score, SticksPlayfield playfield)
             : base(score)
         {
+            this.playfield = playfield;
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+            playfield.PhysicalStickInputChanged += onPhysicalStickInputChanged;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            playfield.PhysicalStickInputChanged -= onPhysicalStickInputChanged;
+            base.Dispose(isDisposing);
+        }
+
+        private void onPhysicalStickInputChanged()
+        {
+            // Match mouse replay capture: axis changes can trigger a sample immediately, while the
+            // base recorder's 60 Hz limit still prevents controller polling rate from bloating files.
+            RecordFrame(false);
         }
 
         protected override ReplayFrame HandleFrame(Vector2 mousePosition, List<SticksAction> actions, ReplayFrame previousFrame) =>
-            new SticksReplayFrame(Time.Current, Vector2.Zero, Vector2.Zero);
+            captureFrame(Time.Current);
+
+        private SticksReplayFrame captureFrame(double time) => new SticksReplayFrame(
+            time,
+            playfield.PhysicalStickVector(StickSide.Left),
+            playfield.PhysicalStickVector(StickSide.Right));
     }
 }

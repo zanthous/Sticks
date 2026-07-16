@@ -19,7 +19,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     public partial class DrawableSticksFlick : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
     {
         private readonly SticksArcMarker marker;
-        private readonly SticksSyncedNoteLink syncedNoteLink;
+        private SticksSyncedNoteLink syncedNoteLink;
         private readonly Container nestedContainer;
         private DrawableSticksAngleComponent angleComponent = null!;
         private SticksPlayfield playfield = null!;
@@ -42,14 +42,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 AlwaysPresent = true,
             });
 
-            if (hitObject.SyncedNoteSide is StickSide linkedSide)
-            {
-                AddInternal(syncedNoteLink = new SticksSyncedNoteLink(
-                    hitObject.Side,
-                    hitObject.Angle,
-                    linkedSide,
-                    hitObject.SyncedNoteAngle));
-            }
+            ensureSyncedNoteLink();
 
             AddInternal(marker = new SticksArcMarker(hitObject.Side, colourFor(hitObject.Side), true)
             {
@@ -80,18 +73,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double growth = SticksHitObject.ApproachGrowthProgress(approach);
             marker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + growth * 0.8);
 
-            if (syncedNoteLink != null)
-            {
-                if (HitObject.SyncedNoteSide is StickSide linkedSide)
-                {
-                    syncedNoteLink.SetGeometry(
-                        HitObject.Side,
-                        HitObject.Angle,
-                        linkedSide,
-                        HitObject.SyncedNoteAngle);
-                }
+            ensureSyncedNoteLink();
+            if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
                 syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtGrowth(growth);
-            }
 
             long sequence = playfield.FlickSequence(HitObject.Side);
             if (Judged)
@@ -135,6 +119,33 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             ApplyMinResult();
             angleComponent.ApplyMiss();
+        }
+
+        private void ensureSyncedNoteLink()
+        {
+            if (HitObject.SyncedNoteSide is not StickSide linkedSide)
+            {
+                if (syncedNoteLink != null)
+                    syncedNoteLink.Alpha = 0;
+                return;
+            }
+
+            if (syncedNoteLink == null)
+            {
+                AddInternal(syncedNoteLink = new SticksSyncedNoteLink(
+                    HitObject.Side,
+                    HitObject.Angle,
+                    linkedSide,
+                    HitObject.SyncedNoteAngle));
+            }
+            else
+            {
+                syncedNoteLink.SetGeometry(
+                    HitObject.Side,
+                    HitObject.Angle,
+                    linkedSide,
+                    HitObject.SyncedNoteAngle);
+            }
         }
 
         protected override void AddNestedHitObject(DrawableHitObject hitObject)

@@ -1,7 +1,6 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
-using System.Diagnostics;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
@@ -11,7 +10,7 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
-using osu.Framework.Logging;
+using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
@@ -42,13 +41,16 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksJudgementDisplay judgementDisplay;
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
-        private readonly Process currentProcess = Process.GetCurrentProcess();
-        private double lastMemoryReportTime = double.NegativeInfinity;
         private bool trailsWereVisible;
         private float leftX;
         private float leftY;
         private float rightX;
         private float rightY;
+        private Vector2 lastReportedPhysicalLeft;
+        private Vector2 lastReportedPhysicalRight;
+
+        public event Action PhysicalStickInputChanged;
+
         public bool ShowCursorTrails { get; set; }
 
         /// <summary>
@@ -60,6 +62,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         public CircularContainer LeftStickCursor => leftCursor;
 
         public CircularContainer RightStickCursor => rightCursor;
+
+        /// <summary>
+        /// Returns the unmodified physical controller position. Replays must store this rather than
+        /// <see cref="StickVector"/>, because gameplay distance mapping is reapplied during playback.
+        /// </summary>
+        public Vector2 PhysicalStickVector(StickSide side) => side == StickSide.Left
+            ? new Vector2(leftX, leftY)
+            : new Vector2(rightX, rightY);
 
         public SticksPlayfield(SticksReplayInputProvider replayInputProvider = null)
         {
@@ -77,6 +87,37 @@ namespace osu.Game.Rulesets.Sticks.UI
                 leftCursor = cursor(LEFT_COLOUR),
                 rightCursor = cursor(RIGHT_COLOUR),
             });
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(IBeatmap beatmap)
+        {
+            int maxSliderTicks = beatmap.HitObjects.OfType<SticksSlider>()
+                                        .Select(slider => slider.NestedHitObjects.OfType<SticksSliderTick>().Count())
+                                        .DefaultIfEmpty(0)
+                                        .Max();
+            int maxHoldTicks = beatmap.HitObjects.OfType<SticksHold>()
+                                      .Select(hold => hold.NestedHitObjects.OfType<SticksHoldTick>().Count())
+                                      .DefaultIfEmpty(0)
+                                      .Max();
+            int maxRepeats = beatmap.HitObjects.OfType<SticksSlider>()
+                                    .Select(slider => slider.NestedHitObjects.OfType<SticksSliderRepeat>().Count())
+                                    .DefaultIfEmpty(0)
+                                    .Max();
+            int maxExtensions = beatmap.HitObjects.OfType<SticksSlider>()
+                                       .Select(slider => slider.NestedHitObjects.OfType<SticksSliderExtension>().Count())
+                                       .DefaultIfEmpty(0)
+                                       .Max();
+
+            RegisterPool<SticksSliderHead, DrawableSticksSliderHead>(10, 100);
+            RegisterPool<SticksHoldHead, DrawableSticksHoldHead>(10, 100);
+            RegisterPool<SticksAngleComponent, DrawableSticksAngleComponent>(20, 200);
+            RegisterPool<SticksSliderTick, DrawableSticksSliderTick>(Math.Clamp(maxSliderTicks, 10, 100), Math.Max(maxSliderTicks, 200));
+            RegisterPool<SticksHoldTick, DrawableSticksHoldTick>(Math.Clamp(maxHoldTicks, 10, 100), Math.Max(maxHoldTicks, 200));
+            RegisterPool<SticksSliderRepeat, DrawableSticksSliderRepeat>(Math.Max(maxRepeats, 10), Math.Max(maxRepeats, 100));
+            RegisterPool<SticksSliderExtension, DrawableSticksSliderExtension>(Math.Clamp(maxExtensions, 10, 100), Math.Max(maxExtensions, 100));
+            RegisterPool<SticksSliderTail, DrawableSticksSliderTail>(10, 100);
+            RegisterPool<SticksHoldTail, DrawableSticksHoldTail>(10, 100);
         }
 
         protected override void LoadComplete()
@@ -283,24 +324,24 @@ namespace osu.Game.Rulesets.Sticks.UI
             // over immediately rather than inheriting the replay's final held position.
             input.Update(StickSide.Left, left, MapStickDistance(left, PhysicalStickDistanceAtGameEdge), Time.Current);
             input.Update(StickSide.Right, right, MapStickDistance(right, PhysicalStickDistanceAtGameEdge), Time.Current);
+            reportPhysicalStickInput(left, right);
             updateCursor(leftCursor, StickSide.Left);
             updateCursor(rightCursor, StickSide.Right);
             updateTrails();
-            reportMemoryUsage();
         }
 
-        private void reportMemoryUsage()
+        private void reportPhysicalStickInput(Vector2 left, Vector2 right)
         {
-            if (Time.Current - lastMemoryReportTime < 2000)
+            if (left == lastReportedPhysicalLeft && right == lastReportedPhysicalRight)
                 return;
 
-            lastMemoryReportTime = Time.Current;
-            currentProcess.Refresh();
-            GCMemoryInfo gc = GC.GetGCMemoryInfo();
-            Logger.Log($"Sticks memory: managed={toMiB(GC.GetTotalMemory(false))} MiB, heap={toMiB(gc.HeapSizeBytes)} MiB, committed={toMiB(gc.TotalCommittedBytes)} MiB, working={toMiB(currentProcess.WorkingSet64)} MiB, private={toMiB(currentProcess.PrivateMemorySize64)} MiB");
-        }
+            lastReportedPhysicalLeft = left;
+            lastReportedPhysicalRight = right;
 
-        private static long toMiB(long bytes) => bytes / (1024 * 1024);
+            // Joystick X and Y arrive as separate framework events. Publishing here, after the
+            // input event batch has completed, prevents recording a new X with the previous Y.
+            PhysicalStickInputChanged?.Invoke();
+        }
 
         private void updateCursor(CircularContainer drawable, StickSide side)
         {

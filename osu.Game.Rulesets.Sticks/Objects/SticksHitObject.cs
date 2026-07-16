@@ -184,10 +184,10 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public float SyncedNoteAngle { get; set; }
 
-        public double ApproachDuration { get; private set; } = 850;
+        public double ApproachDuration { get; private set; } = 1200;
 
         public static double ApproachDurationFor(float approachRate) =>
-            IBeatmapDifficultyInfo.DifficultyRange(approachRate, 1200, 850, 500);
+            IBeatmapDifficultyInfo.DifficultyRange(approachRate, 1800, 1200, 450);
 
         /// <summary>
         /// Computes the full width of both angular grading bands from circle size.

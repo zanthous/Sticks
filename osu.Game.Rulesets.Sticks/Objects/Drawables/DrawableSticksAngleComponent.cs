@@ -12,6 +12,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public override bool HandlePositionalInput => false;
 
+        public DrawableSticksAngleComponent()
+            : this(null!)
+        {
+        }
+
         public DrawableSticksAngleComponent(SticksAngleComponent hitObject)
             : base(hitObject)
         {

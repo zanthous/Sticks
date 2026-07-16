@@ -31,11 +31,29 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Derive assembly version from tag
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}" -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+              throw "Release tag does not contain a supported version: $version"
+          }
+          "RULESET_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Restore dependencies
         run: dotnet restore .\osu.Game.Rulesets.Sticks.sln
 
       - name: Build and test release
-        run: dotnet test .\osu.Game.Rulesets.Sticks.sln --configuration Release --no-restore
+        shell: pwsh
+        run: dotnet test .\osu.Game.Rulesets.Sticks.sln --configuration Release --no-restore -p:Version=$env:RULESET_VERSION
+
+      - name: Validate companion mapper timing
+        run: node .\osu.Game.Rulesets.Sticks.Tests\validate-mapper-timing.mjs
 
       - name: Stage release assets
         shell: pwsh

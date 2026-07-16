@@ -1,14 +1,20 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
+using osu.Framework.Input.StateChanges;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Replays;
 using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Replays;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.Sticks.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
+using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Tests
 {
@@ -81,6 +87,66 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(processor.Combo.Value, Is.Zero);
                 Assert.That(processor.HighestCombo.Value, Is.Zero);
                 Assert.That(processor.Accuracy.Value, Is.Zero);
+            });
+        }
+
+        [Test]
+        public void TestRecordedFlickReplaysWithIdenticalJudgementAndScore()
+        {
+            const double note_time = 1000;
+            const float target_angle = 20;
+            const float played_angle = 32;
+
+            Vector2 direction = new Vector2(
+                System.MathF.Cos(played_angle * System.MathF.PI / 180),
+                System.MathF.Sin(played_angle * System.MathF.PI / 180));
+            var frames = new List<SticksReplayFrame>
+            {
+                new SticksReplayFrame(900, Vector2.Zero, Vector2.Zero),
+                new SticksReplayFrame(990, direction * 0.75f, Vector2.Zero),
+                new SticksReplayFrame(1008, direction, Vector2.Zero),
+                new SticksReplayFrame(1040, direction, Vector2.Zero),
+            };
+
+            var originalInput = new SticksInputTracker();
+            foreach (SticksReplayFrame frame in frames)
+                originalInput.Update(StickSide.Left, frame.LeftStick, frame.Time);
+
+            var replay = new Replay { Frames = frames.Cast<ReplayFrame>().ToList() };
+            var provider = new SticksReplayInputProvider();
+            var replayHandler = new SticksFramedReplayInputHandler(replay, provider);
+            var replayedInput = new SticksInputTracker();
+
+            foreach (double time in new[] { 900d, 990, note_time, 1008, 1040 })
+            {
+                Assert.That(replayHandler.SetFrameFromTime(time), Is.EqualTo(time));
+                replayHandler.CollectPendingInputs(new List<IInput>());
+                (Vector2 left, _) = provider.Snapshot();
+                replayedInput.Update(StickSide.Left, left, time);
+
+                if (time == note_time)
+                    Assert.That(replayedInput.SequenceFor(StickSide.Left), Is.Zero,
+                        "Playback must not interpolate across the activation threshold before the recorded edge sample.");
+            }
+
+            SticksInputTracker.FlickEvent originalFlick = originalInput.LastFlickFor(StickSide.Left);
+            SticksInputTracker.FlickEvent replayedFlick = replayedInput.LastFlickFor(StickSide.Left);
+
+            SticksFlick hitObject = createFlick(note_time, StickSide.Left, target_angle);
+            (HitResult originalTiming, HitResult originalAngle) = resultsFor(hitObject, originalFlick);
+            (HitResult replayTiming, HitResult replayAngle) = resultsFor(hitObject, replayedFlick);
+            SticksScoreProcessor originalScore = score(hitObject, originalTiming, originalAngle);
+            SticksScoreProcessor replayScore = score(hitObject, replayTiming, replayAngle);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(replayedFlick.Sequence, Is.EqualTo(originalFlick.Sequence));
+                Assert.That(replayedFlick.Time, Is.EqualTo(originalFlick.Time));
+                Assert.That(replayedFlick.Angle, Is.EqualTo(originalFlick.Angle).Within(0.0001));
+                Assert.That((replayTiming, replayAngle), Is.EqualTo((originalTiming, originalAngle)));
+                Assert.That(replayScore.TotalScore.Value, Is.EqualTo(originalScore.TotalScore.Value));
+                Assert.That(replayScore.Accuracy.Value, Is.EqualTo(originalScore.Accuracy.Value));
+                Assert.That(replayScore.Combo.Value, Is.EqualTo(originalScore.Combo.Value));
             });
         }
 
@@ -265,6 +331,21 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Type = type,
         };
+
+        private static (HitResult Timing, HitResult Angle) resultsFor(SticksFlick hitObject, SticksInputTracker.FlickEvent flick)
+        {
+            HitResult timing = hitObject.HitWindows.ResultFor(flick.Time - hitObject.StartTime);
+            HitResult angle = hitObject.ResultForCurrentAngleError(SticksHitObject.DeltaAngle(flick.Angle, hitObject.Angle));
+            return SticksHitObject.ResolveComponentResults(timing, angle);
+        }
+
+        private static SticksScoreProcessor score(SticksFlick hitObject, HitResult timing, HitResult angle)
+        {
+            var processor = new SticksScoreProcessor(new SticksRuleset());
+            processor.ApplyResult(result(hitObject, timing));
+            processor.ApplyResult(result((SticksAngleComponent)hitObject.NestedHitObjects.Single(), angle));
+            return processor;
+        }
 
         private static SticksFlick createFlick(double startTime, StickSide side, float angle)
         {

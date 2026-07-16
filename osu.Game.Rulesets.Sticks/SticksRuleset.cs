@@ -60,6 +60,8 @@ namespace osu.Game.Rulesets.Sticks
 
         public override HitObjectComposer CreateHitObjectComposer() => new SticksHitObjectComposer(this);
 
+        public override IBeatmapVerifier CreateBeatmapVerifier() => new SticksBeatmapVerifier();
+
         public override DifficultyCalculator CreateDifficultyCalculator(IWorkingBeatmap beatmap) => new SticksDifficultyCalculator(RulesetInfo, beatmap);
 
         public override ScoreProcessor CreateScoreProcessor() => new SticksScoreProcessor(this);

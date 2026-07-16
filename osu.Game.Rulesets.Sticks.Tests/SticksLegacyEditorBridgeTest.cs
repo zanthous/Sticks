@@ -27,6 +27,86 @@ namespace osu.Game.Rulesets.Sticks.Tests
     public class SticksLegacyEditorBridgeTest
     {
         [Test]
+        public void TestSliderUsesDurationTimelineEditingRatherThanOsuRepeatEditing()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 750,
+                ArcAngle = 180,
+                RepeatCount = 2,
+            };
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider, Is.InstanceOf<IHasDuration>());
+                Assert.That(slider, Is.Not.InstanceOf<IHasRepeats>(),
+                    "lazer gives IHasRepeats a repeat-count timeline handle instead of a duration handle");
+                Assert.That(slider.EndTime, Is.EqualTo(1750));
+                Assert.That(slider.RepeatCount, Is.EqualTo(2));
+            });
+
+            ((IHasDuration)slider).Duration = 1250;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.EndTime, Is.EqualTo(2250));
+                Assert.That(slider.RepeatCount, Is.EqualTo(2), "Changing slider timing must not alter its authored reversal path.");
+            });
+        }
+
+        [Test]
+        public void TestCorruptedTimelineRepeatCountIsBoundedOnDecode()
+        {
+            var source = new TestPositionHitObject
+            {
+                StartTime = 1000,
+                Samples = new HitSampleInfo[]
+                {
+                    new ConvertHitObjectParser.FileHitSampleInfo("sticks-v1~s~l~45~1000~180~1000000000.wav", 100),
+                },
+            };
+
+            Assert.That(SticksAuthoredBeatmapCodec.TryDecode(source, out SticksHitObject? decoded), Is.True);
+            var slider = (SticksSlider)decoded!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.RepeatCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT - 1));
+                Assert.That(slider.SegmentCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT));
+                Assert.That(slider.Duration, Is.EqualTo(1000));
+                Assert.That(slider.ArcAngle, Is.EqualTo(180));
+            });
+
+            var controlPoints = new ControlPointInfo();
+            controlPoints.Add(0, new TimingControlPoint { BeatLength = 500 });
+            slider.ApplyDefaults(controlPoints, new BeatmapDifficulty { SliderTickRate = 1 });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.NestedHitObjects, Has.Count.EqualTo(SticksSlider.MAX_SEGMENT_COUNT + 1));
+                Assert.That(slider.NestedHitObjects.OfType<SticksSliderRepeat>().ToArray(), Has.Length.EqualTo(SticksSlider.MAX_SEGMENT_COUNT - 1));
+            });
+
+            slider.EnsureLegacyEditorMarker();
+            Assert.That(markerFilename(slider), Is.EqualTo("sticks-v1~s~l~45~1000~180~15.wav"));
+        }
+
+        [Test]
+        public void TestOversizedCustomSegmentPathIsBounded()
+        {
+            var slider = new SticksSlider();
+            slider.SetCustomSegments(Enumerable.Range(0, 100).Select(index => index % 2 == 0 ? 90f : -90f));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.HasCustomSegments, Is.True);
+                Assert.That(slider.SegmentCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT));
+                Assert.That(slider.RepeatCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT - 1));
+            });
+        }
+
+        [Test]
         public void TestBootstrapTypeIsOnlyDiscoverableRulesetAndRealmIdentityStaysCustom()
         {
             var bootstrap = new SticksRuleset();

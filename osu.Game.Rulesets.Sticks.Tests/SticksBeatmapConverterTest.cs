@@ -3,6 +3,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using NUnit.Framework;
 using osu.Game.Audio;
@@ -216,6 +217,58 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(converted[1].Angle, Is.EqualTo(135));
                 Assert.That(converted[0].SyncedNoteSide, Is.EqualTo(StickSide.Right));
                 Assert.That(converted[0].SyncedNoteAngle, Is.EqualTo(135));
+            });
+        }
+
+        [Test]
+        public void TestAuthoredSliderAndHoldChordsReceiveDrawableLinks()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 1000,
+                Side = StickSide.Left,
+                Angle = 0,
+                ArcAngle = 90,
+            }));
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
+            {
+                StartTime = 1000,
+                Side = StickSide.Right,
+                Angle = 135,
+            }));
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksHold
+            {
+                StartTime = 3000,
+                Duration = 1000,
+                Side = StickSide.Left,
+                Angle = 45,
+            }));
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
+            {
+                StartTime = 3000,
+                Side = StickSide.Right,
+                Angle = 225,
+            }));
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksSlider slider = converted.OfType<SticksSlider>().Single();
+            SticksHold hold = converted.OfType<SticksHold>().Single();
+            var drawableSlider = new DrawableSticksSlider(slider);
+            var drawableHold = new DrawableSticksHold(hold);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.SyncedNoteSide, Is.EqualTo(StickSide.Right));
+                Assert.That(slider.SyncedNoteAngle, Is.EqualTo(135));
+                Assert.That(hold.SyncedNoteSide, Is.EqualTo(StickSide.Right));
+                Assert.That(hold.SyncedNoteAngle, Is.EqualTo(225));
+                Assert.That(typeof(DrawableSticksSlider).GetField("syncedNoteLink", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawableSlider),
+                    Is.TypeOf<SticksSyncedNoteLink>());
+                Assert.That(typeof(DrawableSticksHold).GetField("syncedNoteLink", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawableHold),
+                    Is.TypeOf<SticksSyncedNoteLink>());
             });
         }
 

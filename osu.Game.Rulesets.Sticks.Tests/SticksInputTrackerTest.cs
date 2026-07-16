@@ -71,6 +71,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestSticksAreIndependent()
         {
             var tracker = new SticksInputTracker();
+            tracker.Update(StickSide.Right, Vector2.Zero, 0);
             tracker.Update(StickSide.Right, new Vector2(-1, 0), 100);
 
             Assert.Multiple(() =>
@@ -79,6 +80,24 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(tracker.SequenceFor(StickSide.Right), Is.EqualTo(1));
                 Assert.That(tracker.LastFlickFor(StickSide.Right).Angle, Is.EqualTo(180).Within(0.001));
             });
+        }
+
+        [Test]
+        public void TestStickHeldOutWhenTrackingStartsIsNotPrearmed()
+        {
+            var tracker = new SticksInputTracker();
+
+            tracker.Update(StickSide.Left, new Vector2(1, 0), 0);
+            tracker.Update(StickSide.Left, new Vector2(1, 0), 100);
+
+            Assert.That(tracker.SequenceFor(StickSide.Left), Is.Zero,
+                "Starting gameplay with the stick already held out must not create a flick.");
+
+            tracker.Update(StickSide.Left, Vector2.Zero, 200);
+            tracker.Update(StickSide.Left, new Vector2(1, 0), 300);
+
+            Assert.That(tracker.SequenceFor(StickSide.Left), Is.EqualTo(1),
+                "The first flick should become available only after neutral has actually been observed.");
         }
 
         [Test]

@@ -18,6 +18,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public override bool HandlePositionalInput => false;
 
+        public DrawableSticksSliderTick()
+            : this(null!)
+        {
+        }
+
         public DrawableSticksSliderTick(SticksSliderTick hitObject)
             : base(hitObject)
         {

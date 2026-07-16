@@ -8,6 +8,7 @@
     <Authors>Zankai LLC</Authors>
     <Company>Zankai LLC</Company>
     <Copyright>Copyright (c) 2026 Zankai LLC</Copyright>
+    <Version>0.1.0-dev</Version>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="License" Value="PolyForm Noncommercial 1.0.0 with additional permissions" />

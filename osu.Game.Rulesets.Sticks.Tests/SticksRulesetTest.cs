@@ -7,11 +7,15 @@ using System.Reflection;
 using NUnit.Framework;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Effects;
+using osu.Framework.Input.StateChanges;
 using osu.Framework.Timing;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Replays;
+using osu.Game.Replays.Legacy;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Replays;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Edit;
@@ -22,6 +26,7 @@ using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.Sticks.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
+using osu.Game.Scoring;
 using osu.Game.Screens.Play;
 using osuTK;
 using osuTK.Graphics;
@@ -288,6 +293,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Right), Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
                 Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(0), Is.EqualTo(0.45f).Within(0.001));
                 Assert.That(SticksSyncedNoteLink.AlphaAtGrowth(1), Is.EqualTo(0.8f).Within(0.001));
+                Assert.That(SticksSyncedNoteLink.AlphaAtHeadCue(999, 1000, 0.5), Is.EqualTo(SticksSyncedNoteLink.AlphaAtGrowth(0.5)).Within(0.001));
+                Assert.That(SticksSyncedNoteLink.AlphaAtHeadCue(1000, 1000, 1), Is.EqualTo(0.8f).Within(0.001));
+                Assert.That(SticksSyncedNoteLink.AlphaAtHeadCue(1060, 1000, 1), Is.EqualTo(0.4f).Within(0.001));
+                Assert.That(SticksSyncedNoteLink.AlphaAtHeadCue(1120, 1000, 1), Is.Zero);
                 Assert.That(centreLink.UsesAlternatingDashes, Is.False);
                 Assert.That(sharedAngleLink.UsesAlternatingDashes, Is.True);
                 Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.5f), Is.True);
@@ -478,6 +487,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
             slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty { ApproachRate = 10 });
 
             Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(5));
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksHitObject.ApproachDurationFor(0), Is.EqualTo(1800));
+                Assert.That(SticksHitObject.ApproachDurationFor(5), Is.EqualTo(1200));
+                Assert.That(SticksHitObject.ApproachDurationFor(10), Is.EqualTo(450));
+                Assert.That(SticksHitObject.ApproachDurationFor(11), Is.EqualTo(300));
+                Assert.That(SticksHitObject.ApproachDurationFor(12), Is.EqualTo(150));
+            });
+
+            config.SetValue(SticksRulesetSetting.ApproachRate, 20f);
+            Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(12), "The player AR control should expose values through AR12 and clamp there.");
 
             config.SetValue(SticksRulesetSetting.ApproachRate, 8f);
             slider.ApplyPlayerApproachRate(config.Get<float>(SticksRulesetSetting.ApproachRate));
@@ -485,9 +505,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(8));
-                Assert.That(slider.ApproachDuration, Is.EqualTo(640).Within(0.001));
+                Assert.That(slider.ApproachDuration, Is.EqualTo(750).Within(0.001));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
-                    Math.Abs(nested.ApproachDuration - 640) < 0.001));
+                    Math.Abs(nested.ApproachDuration - 750) < 0.001));
             });
         }
 
@@ -598,6 +618,155 @@ namespace osu.Game.Rulesets.Sticks.Tests
             provider.Update(Vector2.UnitY, Vector2.UnitX);
             Assert.That(provider.Active, Is.True, "A subsequently attached replay must still be able to provide input.");
         }
+
+        [Test]
+        public void TestReplayRecorderCapturesBothPhysicalSticksWithoutDistanceRemapping()
+        {
+            var playfield = new SticksPlayfield
+            {
+                PhysicalStickDistanceAtGameEdge = 0.8f,
+            };
+            setPrivateField(playfield, "leftX", 0.8f);
+            setPrivateField(playfield, "leftY", -0.25f);
+            setPrivateField(playfield, "rightX", -0.6f);
+            setPrivateField(playfield, "rightY", 0.75f);
+
+            var recorder = new SticksReplayRecorder(new Score(), playfield);
+            var frame = (SticksReplayFrame)typeof(SticksReplayRecorder)
+                                               .GetMethod("captureFrame", BindingFlags.Instance | BindingFlags.NonPublic)!
+                                               .Invoke(recorder, new object[] { 1234d })!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(frame.Time, Is.EqualTo(1234));
+                Assert.That(frame.LeftStick, Is.EqualTo(new Vector2(0.8f, -0.25f)),
+                    "Replay capture must store raw travel; playback applies the 80% distance mapping once.");
+                Assert.That(frame.RightStick, Is.EqualTo(new Vector2(-0.6f, 0.75f)));
+                Assert.That(playfield.PhysicalStickVector(StickSide.Left), Is.EqualTo(frame.LeftStick));
+                Assert.That(playfield.PhysicalStickVector(StickSide.Right), Is.EqualTo(frame.RightStick));
+            });
+        }
+
+        [Test]
+        public void TestReplayLegacyBridgeRoundTripsAllFourAxes()
+        {
+            const float q15_tolerance = 1f / short.MaxValue + 0.000001f;
+            var beatmap = new Beatmap();
+            var positions = new[]
+            {
+                (Left: Vector2.Zero, Right: Vector2.Zero),
+                (Left: new Vector2(-1, 1), Right: new Vector2(1, -1)),
+                (Left: new Vector2(0.8f, -0.25f), Right: new Vector2(-0.61234f, 0.73456f)),
+            };
+
+            foreach ((Vector2 left, Vector2 right) in positions)
+            {
+                var original = new SticksReplayFrame(1234, left, right);
+                LegacyReplayFrame legacy = original.ToLegacy(beatmap);
+                var restored = new SticksReplayFrame();
+                restored.FromLegacy(legacy, beatmap);
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(legacy.ButtonState, Is.Not.EqualTo((ReplayButtonState)int.MinValue),
+                        "The legacy parser intentionally rejects int.MinValue.");
+                    Assert.That(restored.LeftStick, Is.EqualTo(left));
+                    Assert.That(restored.RightStick.X, Is.EqualTo(right.X).Within(q15_tolerance));
+                    Assert.That(restored.RightStick.Y, Is.EqualTo(right.Y).Within(q15_tolerance));
+                });
+            }
+
+            var oldNeutralFrame = new LegacyReplayFrame(2000, 0.25f, -0.5f, ReplayButtonState.None);
+            var decodedOldFrame = new SticksReplayFrame();
+            decodedOldFrame.FromLegacy(oldNeutralFrame, beatmap);
+            Assert.That(decodedOldFrame.RightStick, Is.EqualTo(Vector2.Zero));
+        }
+
+        [Test]
+        public void TestReplayPlaybackHoldsCompleteSamplesUntilTheirRecordedTime()
+        {
+            var replay = new Replay
+            {
+                Frames = new List<ReplayFrame>
+                {
+                    new SticksReplayFrame(0, new Vector2(-1, 0.2f), new Vector2(0.4f, -0.8f)),
+                    new SticksReplayFrame(1000, new Vector2(1, -0.6f), new Vector2(-0.4f, 0.8f)),
+                },
+            };
+            var provider = new SticksReplayInputProvider();
+            var handler = new SticksFramedReplayInputHandler(replay, provider);
+
+            Assert.That(handler.SetFrameFromTime(-100), Is.EqualTo(-100));
+            handler.CollectPendingInputs(new List<IInput>());
+            Assert.That(provider.Snapshot(), Is.EqualTo((Vector2.Zero, Vector2.Zero)),
+                "The first controller sample must not be anticipated before its timestamp.");
+
+            Assert.That(handler.SetFrameFromTime(0), Is.EqualTo(0));
+            Assert.That(handler.SetFrameFromTime(250), Is.EqualTo(250));
+            handler.CollectPendingInputs(new List<IInput>());
+            (Vector2 left, Vector2 right) = provider.Snapshot();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(left, Is.EqualTo(new Vector2(-1, 0.2f)));
+                Assert.That(right, Is.EqualTo(new Vector2(0.4f, -0.8f)));
+            });
+
+            Assert.That(handler.SetFrameFromTime(1000), Is.EqualTo(1000));
+            handler.CollectPendingInputs(new List<IInput>());
+            (left, right) = provider.Snapshot();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(left, Is.EqualTo(new Vector2(1, -0.6f)));
+                Assert.That(right, Is.EqualTo(new Vector2(-0.4f, 0.8f)));
+            });
+        }
+
+        [Test]
+        public void TestPhysicalAxisChangesArePublishedAsOneCompleteReplaySample()
+        {
+            var playfield = new SticksPlayfield();
+            int notifications = 0;
+            Vector2 reportedLeft = Vector2.Zero;
+            Vector2 reportedRight = Vector2.Zero;
+
+            playfield.PhysicalStickInputChanged += () =>
+            {
+                notifications++;
+                reportedLeft = playfield.PhysicalStickVector(StickSide.Left);
+                reportedRight = playfield.PhysicalStickVector(StickSide.Right);
+            };
+
+            // Framework joystick axes are delivered independently. Neither assignment may
+            // publish a half-updated vector; publication happens once in the playfield update.
+            setPrivateField(playfield, "leftX", 0.8f);
+            setPrivateField(playfield, "leftY", -0.45f);
+            setPrivateField(playfield, "rightX", -0.65f);
+            setPrivateField(playfield, "rightY", 0.35f);
+            Assert.That(notifications, Is.Zero);
+
+            typeof(SticksPlayfield).GetMethod("reportPhysicalStickInput", BindingFlags.Instance | BindingFlags.NonPublic)!
+                                  .Invoke(playfield, new object[]
+                                  {
+                                      playfield.PhysicalStickVector(StickSide.Left),
+                                      playfield.PhysicalStickVector(StickSide.Right),
+                                  });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(notifications, Is.EqualTo(1));
+                Assert.That(reportedLeft, Is.EqualTo(new Vector2(0.8f, -0.45f)));
+                Assert.That(reportedRight, Is.EqualTo(new Vector2(-0.65f, 0.35f)));
+            });
+
+            typeof(SticksPlayfield).GetMethod("reportPhysicalStickInput", BindingFlags.Instance | BindingFlags.NonPublic)!
+                                  .Invoke(playfield, new object[] { reportedLeft, reportedRight });
+            Assert.That(notifications, Is.EqualTo(1), "An unchanged controller sample must not generate a duplicate frame.");
+        }
+
+        private static void setPrivateField<T>(object target, string name, T value) =>
+            target.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(target, value);
 
         [Test]
         public void TestDifficultyScalingSeparatesOrdinaryAndImpossibleFlickPatterns()
@@ -826,7 +995,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(extension.PreemptDuration, Is.EqualTo(1850));
+                Assert.That(extension.PreemptDuration, Is.EqualTo(2200));
                 Assert.That(() => new DrawableSticksSliderExtension(extension), Throws.Nothing);
             });
         }
@@ -1049,8 +1218,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.RehearsalProgressAt(999), Is.EqualTo(0.998).Within(0.001));
                 Assert.That(slider.RehearsalProgressAt(1000), Is.EqualTo(1).Within(0.001));
                 Assert.That(slider.RehearsalProgressAt(1250), Is.EqualTo(1).Within(0.001));
-                Assert.That(longSlider.RehearsalStartTime, Is.EqualTo(150));
-                Assert.That(longSlider.RehearsalProgressAt(1000), Is.EqualTo(0.425).Within(0.001));
+                Assert.That(longSlider.RehearsalStartTime, Is.EqualTo(-200));
+                Assert.That(longSlider.RehearsalProgressAt(1000), Is.EqualTo(0.6).Within(0.001));
             });
         }
 
@@ -1069,12 +1238,16 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(slider.UpcomingSegmentIndexAt(999), Is.EqualTo(-1));
                 Assert.That(slider.UpcomingSegmentIndexAt(1000), Is.EqualTo(1));
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1149), Is.Zero);
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1150), Is.Zero);
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1575), Is.EqualTo(0.125).Within(0.0001));
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1000), Is.Zero);
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1001), Is.GreaterThan(0));
+                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1500), Is.EqualTo(0.125).Within(0.0001));
                 Assert.That(slider.UpcomingSegmentPreviewProgressAt(1999), Is.GreaterThan(0.99));
+                Assert.That(slider.UpcomingSegmentEndsWithReversalAt(1500), Is.True,
+                    "The preview of a middle segment needs the same white reversal cue as the first segment.");
                 Assert.That(slider.UpcomingSegmentIndexAt(2000), Is.EqualTo(2));
                 Assert.That(slider.UpcomingSegmentPreviewProgressAt(2000), Is.Zero);
+                Assert.That(slider.UpcomingSegmentEndsWithReversalAt(2500), Is.False,
+                    "The final segment must not imply another reversal.");
                 Assert.That(slider.UpcomingSegmentIndexAt(3000), Is.EqualTo(-1));
             });
         }

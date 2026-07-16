@@ -16,9 +16,18 @@ using osu.Game.Rulesets.Sticks.Scoring;
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {
-    public class SticksSlider : SticksHitObject, IHasRepeats
+    public class SticksSlider : SticksHitObject, IHasDuration
     {
+        /// <summary>
+        /// Maximum number of authored path segments. The editor deliberately exposes at most this
+        /// many, and enforcing the same limit on decoded/clipboard data prevents malformed maps
+        /// from allocating an unbounded number of reversal drawables and path vertices.
+        /// </summary>
+        public const int MAX_SEGMENT_COUNT = 16;
+
         private double duration;
+        private ControlPointInfo controlPointInfo = null!;
+        private double tickRate;
 
         public double Duration
         {
@@ -52,7 +61,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
             set
             {
                 customSegmentArcAngles = null;
-                repeatCount = Math.Max(0, value);
+                repeatCount = Math.Clamp(value, 0, MAX_SEGMENT_COUNT - 1);
                 RefreshLegacyEditorMarker();
             }
         }
@@ -153,7 +162,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public double PathProgressAt(double time) => SegmentProgressAt(time);
 
-        public bool CurrentSpanEndsWithReversal(double time) => SegmentIndexAt(time) < SegmentCount - 1;
+        public bool SegmentEndsWithReversal(int segmentIndex) => segmentIndex >= 0 && segmentIndex < SegmentCount - 1;
+
+        public bool CurrentSpanEndsWithReversal(double time) => SegmentEndsWithReversal(SegmentIndexAt(time));
 
         public (double Start, double End) RemainingPathRangeAt(double time) => (SegmentProgressAt(time), 1);
 
@@ -174,6 +185,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
             int upcoming = SegmentIndexAt(time) + 1;
             return upcoming < SegmentCount ? upcoming : -1;
         }
+
+        public bool UpcomingSegmentEndsWithReversalAt(double time) => SegmentEndsWithReversal(UpcomingSegmentIndexAt(time));
 
         /// <summary>
         /// Returns the snaking progress for the segment after the current reversal. Its cue uses
@@ -199,7 +212,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public void SetCustomSegments(IEnumerable<float> segments)
         {
-            List<float> values = segments.Where(segment => float.IsFinite(segment) && Math.Abs(segment) >= 1).ToList();
+            List<float> values = segments.Where(segment => float.IsFinite(segment) && Math.Abs(segment) >= 1)
+                                         .Take(MAX_SEGMENT_COUNT)
+                                         .ToList();
             if (values.Count == 0)
                 throw new ArgumentException("A slider requires at least one non-zero segment.", nameof(segments));
 
@@ -289,7 +304,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
             base.ApplyDefaultsToSelf(controlPointInfo, difficulty);
 
             double beatLength = controlPointInfo.TimingPointAt(StartTime).BeatLength;
-            TickInterval = beatLength / Math.Max(1, difficulty.SliderTickRate);
+            tickRate = Math.Max(1, difficulty.SliderTickRate);
+            TickInterval = beatLength / tickRate;
+            this.controlPointInfo = controlPointInfo;
         }
 
         protected override void CreateNestedHitObjects(CancellationToken cancellationToken)
@@ -316,10 +333,13 @@ namespace osu.Game.Rulesets.Sticks.Objects
                     double segmentStartTime = SegmentStartTimeAt(segment);
                     double segmentDuration = SegmentDurationAt(segment);
 
-                    for (double tickTime = segmentStartTime + TickInterval; tickTime < segmentStartTime + segmentDuration - 10; tickTime += TickInterval)
+                    foreach (double tickTime in SticksTickGenerator.Generate(
+                                 controlPointInfo,
+                                 segmentStartTime,
+                                 segmentStartTime + segmentDuration,
+                                 tickRate,
+                                 cancellationToken))
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-
                         AddNested(new SticksSliderTick
                         {
                             StartTime = tickTime,
@@ -394,7 +414,11 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         private IList<HitSampleInfo> samplesAtNode(int nodeIndex)
         {
-            IList<HitSampleInfo> nodeSamples = this.GetNodeSamples(nodeIndex);
+            // Sticks segments are not osu!-style repeats. In particular, custom segments may
+            // have different durations. Advertising IHasRepeats makes lazer's timeline end
+            // handle edit RepeatCount rather than Duration, and also places equally-spaced node
+            // markers at incorrect times. Keep per-node samples as ruleset-owned data instead.
+            IList<HitSampleInfo> nodeSamples = nodeIndex < NodeSamples.Count ? NodeSamples[nodeIndex] : Samples;
             if (nodeSamples.Count > 0)
                 return CreatePlayableSamples(nodeSamples);
 

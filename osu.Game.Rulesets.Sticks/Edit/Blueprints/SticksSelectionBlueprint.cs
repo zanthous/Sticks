@@ -71,7 +71,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                     Alpha = 0,
                     Depth = -19,
                 });
-                AddInternal(continuationEndpointPreview = new EndpointPreviewMarker());
+                AddInternal(continuationEndpointPreview = new EndpointPreviewMarker(confirmContinuation));
             }
         }
 
@@ -104,7 +104,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 removeSegmentButton.Available = atSliderEnd && !placingContinuation;
                 appendSegmentButton.Available = atSliderEnd && !placingContinuation;
                 removeSegmentButton.Enabled = slider.SegmentCount > 1 && !placingContinuation;
-                appendSegmentButton.Enabled = slider.SegmentCount < 16 && !placingContinuation;
+                appendSegmentButton.Enabled = slider.SegmentCount < SticksSlider.MAX_SEGMENT_COUNT && !placingContinuation;
 
                 updateContinuationPreview(slider, terminalAngle);
             }
@@ -198,11 +198,15 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         private void beginContinuationPlacement()
         {
-            if (HitObject is not SticksSlider slider || slider.SegmentCount >= 16 || !isAtSliderEnd(slider))
+            if (HitObject is not SticksSlider slider || slider.SegmentCount >= SticksSlider.MAX_SEGMENT_COUNT || !isAtSliderEnd(slider))
                 return;
 
             placingContinuation = true;
             pendingContinuationArc = 0;
+            sliderTailHandle!.Available = false;
+            removeSegmentButton!.Available = false;
+            appendSegmentButton!.Available = false;
+            updateContinuationPreview(slider, slider.SegmentStartAngleAt(slider.SegmentCount));
         }
 
         private void removeFinalSegment()
@@ -213,7 +217,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         protected override bool OnMouseDown(MouseDownEvent e)
         {
-            if (!placingContinuation || HitObject is not SticksSlider slider)
+            if (!placingContinuation || HitObject is not SticksSlider)
                 return base.OnMouseDown(e);
 
             if (e.Button == MouseButton.Right)
@@ -222,16 +226,25 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 return true;
             }
 
-            if (e.Button != MouseButton.Left)
-                return true;
+            // The endpoint check is the explicit visual target, while retaining the original
+            // placement convenience of allowing a left click anywhere on the playfield.
+            if (e.Button == MouseButton.Left)
+                confirmContinuation();
+
+            return true;
+        }
+
+        private void confirmContinuation()
+        {
+            if (!placingContinuation || HitObject is not SticksSlider slider)
+                return;
 
             double newEndTime = editorClock.CurrentTimeAccurate;
             if (Math.Abs(slider.ContinuationArcAt(newEndTime)) < 1)
-                return true;
+                return;
 
             placingContinuation = false;
             performUndoableChange(slider, () => slider.AppendTimedSegmentAtConstantSpeed(newEndTime));
-            return true;
         }
 
         private void updateContinuationPreview(SticksSlider slider, float terminalAngle)
@@ -239,14 +252,29 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             if (continuationPreview == null || continuationEndpointPreview == null)
                 return;
 
-            if (!placingContinuation || Math.Abs(pendingContinuationArc) < 1)
+            if (!placingContinuation)
             {
                 continuationPreview.Alpha = 0;
-                continuationEndpointPreview.Alpha = 0;
+                continuationEndpointPreview.SetState(false, false);
                 return;
             }
 
             float radius = SticksPlayfield.RadiusFor(slider.Side);
+            bool canConfirm = Math.Abs(pendingContinuationArc) >= 1;
+            continuationEndpointPreview.Position = SticksPlayfield.PointAt(
+                terminalAngle + (canConfirm ? pendingContinuationArc : 0),
+                radius);
+            continuationEndpointPreview.FillColour = slider.Side == StickSide.Left
+                ? SticksPlayfield.LEFT_COLOUR
+                : SticksPlayfield.RIGHT_COLOUR;
+            continuationEndpointPreview.SetState(true, canConfirm);
+
+            if (!canConfirm)
+            {
+                continuationPreview.Alpha = 0;
+                return;
+            }
+
             const float halfThickness = 4;
             float outerRadius = radius + halfThickness;
             continuationPreview.Size = new Vector2(outerRadius * 2);
@@ -256,13 +284,6 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             continuationPreview.Progress = Math.Abs(pendingContinuationArc) / 360;
             continuationPreview.Alpha = 0.55f;
 
-            continuationEndpointPreview.Position = SticksPlayfield.PointAt(
-                terminalAngle + pendingContinuationArc,
-                radius);
-            continuationEndpointPreview.FillColour = slider.Side == StickSide.Left
-                ? SticksPlayfield.LEFT_COLOUR
-                : SticksPlayfield.RIGHT_COLOUR;
-            continuationEndpointPreview.Alpha = 1;
         }
 
         private void performUndoableChange(HitObject hitObject, Action mutation)
@@ -366,32 +387,73 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         private partial class EndpointPreviewMarker : CircularContainer
         {
+            private readonly Action confirm;
             private readonly Box fill;
+            private readonly SpriteIcon checkIcon;
+            private bool available;
+            private bool enabled;
 
             public Color4 FillColour
             {
                 set => fill.Colour = value;
             }
 
-            public override bool HandlePositionalInput => false;
+            public override bool HandlePositionalInput => available;
 
-            public EndpointPreviewMarker()
+            public EndpointPreviewMarker(Action confirm)
             {
+                this.confirm = confirm;
                 Anchor = Anchor.TopLeft;
                 Origin = Anchor.Centre;
-                Size = new Vector2(22);
+                Size = new Vector2(30);
                 Masking = true;
                 BorderThickness = 3;
                 BorderColour = Color4.White;
                 Depth = -22;
                 Alpha = 0;
-                Child = fill = new Box { RelativeSizeAxes = Axes.Both };
+                Children = new Drawable[]
+                {
+                    fill = new Box { RelativeSizeAxes = Axes.Both },
+                    checkIcon = new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(16),
+                        Icon = FontAwesome.Solid.Check,
+                        Colour = Color4.White,
+                        Shadow = true,
+                    },
+                };
+            }
+
+            public void SetState(bool visible, bool canConfirm)
+            {
+                available = visible;
+                enabled = canConfirm;
+                Alpha = visible ? (canConfirm ? 1 : 0.7f) : 0;
+                checkIcon.Alpha = canConfirm ? 1 : 0.65f;
+            }
+
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
+                available && base.ReceivePositionalInputAt(screenSpacePos);
+
+            protected override bool OnMouseDown(MouseDownEvent e) =>
+                available && enabled && e.Button == MouseButton.Left;
+
+            protected override bool OnClick(ClickEvent e)
+            {
+                if (!available || !enabled || e.Button != MouseButton.Left)
+                    return false;
+
+                confirm();
+                return true;
             }
         }
 
         private partial class SegmentButton : CircularContainer
         {
             private readonly Action action;
+            private readonly bool activateOnPress;
             private readonly SpriteIcon icon;
             private bool enabled = true;
             private bool available;
@@ -424,6 +486,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             public SegmentButton(bool increase, Action action)
             {
                 this.action = action;
+                activateOnPress = increase;
 
                 Anchor = Anchor.TopLeft;
                 Origin = Anchor.Centre;
@@ -458,11 +521,27 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
                 Available && base.ReceivePositionalInputAt(screenSpacePos);
 
-            protected override bool OnMouseDown(MouseDownEvent e) => Available && Enabled && e.Button == MouseButton.Left;
+            protected override bool OnMouseDown(MouseDownEvent e)
+            {
+                if (!Available || !Enabled || e.Button != MouseButton.Left)
+                    return false;
+
+                // Enter placement on the press itself. Waiting for the later click event allowed
+                // editor selection handling to consume the first attempt in some states.
+                if (activateOnPress)
+                    action();
+                return true;
+            }
 
             protected override bool OnClick(ClickEvent e)
             {
-                if (e.Button != MouseButton.Left || !Available || !Enabled)
+                if (e.Button != MouseButton.Left)
+                    return false;
+
+                if (activateOnPress)
+                    return true;
+
+                if (!Available || !Enabled)
                     return false;
 
                 action();

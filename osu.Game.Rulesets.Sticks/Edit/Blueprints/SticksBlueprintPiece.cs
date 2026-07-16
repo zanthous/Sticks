@@ -76,6 +76,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         {
             int kind = hitObject is SticksSlider ? 2 : hitObject is SticksHold ? 1 : 0;
             int segmentSignature = hitObject is SticksSlider sliderValue ? segmentHash(sliderValue) : 0;
+            bool durationAffectsGeometry = hitObject is SticksHold;
             double duration = hitObject switch
             {
                 SticksSlider sliderDuration => sliderDuration.Duration,
@@ -88,7 +89,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 && Math.Abs(displayedAngle - hitObject.Angle) < 0.001f
                 && displayedKind == kind
                 && displayedSegmentSignature == segmentSignature
-                && Math.Abs(displayedDuration - duration) < 0.001)
+                && (!durationAffectsGeometry || Math.Abs(displayedDuration - duration) < 0.001))
                 return;
 
             hasDisplayedGeometry = true;

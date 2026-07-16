@@ -68,7 +68,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             public Vector2 Vector;
             public float PreviousGameplayMagnitude;
-            public bool NeutralReady = true;
+            // A stick must be observed inside the neutral zone after the tracker starts. Starting
+            // gameplay while already held out must not manufacture a gesture on the first frame.
+            public bool NeutralReady;
             public long Sequence;
             public long ConsumedSequence;
             public FlickEvent LastFlick;

@@ -25,6 +25,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private readonly CircularProgress path;
         private readonly CircularProgress reversalPathPreview;
+        private readonly CircularProgress reversalPathPreviewOutline;
         private readonly CircularProgress reversalOutline;
         private readonly CircularProgress reversalPreviewOutline;
         private readonly CircularProgress directionPreview;
@@ -32,6 +33,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SticksSliderHeadMarker headMarker;
         private readonly Container nestedHitObjectContainer;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
+        private SticksSyncedNoteLink syncedNoteLink;
         private SticksPlayfield playfield = null!;
         private DrawableSticksSliderHead drawableHead = null!;
         private bool headJudged;
@@ -77,6 +79,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             // This is deliberately behind the opaque active path. As the played portion is
             // erased, the translucent upcoming reversal is revealed without covering it.
+            AddInternal(reversalPathPreviewOutline = createArc(hitObject, 8, 0, 10, Color4.White));
+
             AddInternal(reversalPathPreview = createArc(hitObject, 7, 0, 9));
 
             AddInternal(reversalPreviewOutline = createArc(hitObject, 5, 0, 11, Color4.White));
@@ -102,6 +106,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Alpha = 0,
                 Depth = -12,
             });
+
+            ensureSyncedNoteLink();
         }
 
         [BackgroundDependencyLoader]
@@ -124,6 +130,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool cueActive = now >= HitObject.StartTime - cueDuration && now < HitObject.StartTime;
             double cueProgress = Math.Clamp((now - (HitObject.StartTime - cueDuration)) / Math.Max(1, cueDuration), 0, 1);
             double headGrowth = SticksHitObject.ApproachGrowthProgress(cueProgress);
+            updateSyncedNoteLink(now, headGrowth);
             headMarker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + 0.8 * headGrowth);
             (double remainingStart, double remainingEnd) = HitObject.RemainingPathRangeAt(now);
             int segmentIndex = active ? HitObject.SegmentIndexAt(now) : 0;
@@ -149,6 +156,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             {
                 updateArcLane(path, HitObject.Side, 7, colour);
                 updateArcLane(reversalPathPreview, HitObject.Side, 7, colour);
+                updateArcLane(reversalPathPreviewOutline, HitObject.Side, 8, Color4.White);
                 updateArcLane(directionPreview, HitObject.Side, 4, colour);
                 updateArcLane(reversalOutline, HitObject.Side, 8, Color4.White);
                 updateArcLane(reversalPreviewOutline, HitObject.Side, 5, Color4.White);
@@ -165,16 +173,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateReversalPathPreview(double now, bool active)
         {
+            reversalPathPreview.Alpha = 0;
+            reversalPathPreviewOutline.Alpha = 0;
+
             int upcomingSegment = active ? HitObject.UpcomingSegmentIndexAt(now) : -1;
             double previewProgress = upcomingSegment >= 0
                 ? HitObject.UpcomingSegmentPreviewProgressAt(now)
                 : 0;
 
             if (previewProgress <= 0)
-            {
-                reversalPathPreview.Alpha = 0;
                 return;
-            }
 
             setVisibleRange(
                 reversalPathPreview,
@@ -182,7 +190,49 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 HitObject.SegmentArcAngleAt(upcomingSegment),
                 0,
                 previewProgress);
+            setVisibleRange(
+                reversalPathPreviewOutline,
+                HitObject.SegmentStartAngleAt(upcomingSegment),
+                HitObject.SegmentArcAngleAt(upcomingSegment),
+                0,
+                previewProgress);
             reversalPathPreview.Alpha = REVERSAL_PREVIEW_ALPHA;
+            reversalPathPreviewOutline.Alpha = HitObject.UpcomingSegmentEndsWithReversalAt(now) ? 1 : 0;
+        }
+
+        private void ensureSyncedNoteLink()
+        {
+            if (HitObject.SyncedNoteSide is not StickSide linkedSide)
+            {
+                if (syncedNoteLink != null)
+                    syncedNoteLink.Alpha = 0;
+                return;
+            }
+
+            if (syncedNoteLink == null)
+            {
+                AddInternal(syncedNoteLink = new SticksSyncedNoteLink(
+                    HitObject.Side,
+                    HitObject.Angle,
+                    linkedSide,
+                    HitObject.SyncedNoteAngle));
+            }
+            else
+            {
+                syncedNoteLink.SetGeometry(
+                    HitObject.Side,
+                    HitObject.Angle,
+                    linkedSide,
+                    HitObject.SyncedNoteAngle);
+            }
+        }
+
+        private void updateSyncedNoteLink(double now, double headGrowth)
+        {
+            ensureSyncedNoteLink();
+
+            if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
+                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
         }
 
         private void updateDirectionPreview(double now, bool cueActive, bool active)

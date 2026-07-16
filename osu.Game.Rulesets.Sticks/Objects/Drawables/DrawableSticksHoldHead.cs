@@ -15,6 +15,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public override bool HandlePositionalInput => false;
 
+        public DrawableSticksHoldHead()
+            : this(null!)
+        {
+        }
+
         public DrawableSticksHoldHead(SticksHoldHead hitObject)
             : base(hitObject)
         {

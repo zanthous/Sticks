@@ -20,15 +20,22 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public override bool HandlePositionalInput => false;
 
+        public DrawableSticksSliderExtension()
+            : this(null!)
+        {
+        }
+
         public DrawableSticksSliderExtension(SticksSliderExtension hitObject)
             : base(hitObject)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
 
-            AddInternal(marker = new SticksSliderHeadMarker(hitObject.Side, hitObject.Direction, colourFor(hitObject.Side))
+            StickSide side = hitObject?.Side ?? StickSide.Left;
+            int direction = hitObject?.Direction ?? 1;
+            AddInternal(marker = new SticksSliderHeadMarker(side, direction, colourFor(side))
             {
-                Angle = hitObject.Angle,
-                Span = hitObject.PrimaryHitAngle,
+                Angle = hitObject?.Angle ?? 0,
+                Span = hitObject?.PrimaryHitAngle ?? SticksHitObject.VISIBLE_ARC_SPAN,
             });
         }
 

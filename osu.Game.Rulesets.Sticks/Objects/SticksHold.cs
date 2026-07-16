@@ -16,6 +16,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
     public class SticksHold : SticksHitObject, IHasDuration
     {
         private double duration;
+        private ControlPointInfo controlPointInfo = null!;
+        private double tickRate;
 
         public double TickInterval { get; private set; }
 
@@ -36,7 +38,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
             base.ApplyDefaultsToSelf(controlPointInfo, difficulty);
 
             double beatLength = controlPointInfo.TimingPointAt(StartTime).BeatLength;
-            TickInterval = beatLength / System.Math.Max(1, difficulty.SliderTickRate);
+            tickRate = System.Math.Max(1, difficulty.SliderTickRate);
+            TickInterval = beatLength / tickRate;
+            this.controlPointInfo = controlPointInfo;
         }
 
         protected override void CreateNestedHitObjects(CancellationToken cancellationToken)
@@ -58,10 +62,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
                     ? new HitSampleInfo("slidertick", volume: sourceSample?.Volume ?? 100)
                     : sourceSample.With("slidertick");
 
-                for (double tickTime = StartTime + TickInterval; tickTime < EndTime - 10; tickTime += TickInterval)
+                foreach (double tickTime in SticksTickGenerator.Generate(controlPointInfo, StartTime, EndTime, tickRate, cancellationToken))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-
                     AddNested(new SticksHoldTick
                     {
                         StartTime = tickTime,

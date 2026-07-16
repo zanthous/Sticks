@@ -53,7 +53,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         protected override ReplayInputHandler CreateReplayInputHandler(Replay replay) => new SticksFramedReplayInputHandler(replay, replayInputProvider);
 
-        protected override ReplayRecorder CreateReplayRecorder(Score score) => new SticksReplayRecorder(score);
+        protected override ReplayRecorder CreateReplayRecorder(Score score) => new SticksReplayRecorder(score, (SticksPlayfield)Playfield);
 
         public override void SetReplayScore(Score replayScore)
         {

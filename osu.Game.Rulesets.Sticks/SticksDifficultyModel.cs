@@ -17,7 +17,11 @@ namespace osu.Game.Rulesets.Sticks
         double Control,
         double Coordination,
         double AngularPrecision,
-        double TimingPrecision);
+        double TimingPrecision,
+        double MechanicalDifficultStrainCount,
+        double ReadingDifficultStrainCount,
+        double ControlDifficultStrainCount,
+        double CoordinationDifficultStrainCount);
 
     internal static class SticksDifficultyModel
     {
@@ -34,40 +38,140 @@ namespace osu.Game.Rulesets.Sticks
         private const double control_harmonic_scale = 5;
         private const double coordination_harmonic_scale = 5;
 
-        public static SticksDifficultyBreakdown Calculate(IEnumerable<SticksHitObject> hitObjects, double clockRate, float overallDifficulty)
+        /// <summary>
+        /// Calculates difficulty for hit objects already ordered by start time.
+        /// </summary>
+        public static SticksDifficultyBreakdown CalculateOrdered(SticksHitObject[] objects, double clockRate, float overallDifficulty)
         {
-            SticksHitObject[] objects = hitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
             if (objects.Length == 0)
                 return default;
 
-            clockRate = double.IsFinite(clockRate) && clockRate > 0 ? clockRate : 1;
-            overallDifficulty = float.IsFinite(overallDifficulty) ? overallDifficulty : SticksDifficultyScaling.REFERENCE_OVERALL_DIFFICULTY;
+            var state = new IncrementalState(clockRate, overallDifficulty);
 
-            var mechanical = new PerSideStrainAccumulator(mechanical_decay, clockRate);
-            var reading = new ScalarStrainAccumulator(reading_decay, clockRate);
-            var control = new PerSideStrainAccumulator(control_decay, clockRate);
-            var coordination = new ScalarStrainAccumulator(coordination_decay, clockRate);
+            foreach (SticksHitObject hitObject in objects)
+                state.Append(hitObject);
 
-            var mechanicalStrains = new List<double>();
-            var readingStrains = new List<double>();
-            var controlStrains = new List<double>();
-            var coordinationStrains = new List<double>();
+            return state.GetBreakdown();
+        }
 
-            var previousBySide = new Dictionary<StickSide, PreviousSideObject>();
-            var activeTracking = new List<ActiveTrackingObject>();
-            var readingHistory = new List<PatternGroup>();
+        /// <summary>
+        /// Processes a chronologically-growing beatmap without replaying its completed prefix.
+        /// The current simultaneous group is reversible because lazer requests an attribute set
+        /// after each individual object, including each member of a chord at the same timestamp.
+        /// </summary>
+        internal sealed class IncrementalState
+        {
+            private readonly double clockRate;
+            private readonly float overallDifficulty;
+            private readonly double fullGreatWindow;
 
-            double fullGreatWindow = 2 * SticksDifficultyScaling.GreatWindowFor(overallDifficulty) / clockRate;
+            private PerSideStrainAccumulator mechanical;
+            private ScalarStrainAccumulator reading;
+            private PerSideStrainAccumulator control;
+            private ScalarStrainAccumulator coordination;
 
-            for (int objectIndex = 0; objectIndex < objects.Length;)
+            private readonly RollbackableRankedValues mechanicalStrains = RollbackableRankedValues.CreateStrains();
+            private readonly RollbackableRankedValues readingStrains = RollbackableRankedValues.CreateStrains();
+            private readonly RollbackableRankedValues controlStrains = RollbackableRankedValues.CreateStrains();
+            private readonly RollbackableRankedValues coordinationStrains = RollbackableRankedValues.CreateStrains();
+
+            private readonly Dictionary<StickSide, PreviousSideObject> previousBySide = new Dictionary<StickSide, PreviousSideObject>();
+            private readonly List<ActiveTrackingObject> activeTracking = new List<ActiveTrackingObject>();
+            private readonly List<PatternGroup> readingHistory = new List<PatternGroup>();
+            private readonly RollbackableRankedValues angularPrecisionValues = RollbackableRankedValues.CreateAscending();
+            private readonly List<SticksHitObject> currentGroup = new List<SticksHitObject>();
+
+            private GroupCheckpoint currentGroupCheckpoint;
+            private double currentGroupTimestamp;
+
+            public int ObjectCount { get; private set; }
+
+            /// <summary>
+            /// Number of object evaluations performed, including the small re-evaluation required
+            /// when a later object expands the current simultaneous group.
+            /// </summary>
+            public int ObjectEvaluationCount { get; private set; }
+
+            public IncrementalState(double clockRate, float overallDifficulty)
             {
-                double timestamp = objects[objectIndex].StartTime;
-                int groupEnd = objectIndex + 1;
+                this.clockRate = double.IsFinite(clockRate) && clockRate > 0 ? clockRate : 1;
+                this.overallDifficulty = float.IsFinite(overallDifficulty) ? overallDifficulty : SticksDifficultyScaling.REFERENCE_OVERALL_DIFFICULTY;
+                fullGreatWindow = 2 * SticksDifficultyScaling.GreatWindowFor(this.overallDifficulty) / this.clockRate;
 
-                while (groupEnd < objects.Length && Math.Abs(objects[groupEnd].StartTime - timestamp) <= simultaneous_epsilon)
-                    groupEnd++;
+                mechanical = new PerSideStrainAccumulator(mechanical_decay, this.clockRate);
+                reading = new ScalarStrainAccumulator(reading_decay, this.clockRate);
+                control = new PerSideStrainAccumulator(control_decay, this.clockRate);
+                coordination = new ScalarStrainAccumulator(coordination_decay, this.clockRate);
+            }
 
-                SticksHitObject[] group = objects[objectIndex..groupEnd];
+            public void Append(SticksHitObject hitObject)
+            {
+                if (hitObject == null)
+                    throw new ArgumentNullException(nameof(hitObject));
+
+                bool startsNewGroup = currentGroup.Count == 0
+                                      || Math.Abs(hitObject.StartTime - currentGroupTimestamp) > simultaneous_epsilon;
+
+                if (startsNewGroup)
+                {
+                    if (currentGroup.Count > 0 && hitObject.StartTime < currentGroupTimestamp)
+                        throw new ArgumentException("Difficulty objects must be appended in chronological order.", nameof(hitObject));
+
+                    currentGroupTimestamp = hitObject.StartTime;
+                    currentGroup.Clear();
+                    currentGroupCheckpoint = captureCheckpoint();
+                }
+                else
+                {
+                    restoreCheckpoint(currentGroupCheckpoint);
+                }
+
+                currentGroup.Add(hitObject);
+                ObjectCount++;
+                processCurrentGroup();
+            }
+
+            public SticksDifficultyBreakdown GetBreakdown()
+            {
+                if (ObjectCount == 0)
+                    return default;
+
+                double mechanicalDifficulty = mechanicalStrains.HarmonicDifficulty(mechanical_harmonic_scale);
+                double readingDifficulty = readingStrains.HarmonicDifficulty(reading_harmonic_scale);
+                double controlDifficulty = controlStrains.HarmonicDifficulty(control_harmonic_scale);
+                double coordinationDifficulty = coordinationStrains.HarmonicDifficulty(coordination_harmonic_scale);
+
+                double mechanicalRating = Math.Sqrt(mechanicalDifficulty);
+                double readingRating = Math.Sqrt(readingDifficulty) * 0.85;
+                double controlRating = Math.Sqrt(controlDifficulty) * 1.55;
+                double coordinationRating = Math.Sqrt(coordinationDifficulty) * 0.9;
+
+                double combined = pNorm(skill_norm_exponent, mechanicalRating, readingRating, controlRating, coordinationRating);
+                double angularPrecision = angularPrecisionValues.Median();
+                double timingPrecision = SticksDifficultyScaling.OverallDifficultyMultiplier(overallDifficulty);
+                double calibratedBaseStars = SticksDifficultyScaling.CalibrateStarRating(combined * timingPrecision);
+                double angularAdjustment = SticksDifficultyScaling.AngularPrecisionStarAdjustment(calibratedBaseStars, angularPrecision);
+                double stars = Math.Clamp(calibratedBaseStars + angularAdjustment, 0, 30);
+
+                return new SticksDifficultyBreakdown(
+                    stars,
+                    mechanicalRating,
+                    readingRating,
+                    controlRating,
+                    coordinationRating,
+                    angularPrecision,
+                    timingPrecision,
+                    mechanicalStrains.CountTopWeightedStrains(mechanicalDifficulty),
+                    readingStrains.CountTopWeightedStrains(readingDifficulty),
+                    controlStrains.CountTopWeightedStrains(controlDifficulty),
+                    coordinationStrains.CountTopWeightedStrains(coordinationDifficulty));
+            }
+
+            private void processCurrentGroup()
+            {
+                double timestamp = currentGroupTimestamp;
+                IReadOnlyList<SticksHitObject> group = currentGroup;
+
                 activeTracking.RemoveAll(active => active.EndTime <= timestamp + simultaneous_epsilon);
                 readingHistory.RemoveAll(pattern => effectiveInterval(timestamp - pattern.Time, clockRate) > 2000);
 
@@ -120,30 +224,64 @@ namespace osu.Game.Rulesets.Sticks
                     group.Select(hitObject => hitObject.Angle).ToArray(),
                     group.Select(kindOf).ToArray()));
 
-                objectIndex = groupEnd;
+                foreach (SticksHitObject hitObject in group)
+                {
+                    angularPrecisionValues.Add(
+                        SticksDifficultyScaling.AngularPrecisionMultiplier(hitObject.PrimaryHitAngle, hitObject.SecondaryHitAngle));
+                }
+
+                ObjectEvaluationCount += group.Count;
             }
 
-            double mechanicalRating = Math.Sqrt(harmonicDifficulty(mechanicalStrains, mechanical_harmonic_scale));
-            double readingRating = Math.Sqrt(harmonicDifficulty(readingStrains, reading_harmonic_scale)) * 0.85;
-            double controlRating = Math.Sqrt(harmonicDifficulty(controlStrains, control_harmonic_scale)) * 1.55;
-            double coordinationRating = Math.Sqrt(harmonicDifficulty(coordinationStrains, coordination_harmonic_scale)) * 0.9;
+            private GroupCheckpoint captureCheckpoint() => new GroupCheckpoint(
+                mechanical.Clone(),
+                reading.Clone(),
+                control.Clone(),
+                coordination.Clone(),
+                mechanicalStrains.Checkpoint,
+                readingStrains.Checkpoint,
+                controlStrains.Checkpoint,
+                coordinationStrains.Checkpoint,
+                angularPrecisionValues.Checkpoint,
+                new Dictionary<StickSide, PreviousSideObject>(previousBySide),
+                activeTracking.ToArray(),
+                readingHistory.ToArray());
 
-            double combined = pNorm(skill_norm_exponent, mechanicalRating, readingRating, controlRating, coordinationRating);
-            double angularPrecision = median(objects.Select(hitObject =>
-                SticksDifficultyScaling.AngularPrecisionMultiplier(hitObject.PrimaryHitAngle, hitObject.SecondaryHitAngle)));
-            double timingPrecision = SticksDifficultyScaling.OverallDifficultyMultiplier(overallDifficulty);
-            double calibratedBaseStars = SticksDifficultyScaling.CalibrateStarRating(combined * timingPrecision);
-            double angularAdjustment = SticksDifficultyScaling.AngularPrecisionStarAdjustment(calibratedBaseStars, angularPrecision);
-            double stars = Math.Clamp(calibratedBaseStars + angularAdjustment, 0, 30);
+            private void restoreCheckpoint(GroupCheckpoint checkpoint)
+            {
+                mechanical.CopyFrom(checkpoint.Mechanical);
+                reading.CopyFrom(checkpoint.Reading);
+                control.CopyFrom(checkpoint.Control);
+                coordination.CopyFrom(checkpoint.Coordination);
+                mechanicalStrains.RollbackTo(checkpoint.MechanicalStrainCount);
+                readingStrains.RollbackTo(checkpoint.ReadingStrainCount);
+                controlStrains.RollbackTo(checkpoint.ControlStrainCount);
+                coordinationStrains.RollbackTo(checkpoint.CoordinationStrainCount);
+                angularPrecisionValues.RollbackTo(checkpoint.AngularPrecisionCount);
 
-            return new SticksDifficultyBreakdown(
-                stars,
-                mechanicalRating,
-                readingRating,
-                controlRating,
-                coordinationRating,
-                angularPrecision,
-                timingPrecision);
+                previousBySide.Clear();
+                foreach ((StickSide side, PreviousSideObject previous) in checkpoint.PreviousBySide)
+                    previousBySide.Add(side, previous);
+
+                activeTracking.Clear();
+                activeTracking.AddRange(checkpoint.ActiveTracking);
+                readingHistory.Clear();
+                readingHistory.AddRange(checkpoint.ReadingHistory);
+            }
+
+            private sealed record GroupCheckpoint(
+                PerSideStrainAccumulator Mechanical,
+                ScalarStrainAccumulator Reading,
+                PerSideStrainAccumulator Control,
+                ScalarStrainAccumulator Coordination,
+                int MechanicalStrainCount,
+                int ReadingStrainCount,
+                int ControlStrainCount,
+                int CoordinationStrainCount,
+                int AngularPrecisionCount,
+                Dictionary<StickSide, PreviousSideObject> PreviousBySide,
+                ActiveTrackingObject[] ActiveTracking,
+                PatternGroup[] ReadingHistory);
         }
 
         private static double mechanicalImpulse(SticksHitObject current, double timestamp,
@@ -213,7 +351,7 @@ namespace osu.Game.Rulesets.Sticks
             return (0.3 + motion + reversal) * endurance;
         }
 
-        private static double calculateReadingImpulse(SticksHitObject[] group, double timestamp,
+        private static double calculateReadingImpulse(IReadOnlyList<SticksHitObject> group, double timestamp,
                                                       IReadOnlyList<PatternGroup> history,
                                                       IReadOnlyList<ActiveTrackingObject> activeTracking,
                                                       double clockRate)
@@ -250,7 +388,7 @@ namespace osu.Game.Rulesets.Sticks
                     novelty += objectNovelty;
                 }
 
-                novelty /= group.Length;
+                novelty /= group.Count;
             }
 
             int distinctRegions = history.SelectMany(pattern => pattern.Angles)
@@ -273,7 +411,7 @@ namespace osu.Game.Rulesets.Sticks
                     objectTypeBonus += 0.08;
             }
 
-            double chordBonus = group.Length > 1 ? 0.12 : 0;
+            double chordBonus = group.Count > 1 ? 0.12 : 0;
             double impulse = (0.3 + novelty * 0.95 + regionComplexity + objectTypeBonus + chordBonus) * density;
 
             bool followsActiveSliderArc = group.Any(current => activeTracking.Any(active =>
@@ -287,7 +425,7 @@ namespace osu.Game.Rulesets.Sticks
             return impulse;
         }
 
-        private static double calculateCoordinationImpulse(SticksHitObject[] group, double timestamp,
+        private static double calculateCoordinationImpulse(IReadOnlyList<SticksHitObject> group, double timestamp,
                                                            IReadOnlyList<ActiveTrackingObject> activeTracking)
         {
             double impulse = 0;
@@ -339,34 +477,8 @@ namespace osu.Game.Rulesets.Sticks
                       .OrderBy(Math.Abs)
                       .FirstOrDefault();
 
-        private static double harmonicDifficulty(IEnumerable<double> strains, double harmonicScale)
-        {
-            double difficulty = 0;
-            int index = 0;
-
-            foreach (double strain in strains.Where(value => value > 0).OrderByDescending(value => value))
-            {
-                double weight = (1 + harmonicScale / (1 + index))
-                                / (Math.Pow(index, 0.9) + 1 + harmonicScale / (1 + index));
-                difficulty += strain * weight;
-                index++;
-            }
-
-            return difficulty;
-        }
-
         private static double pNorm(double exponent, params double[] values) =>
             Math.Pow(values.Sum(value => Math.Pow(Math.Max(0, value), exponent)), 1 / exponent);
-
-        private static double median(IEnumerable<double> values)
-        {
-            double[] sorted = values.OrderBy(value => value).ToArray();
-            if (sorted.Length == 0)
-                return 1;
-
-            int middle = sorted.Length / 2;
-            return sorted.Length % 2 == 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
-        }
 
         private static double effectiveInterval(double interval, double clockRate) => interval / clockRate;
 
@@ -394,6 +506,321 @@ namespace osu.Game.Rulesets.Sticks
         private readonly record struct PreviousSideObject(double EndTime);
         private readonly record struct PatternGroup(double Time, float[] Angles, ObjectKind[] Kinds);
         private readonly record struct ActiveTrackingObject(SticksHitObject Object, double EndTime, double AngularVelocity);
+
+        /// <summary>
+        /// An AVL order-statistics tree with a chronological insertion log. Checkpoints roll back
+        /// simultaneous-group contributions in LIFO order without shifting a sorted array.
+        /// </summary>
+        internal sealed class RollbackableRankedValues
+        {
+            private readonly List<RankedKey> chronologicalInsertions = new List<RankedKey>();
+            private readonly List<double> harmonicWeights = new List<double>();
+            private readonly bool descending;
+            private readonly bool positiveOnly;
+            private Node root;
+            private long nextInsertionId;
+            private double cachedHarmonicScale = double.NaN;
+
+            public int Checkpoint => chronologicalInsertions.Count;
+            public int Count => sizeOf(root);
+            public int TreeHeight => heightOf(root);
+            public long MutationComparisonCount { get; private set; }
+            public int LastHarmonicVisitCount { get; private set; }
+            public int LastSelectionVisitCount { get; private set; }
+            public int HarmonicWeightComputationCount { get; private set; }
+
+            private RollbackableRankedValues(bool descending, bool positiveOnly)
+            {
+                this.descending = descending;
+                this.positiveOnly = positiveOnly;
+            }
+
+            public static RollbackableRankedValues CreateStrains() => new RollbackableRankedValues(true, true);
+
+            public static RollbackableRankedValues CreateAscending() => new RollbackableRankedValues(false, false);
+
+            public void Add(double value)
+            {
+                // Preserve the old harmonic path's Where(value > 0) semantics, including its
+                // exclusion of zero, negative values, and NaN.
+                if (positiveOnly && !(value > 0))
+                    return;
+
+                var key = new RankedKey(value, nextInsertionId++);
+                root = insert(root, key);
+                chronologicalInsertions.Add(key);
+            }
+
+            public void RollbackTo(int checkpoint)
+            {
+                if ((uint)checkpoint > (uint)chronologicalInsertions.Count)
+                    throw new ArgumentOutOfRangeException(nameof(checkpoint));
+
+                for (int i = chronologicalInsertions.Count - 1; i >= checkpoint; i--)
+                    root = remove(root, chronologicalInsertions[i]);
+
+                if (chronologicalInsertions.Count > checkpoint)
+                {
+                    chronologicalInsertions.RemoveRange(
+                        checkpoint,
+                        chronologicalInsertions.Count - checkpoint);
+                }
+            }
+
+            public double HarmonicDifficulty(double harmonicScale)
+            {
+                ensureHarmonicWeights(harmonicScale);
+
+                // Each insertion changes the absolute rank (and therefore the non-decomposable
+                // weight) of every value after it. Keeping the old rating bit-for-bit also means
+                // retaining its left-to-right IEEE-754 addition order. A subtree sum or suffix
+                // delta would reassociate those additions, so this exact path still visits each
+                // ranked value while reusing all already-calculated weights.
+                double difficulty = 0;
+                int index = 0;
+                LastHarmonicVisitCount = 0;
+                accumulateHarmonic(root, ref index, ref difficulty);
+                return difficulty;
+            }
+
+            public double Median()
+            {
+                if (root == null)
+                {
+                    LastSelectionVisitCount = 0;
+                    return 1;
+                }
+
+                int middle = root.Size / 2;
+                LastSelectionVisitCount = 0;
+                double upper = valueAtRank(root, middle);
+
+                if (root.Size % 2 != 0)
+                    return upper;
+
+                double lower = valueAtRank(root, middle - 1);
+                return (lower + upper) / 2;
+            }
+
+            /// <summary>
+            /// Counts strains relative to the top strain using osu!standard's difficult-strain
+            /// weighting. This is consumed by its performance miss penalty, where a miss on a
+            /// map with only a few difficult moments is more significant than one on a map with
+            /// many similarly difficult moments.
+            /// </summary>
+            public double CountTopWeightedStrains(double difficultyValue)
+            {
+                if (root == null)
+                    return 0;
+
+                // This is the same DecayWeight and weighting curve used by lazer's StrainSkill.
+                double consistentTopStrain = difficultyValue * (1 - 0.9);
+                if (consistentTopStrain == 0)
+                    return Count;
+
+                double count = 0;
+                accumulateTopWeightedStrains(root, consistentTopStrain, ref count);
+                return count;
+            }
+
+            private void ensureHarmonicWeights(double harmonicScale)
+            {
+                if (!cachedHarmonicScale.Equals(harmonicScale))
+                {
+                    cachedHarmonicScale = harmonicScale;
+                    harmonicWeights.Clear();
+                }
+
+                while (harmonicWeights.Count < Count)
+                {
+                    int index = harmonicWeights.Count;
+                    double weight = (1 + harmonicScale / (1 + index))
+                                    / (Math.Pow(index, 0.9) + 1 + harmonicScale / (1 + index));
+                    harmonicWeights.Add(weight);
+                    HarmonicWeightComputationCount++;
+                }
+            }
+
+            private void accumulateHarmonic(Node node, ref int index, ref double difficulty)
+            {
+                if (node == null)
+                    return;
+
+                accumulateHarmonic(node.Left, ref index, ref difficulty);
+                difficulty += node.Key.Value * harmonicWeights[index++];
+                LastHarmonicVisitCount++;
+                accumulateHarmonic(node.Right, ref index, ref difficulty);
+            }
+
+            private static void accumulateTopWeightedStrains(Node node, double consistentTopStrain, ref double count)
+            {
+                if (node == null)
+                    return;
+
+                accumulateTopWeightedStrains(node.Left, consistentTopStrain, ref count);
+                count += 1.1 / (1 + Math.Exp(-10 * (node.Key.Value / consistentTopStrain - 0.88)));
+                accumulateTopWeightedStrains(node.Right, consistentTopStrain, ref count);
+            }
+
+            private double valueAtRank(Node node, int rank)
+            {
+                while (node != null)
+                {
+                    LastSelectionVisitCount++;
+                    int leftSize = sizeOf(node.Left);
+
+                    if (rank < leftSize)
+                    {
+                        node = node.Left;
+                    }
+                    else if (rank == leftSize)
+                    {
+                        return node.Key.Value;
+                    }
+                    else
+                    {
+                        rank -= leftSize + 1;
+                        node = node.Right;
+                    }
+                }
+
+                throw new ArgumentOutOfRangeException(nameof(rank));
+            }
+
+            private Node insert(Node node, RankedKey key)
+            {
+                if (node == null)
+                    return new Node(key);
+
+                if (compare(key, node.Key) < 0)
+                    node.Left = insert(node.Left, key);
+                else
+                    node.Right = insert(node.Right, key);
+
+                return balance(node);
+            }
+
+            private Node remove(Node node, RankedKey key)
+            {
+                if (node == null)
+                    throw new InvalidOperationException("Ranked value insertion log was inconsistent with the tree.");
+
+                int comparison = compare(key, node.Key);
+
+                if (comparison < 0)
+                {
+                    node.Left = remove(node.Left, key);
+                }
+                else if (comparison > 0)
+                {
+                    node.Right = remove(node.Right, key);
+                }
+                else
+                {
+                    if (node.Left == null)
+                        return node.Right;
+
+                    if (node.Right == null)
+                        return node.Left;
+
+                    Node successor = minimum(node.Right);
+                    node.Key = successor.Key;
+                    node.Right = remove(node.Right, successor.Key);
+                }
+
+                return balance(node);
+            }
+
+            private int compare(RankedKey left, RankedKey right)
+            {
+                MutationComparisonCount++;
+                int valueComparison = descending
+                    ? right.Value.CompareTo(left.Value)
+                    : left.Value.CompareTo(right.Value);
+
+                return valueComparison != 0
+                    ? valueComparison
+                    : left.InsertionId.CompareTo(right.InsertionId);
+            }
+
+            private static Node balance(Node node)
+            {
+                update(node);
+                int balanceFactor = heightOf(node.Left) - heightOf(node.Right);
+
+                if (balanceFactor > 1)
+                {
+                    if (heightOf(node.Left.Left) < heightOf(node.Left.Right))
+                        node.Left = rotateLeft(node.Left);
+
+                    return rotateRight(node);
+                }
+
+                if (balanceFactor < -1)
+                {
+                    if (heightOf(node.Right.Right) < heightOf(node.Right.Left))
+                        node.Right = rotateRight(node.Right);
+
+                    return rotateLeft(node);
+                }
+
+                return node;
+            }
+
+            private static Node rotateLeft(Node node)
+            {
+                Node replacement = node.Right;
+                node.Right = replacement.Left;
+                replacement.Left = node;
+                update(node);
+                update(replacement);
+                return replacement;
+            }
+
+            private static Node rotateRight(Node node)
+            {
+                Node replacement = node.Left;
+                node.Left = replacement.Right;
+                replacement.Right = node;
+                update(node);
+                update(replacement);
+                return replacement;
+            }
+
+            private static Node minimum(Node node)
+            {
+                while (node.Left != null)
+                    node = node.Left;
+
+                return node;
+            }
+
+            private static void update(Node node)
+            {
+                node.Height = Math.Max(heightOf(node.Left), heightOf(node.Right)) + 1;
+                node.Size = sizeOf(node.Left) + sizeOf(node.Right) + 1;
+            }
+
+            private static int heightOf(Node node) => node?.Height ?? 0;
+
+            private static int sizeOf(Node node) => node?.Size ?? 0;
+
+            private readonly record struct RankedKey(double Value, long InsertionId);
+
+            private sealed class Node
+            {
+                public RankedKey Key;
+                public Node Left;
+                public Node Right;
+                public int Height = 1;
+                public int Size = 1;
+
+                public Node(RankedKey key)
+                {
+                    Key = key;
+                }
+            }
+        }
 
         private sealed class ScalarStrainAccumulator
         {
@@ -424,6 +851,20 @@ namespace osu.Game.Rulesets.Sticks
 
                 lastTime = time;
                 return value;
+            }
+
+            public ScalarStrainAccumulator Clone()
+            {
+                var clone = new ScalarStrainAccumulator(decayBase, clockRate);
+                clone.CopyFrom(this);
+                return clone;
+            }
+
+            public void CopyFrom(ScalarStrainAccumulator source)
+            {
+                hasValue = source.hasValue;
+                value = source.value;
+                lastTime = source.lastTime;
             }
         }
 
@@ -463,6 +904,20 @@ namespace osu.Game.Rulesets.Sticks
 
             private double decayAt(SideStrain state, double time) =>
                 Math.Pow(decayBase, effectiveInterval(time - state.LastTime, clockRate) / 1000);
+
+            public PerSideStrainAccumulator Clone()
+            {
+                var clone = new PerSideStrainAccumulator(decayBase, clockRate);
+                clone.CopyFrom(this);
+                return clone;
+            }
+
+            public void CopyFrom(PerSideStrainAccumulator source)
+            {
+                sides.Clear();
+                foreach ((StickSide side, SideStrain state) in source.sides)
+                    sides.Add(side, state);
+            }
 
             private readonly record struct SideStrain(double Value, double LastTime);
         }

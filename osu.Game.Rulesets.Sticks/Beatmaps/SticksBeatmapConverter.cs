@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using osu.Game.Audio;
@@ -12,6 +13,7 @@ using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.UI;
 using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Beatmaps
@@ -44,6 +46,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private readonly HashSet<HitObject> generatedHoldSources = new HashSet<HitObject>();
         private readonly Dictionary<HitObject, double> generatedFlickHoldDurations = new Dictionary<HitObject, double>();
         private readonly Ruleset targetRuleset;
+        private readonly bool isAuthoredCarrier;
+        private readonly string? authoredCarrierError;
 
         public bool DisableReversals { get; set; }
 
@@ -51,13 +55,25 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             : base(beatmap, ruleset)
         {
             targetRuleset = ruleset;
-            buildPlans(beatmap);
+            (isAuthoredCarrier, authoredCarrierError) = preflightAuthoredCarrier(beatmap);
+
+            if (authoredCarrierError == null && !isAuthoredCarrier)
+                buildPlans(beatmap);
         }
 
-        public override bool CanConvert() => true;
+        public string? AuthoredCarrierError => authoredCarrierError;
+
+        public override bool CanConvert() => authoredCarrierError == null;
+
+        public override string ToString() => authoredCarrierError == null
+            ? base.ToString()!
+            : $"{GetType().Name}: {authoredCarrierError}";
 
         protected override Beatmap<SticksHitObject> ConvertBeatmap(IBeatmap original, CancellationToken cancellationToken)
         {
+            if (authoredCarrierError != null)
+                throw new BeatmapInvalidForRulesetException(authoredCarrierError);
+
             Beatmap<SticksHitObject> converted = base.ConvertBeatmap(original, cancellationToken);
 
             // The base converter retains the source map's ruleset metadata. Sticks needs its own
@@ -110,8 +126,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (SticksAuthoredBeatmapCodec.TryDecode(original, out SticksHitObject? authoredObject))
+            if (isAuthoredCarrier)
             {
+                if (!SticksAuthoredBeatmapCodec.TryDecode(original, out SticksHitObject? authoredObject))
+                    throw new BeatmapInvalidForRulesetException("Authored Sticks carrier data changed after validation; conversion was cancelled.");
+
                 if (DisableReversals && authoredObject is SticksSlider { RepeatCount: > 0 } authoredSlider)
                 {
                     float continuousArc = authoredSlider.InitialDirection * authoredSlider.TotalAngularDistance;
@@ -204,6 +223,49 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         private static IList<HitSampleInfo> normalisedConversionSamples() =>
             new[] { new HitSampleInfo(HitSampleInfo.HIT_NORMAL) };
+
+        private static (bool IsAuthoredCarrier, string? Error) preflightAuthoredCarrier(IBeatmap beatmap)
+        {
+            var inspections = beatmap.HitObjects.Select(SticksAuthoredBeatmapCodec.InspectMarker).ToArray();
+            if (inspections.All(inspection => inspection.Status == SticksAuthoredBeatmapCodec.MarkerStatus.None))
+                return (false, null);
+
+            int invalidIndex = Array.FindIndex(inspections, inspection => inspection.MarkerCount > 1);
+            if (invalidIndex >= 0)
+            {
+                SticksAuthoredBeatmapCodec.MarkerInspection inspection = inspections[invalidIndex];
+                return (true, $"Authored Sticks carrier is damaged: {locationAt(invalidIndex)} has {inspection.MarkerCount} Sticks markers. Procedural conversion was refused to preserve the original map.");
+            }
+
+            invalidIndex = Array.FindIndex(inspections, inspection => inspection.Status == SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion);
+            if (invalidIndex >= 0)
+            {
+                string version = inspections[invalidIndex].Version?.ToString(CultureInfo.InvariantCulture) ?? "unknown";
+                return (true, $"Authored Sticks carrier uses unsupported marker version v{version} at {locationAt(invalidIndex)}. Update Sticks to open this map; it was not procedurally converted.");
+            }
+
+            invalidIndex = Array.FindIndex(inspections, inspection => inspection.Status == SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported);
+            if (invalidIndex >= 0)
+            {
+                string markerVersion = inspections[invalidIndex].Version is int version ? $"v{version} " : string.Empty;
+                return (true, $"Authored Sticks carrier is damaged: {locationAt(invalidIndex)} has a malformed {markerVersion}marker. Procedural conversion was refused to preserve the original map.");
+            }
+
+            invalidIndex = Array.FindIndex(inspections, inspection => inspection.Status == SticksAuthoredBeatmapCodec.MarkerStatus.None);
+            if (invalidIndex >= 0)
+                return (true, $"Authored Sticks carrier is incomplete: {locationAt(invalidIndex)} has no Sticks marker. Procedural conversion was refused to preserve the original map.");
+
+            if (inspections.Any(inspection => inspection.Status != SticksAuthoredBeatmapCodec.MarkerStatus.ValidSupported))
+                return (true, "Authored Sticks carrier validation failed. Procedural conversion was refused to preserve the original map.");
+
+            return (true, null);
+
+            string locationAt(int index)
+            {
+                HitObject hitObject = beatmap.HitObjects[index];
+                return $"object {index + 1} at {hitObject.StartTime:0.###}ms";
+            }
+        }
 
         private void buildPlans(IBeatmap beatmap)
         {

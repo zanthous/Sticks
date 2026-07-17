@@ -2,10 +2,15 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using osu.Framework.Extensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Input.Bindings;
+using osu.Framework.Localisation;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
+using osu.Game.Localisation;
 using osu.Game.Overlays.Settings;
 using osu.Game.Rulesets.Configuration;
 using osu.Game.Rulesets.Difficulty;
@@ -16,12 +21,20 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Scoring.Legacy;
 using osu.Game.Rulesets.Sticks.Beatmaps;
 using osu.Game.Rulesets.Sticks.Configuration;
+using osu.Game.Rulesets.Sticks.Difficulty;
 using osu.Game.Rulesets.Sticks.Edit;
+using osu.Game.Rulesets.Sticks.Edit.Setup;
 using osu.Game.Rulesets.Sticks.Mods;
+using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.Sticks.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Rulesets.UI;
+using osu.Game.Scoring;
+using osu.Game.Screens.Edit.Setup;
+using osu.Game.Screens.Ranking.Statistics;
+using osu.Game.Utils;
+using osuTK;
 
 namespace osu.Game.Rulesets.Sticks
 {
@@ -60,9 +73,35 @@ namespace osu.Game.Rulesets.Sticks
 
         public override HitObjectComposer CreateHitObjectComposer() => new SticksHitObjectComposer(this);
 
+        public override IEnumerable<Drawable> CreateEditorSetupSections() =>
+        [
+            new MetadataSection(),
+            new SticksDifficultySection(),
+            new FillFlowContainer
+            {
+                AutoSizeAxes = Axes.Y,
+                Direction = FillDirection.Vertical,
+                Spacing = new Vector2(SetupScreen.SPACING),
+                Children = new Drawable[]
+                {
+                    new ResourcesSection
+                    {
+                        RelativeSizeAxes = Axes.X,
+                    },
+                    new ColoursSection
+                    {
+                        RelativeSizeAxes = Axes.X,
+                    },
+                },
+            },
+            new DesignSection(),
+        ];
+
         public override IBeatmapVerifier CreateBeatmapVerifier() => new SticksBeatmapVerifier();
 
         public override DifficultyCalculator CreateDifficultyCalculator(IWorkingBeatmap beatmap) => new SticksDifficultyCalculator(RulesetInfo, beatmap);
+
+        public override PerformanceCalculator CreatePerformanceCalculator() => new SticksPerformanceCalculator();
 
         public override ScoreProcessor CreateScoreProcessor() => new SticksScoreProcessor(this);
 
@@ -108,6 +147,100 @@ namespace osu.Game.Rulesets.Sticks
             HitResult.IgnoreHit,
             HitResult.IgnoreMiss,
         };
+
+        public override LocalisableString GetDisplayNameForHitResult(HitResult result) => result switch
+        {
+            HitResult.LargeTickHit => "tracking checkpoint",
+            HitResult.SliderTailHit => "object end",
+            _ => base.GetDisplayNameForHitResult(result),
+        };
+
+        public override StatisticItem[] CreateStatisticsForScore(ScoreInfo score, IBeatmap playableBeatmap)
+        {
+            SticksScoreStatistics.Summary summary = SticksScoreStatistics.Calculate(score.HitEvents);
+
+            return new[]
+            {
+                new StatisticItem("Performance Breakdown", () => new PerformanceBreakdownChart(score, playableBeatmap)
+                {
+                    RelativeSizeAxes = Axes.X,
+                    AutoSizeAxes = Axes.Y,
+                }),
+                new StatisticItem("Timing Distribution", () => new HitEventTimingDistributionGraph(summary.TimingEvents)
+                {
+                    RelativeSizeAxes = Axes.X,
+                    Height = 250,
+                }, true),
+                new StatisticItem("Sticks Accuracy", () => new SimpleStatisticTable(2, new SimpleStatisticItem[]
+                {
+                    new AverageHitError(summary.TimingEvents),
+                    new UnstableRate(summary.TimingEvents),
+                    new SimpleStatisticItem<string>("Average angle error")
+                    {
+                        Value = formatDegrees(summary.AverageAngleError),
+                    },
+                    new SimpleStatisticItem<string>("95th percentile angle error")
+                    {
+                        Value = formatDegrees(summary.AngleError95thPercentile),
+                    },
+                    new SimpleStatisticItem<string>("Tracking completion")
+                    {
+                        Value = formatCompletion(summary.TrackingHits, summary.TrackingTotal),
+                    },
+                    new SimpleStatisticItem<string>("Tail completion")
+                    {
+                        Value = formatCompletion(summary.TailHits, summary.TailTotal),
+                    },
+                }), true),
+            };
+        }
+
+        public override IEnumerable<RulesetBeatmapAttribute> GetBeatmapAttributesForDisplay(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
+        {
+            IBeatmapDifficultyInfo original = beatmapInfo.Difficulty;
+            BeatmapDifficulty adjusted = GetAdjustedDisplayDifficulty(beatmapInfo, mods);
+            var difficultyAdjust = mods.OfType<SticksModDifficultyAdjust>().FirstOrDefault();
+
+            float originalHitAngle = SticksHitObject.HitAngleForCircleSize(original.CircleSize);
+            float adjustedHitAngle = SticksHitObject.HitAngleForCircleSize(adjusted.CircleSize);
+            float primaryHitAngle = difficultyAdjust?.PrimaryHitAngle.Value ?? adjustedHitAngle;
+            float secondaryHitAngle = difficultyAdjust?.SecondaryHitAngle.Value ?? adjustedHitAngle;
+
+            yield return new RulesetBeatmapAttribute(SongSelectStrings.CircleSize, "CS", original.CircleSize, adjusted.CircleSize, 10)
+            {
+                Description = "Controls the angular precision required by Sticks notes.",
+                AdditionalMetrics =
+                [
+                    new RulesetBeatmapAttribute.AdditionalMetric("Primary hit angle", LocalisableString.Interpolate($"{primaryHitAngle:0.#}°")),
+                    new RulesetBeatmapAttribute.AdditionalMetric("Secondary hit angle", LocalisableString.Interpolate($"{secondaryHitAngle:0.#}°")),
+                    new RulesetBeatmapAttribute.AdditionalMetric("Unmodified hit angle", LocalisableString.Interpolate($"{originalHitAngle:0.#}°")),
+                ],
+            };
+
+            var hitWindows = new SticksHitWindows();
+            hitWindows.SetDifficulty(adjusted.OverallDifficulty);
+            double rate = ModUtils.CalculateRateWithMods(mods);
+
+            yield return new RulesetBeatmapAttribute(SongSelectStrings.Accuracy, "OD", original.OverallDifficulty, adjusted.OverallDifficulty, 10)
+            {
+                Description = "Controls the timing windows for the timing half of each note judgement.",
+                AdditionalMetrics = hitWindows.GetAllAvailableWindows()
+                                              .Reverse()
+                                              .Select(window => new RulesetBeatmapAttribute.AdditionalMetric(
+                                                  $"{window.result.GetDescription().ToUpperInvariant()} hit window",
+                                                  LocalisableString.Interpolate($"±{hitWindows.WindowFor(window.result) / rate:0.##} ms")))
+                                              .ToArray(),
+            };
+
+            yield return new RulesetBeatmapAttribute(SongSelectStrings.HPDrain, "HP", original.DrainRate, adjusted.DrainRate, 10)
+            {
+                Description = "Controls passive health drain and judgement penalties.",
+            };
+        }
+
+        private static string formatDegrees(double? value) => value.HasValue ? $"{value.Value:0.0}°" : "N/A";
+
+        private static string formatCompletion(int hits, int total) => total > 0 ? $"{(double)hits / total:P1}" : "N/A";
 
         public override IEnumerable<KeyBinding> GetDefaultKeyBindings(int variant = 0) => new[]
         {

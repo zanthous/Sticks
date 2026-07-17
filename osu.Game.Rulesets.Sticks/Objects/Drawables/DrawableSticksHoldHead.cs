@@ -34,7 +34,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             HitResult angleResult = HitObject.ResultForCurrentAngleError(angleError);
             (timingResult, angleResult) = SticksHitObject.ResolveComponentResults(timingResult, angleResult);
             ApplyResult(timingResult);
-            angleComponent.ApplyAngleResult(angleResult);
+            angleComponent.ApplyAngleResult(angleResult, angleError);
         }
 
         internal void ApplyMiss()

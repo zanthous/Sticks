@@ -32,11 +32,11 @@ namespace osu.Game.Rulesets.Sticks.UI
             base.Dispose(isDisposing);
         }
 
-        private void onPhysicalStickInputChanged()
+        private void onPhysicalStickInputChanged(bool important)
         {
-            // Match mouse replay capture: axis changes can trigger a sample immediately, while the
-            // base recorder's 60 Hz limit still prevents controller polling rate from bloating files.
-            RecordFrame(false);
+            // Neutral and activation crossings are equivalent to button edges and must bypass the
+            // ordinary 60 Hz movement limit. Other analogue changes remain rate-limited.
+            RecordFrame(important);
         }
 
         protected override ReplayFrame HandleFrame(Vector2 mousePosition, List<SticksAction> actions, ReplayFrame previousFrame) =>

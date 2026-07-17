@@ -4,6 +4,7 @@ using osu.Framework.Configuration.Tracking;
 using osu.Game.Configuration;
 using osu.Game.Rulesets.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.UI;
 
 namespace osu.Game.Rulesets.Sticks.Configuration
 {
@@ -18,6 +19,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         {
             base.InitialiseDefaults();
             SetDefault(SticksRulesetSetting.ApproachRate, 5f, 0f, 12f, 0.1f);
+            SetDefault(SticksRulesetSetting.FlickActivationThreshold,
+                SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD,
+                SticksInputTracker.MIN_ACTIVATION_THRESHOLD,
+                SticksInputTracker.MAX_ACTIVATION_THRESHOLD,
+                0.01f);
         }
 
         public override TrackedSettings CreateTrackedSettings() => new TrackedSettings
@@ -27,11 +33,17 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks approach rate",
                 value: $"AR {approachRate:0.0} ({SticksHitObject.ApproachDurationFor(approachRate):0} ms)"
             )),
+            new TrackedSetting<float>(SticksRulesetSetting.FlickActivationThreshold, threshold => new SettingDescription(
+                rawValue: threshold,
+                name: "Sticks flick activation",
+                value: $"{threshold * 100:0}%"
+            )),
         };
     }
 
     public enum SticksRulesetSetting
     {
         ApproachRate,
+        FlickActivationThreshold,
     }
 }

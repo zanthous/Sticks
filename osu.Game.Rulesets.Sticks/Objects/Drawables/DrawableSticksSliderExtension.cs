@@ -11,8 +11,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     public partial class DrawableSticksSliderExtension : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
     {
-        private const float tracking_magnitude = 0.56f;
-
         private SticksPlayfield playfield = null!;
         private readonly SticksSliderHeadMarker marker;
 
@@ -78,7 +76,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
             float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, HitObject.Angle));
 
-            if (stick.Length >= tracking_magnitude && angleError <= HitObject.LenientHalfAngle)
+            if (playfield.IsStickBeyondRechargeBoundary(HitObject.Side) && angleError <= HitObject.LenientHalfAngle)
                 ApplyMaxResult();
             else
                 ApplyMinResult();

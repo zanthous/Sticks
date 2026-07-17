@@ -5,7 +5,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using osu.Game.Audio;
 using osu.Game.Rulesets.Objects;
@@ -22,8 +21,20 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
     /// </summary>
     public static class SticksAuthoredBeatmapCodec
     {
+        private const string marker_namespace_prefix = "sticks-v";
+
         public const string MARKER_PREFIX = "sticks-v1~";
         public const string SEGMENT_MARKER_PREFIX = "sticks-v2~";
+
+        public enum MarkerStatus
+        {
+            None,
+            ValidSupported,
+            MalformedSupported,
+            UnsupportedVersion,
+        }
+
+        public readonly record struct MarkerInspection(MarkerStatus Status, int MarkerCount, int? Version, string? Filename, SticksHitObject? Decoded);
 
         public static string EncodeMarker(SticksHitObject hitObject)
         {
@@ -73,26 +84,68 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             hitObject.Samples = samples;
         }
 
+        /// <summary>
+        /// Whether a sample occupies the reserved Sticks carrier namespace. This deliberately
+        /// recognises malformed and future versions as metadata so an older ruleset cannot mistake
+        /// them for ordinary samples and procedurally replace their authored data.
+        /// </summary>
         public static bool IsMarker(HitSampleInfo sample) =>
             sample is ConvertHitObjectParser.FileHitSampleInfo file
-            && (Path.GetFileName(file.Filename).StartsWith(MARKER_PREFIX, StringComparison.OrdinalIgnoreCase)
-                || Path.GetFileName(file.Filename).StartsWith(SEGMENT_MARKER_PREFIX, StringComparison.OrdinalIgnoreCase));
+            && isReservedMarkerName(getFileName(file.Filename));
+
+        public static MarkerInspection InspectMarker(HitObject source)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+
+            ConvertHitObjectParser.FileHitSampleInfo[] markers = source.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>()
+                                                                         .Where(IsMarker)
+                                                                         .ToArray();
+
+            if (markers.Length == 0)
+                return new MarkerInspection(MarkerStatus.None, 0, null, null, null);
+
+            ConvertHitObjectParser.FileHitSampleInfo marker = markers[0];
+            MarkerVersionParseStatus versionStatus = parseMarkerVersion(marker.Filename, out int? version);
+
+            if (markers.Length != 1)
+                return new MarkerInspection(MarkerStatus.MalformedSupported, markers.Length, version, marker.Filename, null);
+
+            if (versionStatus == MarkerVersionParseStatus.Malformed)
+                return new MarkerInspection(MarkerStatus.MalformedSupported, 1, null, marker.Filename, null);
+
+            if (versionStatus == MarkerVersionParseStatus.Overflow || version is not 1 and not 2)
+                return new MarkerInspection(MarkerStatus.UnsupportedVersion, 1, version, marker.Filename, null);
+
+            SticksHitObject? decoded = tryDecodeSupportedMarker(source, marker);
+            return decoded == null
+                ? new MarkerInspection(MarkerStatus.MalformedSupported, 1, version, marker.Filename, null)
+                : new MarkerInspection(MarkerStatus.ValidSupported, 1, version, marker.Filename, decoded);
+        }
 
         public static bool TryDecode(HitObject source, out SticksHitObject? decoded)
         {
-            decoded = null;
-            var marker = source.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>()
-                               .FirstOrDefault(sample => IsMarker(sample));
+            MarkerInspection inspection = InspectMarker(source);
+            decoded = inspection.Decoded;
+            return inspection.Status == MarkerStatus.ValidSupported;
+        }
 
-            if (marker == null)
-                return false;
+        private static SticksHitObject? tryDecodeSupportedMarker(HitObject source, ConvertHitObjectParser.FileHitSampleInfo marker)
+        {
+            string fileName = getFileName(marker.Filename);
+            int extensionStart = fileName.LastIndexOf('.');
 
-            string filename = Path.GetFileNameWithoutExtension(marker.Filename);
+            if (extensionStart < 0 || !fileName.AsSpan(extensionStart).Equals(".wav", StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            if (!double.IsFinite(source.StartTime))
+                return null;
+
+            string filename = fileName[..extensionStart];
             string[] parts = filename.Split('~');
             bool isV1 = string.Equals(parts[0], "sticks-v1", StringComparison.OrdinalIgnoreCase);
             bool isV2 = string.Equals(parts[0], "sticks-v2", StringComparison.OrdinalIgnoreCase);
             if (parts.Length < 4 || (!isV1 && !isV2))
-                return false;
+                return null;
 
             StickSide side = parts[2] switch
             {
@@ -102,24 +155,30 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             };
 
             if (!Enum.IsDefined(side) || !parseFloat(parts[3], out float angle))
-                return false;
+                return null;
 
             IList<HitSampleInfo> samples = decodedSamples(source, marker);
 
-            if (isV2 && parts[1] == "s" && parts.Length == 6
-                     && parse(parts[4], out double segmentedDuration) && segmentedDuration > 0)
+            if (isV2)
             {
-                string[] encodedSegments = parts[5].Split('_', StringSplitOptions.RemoveEmptyEntries);
+                if (parts[1] != "s" || parts.Length != 6
+                    || !parse(parts[4], out double segmentedDuration) || !hasValidDuration(source.StartTime, segmentedDuration))
+                    return null;
+
+                string[] encodedSegments = parts[5].Split('_');
+                if (encodedSegments.Length == 0 || encodedSegments.Length > SticksSlider.MAX_SEGMENT_COUNT)
+                    return null;
+
                 var segments = new List<float>(encodedSegments.Length);
                 foreach (string encodedSegment in encodedSegments)
                 {
                     if (!parseFloat(encodedSegment, out float segment) || Math.Abs(segment) < 1)
-                        return false;
+                        return null;
                     segments.Add(segment);
                 }
 
-                if (segments.Count == 0)
-                    return false;
+                if (!hasValidSliderPath(angle, segments))
+                    return null;
 
                 var segmentedSlider = new SticksSlider
                 {
@@ -130,24 +189,24 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Samples = samples,
                 };
                 segmentedSlider.SetCustomSegments(segments);
-                decoded = segmentedSlider;
-                return true;
+                return segmentedSlider;
             }
 
             switch (parts[1])
             {
                 case "f" when parts.Length == 4:
-                    decoded = new SticksFlick
+                    return new SticksFlick
                     {
                         StartTime = source.StartTime,
                         Side = side,
                         Angle = SticksHitObject.NormaliseAngle(angle),
                         Samples = samples,
                     };
-                    return true;
 
-                case "h" when parts.Length == 5 && parse(parts[4], out double holdDuration) && holdDuration > 0:
-                    decoded = new SticksHold
+                case "h" when parts.Length == 5
+                                   && parse(parts[4], out double holdDuration)
+                                   && hasValidDuration(source.StartTime, holdDuration):
+                    return new SticksHold
                     {
                         StartTime = source.StartTime,
                         Duration = holdDuration,
@@ -155,14 +214,18 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         Angle = SticksHitObject.NormaliseAngle(angle),
                         Samples = samples,
                     };
-                    return true;
 
                 case "s" when parts.Length == 7
-                                   && parse(parts[4], out double sliderDuration) && sliderDuration > 0
+                                   && parse(parts[4], out double sliderDuration)
+                                   && hasValidDuration(source.StartTime, sliderDuration)
                                    && parseFloat(parts[5], out float arcAngle)
+                                   && Math.Abs(arcAngle) >= 1
                                    && int.TryParse(parts[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out int repeats)
-                                   && repeats >= 0:
-                    decoded = new SticksSlider
+                                   && repeats >= 0
+                                   && repeats < SticksSlider.MAX_SEGMENT_COUNT
+                                   && hasValidSliderPath(angle, Enumerable.Range(0, repeats + 1)
+                                                                                .Select(index => index % 2 == 0 ? arcAngle : -arcAngle)):
+                    return new SticksSlider
                     {
                         StartTime = source.StartTime,
                         Duration = sliderDuration,
@@ -172,10 +235,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         RepeatCount = repeats,
                         Samples = samples,
                     };
-                    return true;
             }
 
-            return false;
+            return null;
         }
 
         /// <summary>
@@ -225,6 +287,77 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         private static bool parseFloat(string value, out float result) =>
             float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result) && float.IsFinite(result);
+
+        private static bool hasValidDuration(double startTime, double duration) =>
+            duration > 0 && double.IsFinite(startTime + duration);
+
+        private static bool hasValidSliderPath(float startAngle, IEnumerable<float> segments)
+        {
+            float totalDistance = 0;
+            float currentAngle = SticksHitObject.NormaliseAngle(startAngle);
+
+            foreach (float segment in segments)
+            {
+                totalDistance += Math.Abs(segment);
+                currentAngle += segment;
+
+                if (!float.IsFinite(totalDistance) || !float.IsFinite(currentAngle))
+                    return false;
+            }
+
+            return totalDistance > 0;
+        }
+
+        private static MarkerVersionParseStatus parseMarkerVersion(string filename, out int? version)
+        {
+            version = null;
+            string name = getFileName(filename);
+            int tokenStart = marker_namespace_prefix.Length;
+            int tokenEnd = name.IndexOf('~', tokenStart);
+
+            if (tokenEnd <= tokenStart)
+                return MarkerVersionParseStatus.Malformed;
+
+            ReadOnlySpan<char> token = name.AsSpan(tokenStart, tokenEnd - tokenStart);
+            foreach (char character in token)
+            {
+                if (!char.IsAsciiDigit(character))
+                    return MarkerVersionParseStatus.Malformed;
+            }
+
+            if (!int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out int parsedVersion))
+                return MarkerVersionParseStatus.Overflow;
+
+            version = parsedVersion;
+            return MarkerVersionParseStatus.Parsed;
+        }
+
+        private static bool isReservedMarkerName(string fileName)
+        {
+            if (!fileName.StartsWith(marker_namespace_prefix, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // Reserve only delimiter-shaped carrier names. Ordinary samples such as
+            // "sticks-video.wav" must remain ordinary custom hitsounds, while empty,
+            // non-numeric, overflowing, and future version tokens followed by '~' must fail
+            // closed rather than silently triggering procedural conversion.
+            return fileName.IndexOf('~', marker_namespace_prefix.Length) >= marker_namespace_prefix.Length;
+        }
+
+        private static string getFileName(string path)
+        {
+            // System.IO.Path only treats the current platform's directory separator specially.
+            // Beatmap archives may contain either convention regardless of the host OS.
+            int separator = Math.Max(path.LastIndexOf('/'), path.LastIndexOf('\\'));
+            return path[(separator + 1)..];
+        }
+
+        private enum MarkerVersionParseStatus
+        {
+            Malformed,
+            Parsed,
+            Overflow,
+        }
 
         private class LegacyProxyHitObject : HitObject, IHasPosition
         {

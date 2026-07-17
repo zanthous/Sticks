@@ -49,7 +49,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private Vector2 lastReportedPhysicalLeft;
         private Vector2 lastReportedPhysicalRight;
 
-        public event Action PhysicalStickInputChanged;
+        public event Action<bool> PhysicalStickInputChanged;
 
         public bool ShowCursorTrails { get; set; }
 
@@ -58,6 +58,18 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// and the cursor.
         /// </summary>
         public float PhysicalStickDistanceAtGameEdge { get; set; } = 1;
+
+        /// <summary>
+        /// Mapped gameplay radius which an armed stick must cross to create a flick.
+        /// Recharge is derived thirty percentage points below this value in physical space.
+        /// </summary>
+        public float FlickActivationThreshold
+        {
+            get => input.ActivationThreshold;
+            set => input.ActivationThreshold = value;
+        }
+
+        public float RechargeThreshold => input.RechargeThreshold;
 
         public CircularContainer LeftStickCursor => leftCursor;
 
@@ -70,6 +82,13 @@ namespace osu.Game.Rulesets.Sticks.UI
         public Vector2 PhysicalStickVector(StickSide side) => side == StickSide.Left
             ? new Vector2(leftX, leftY)
             : new Vector2(rightX, rightY);
+
+        /// <summary>
+        /// Duration objects remain trackable only while the physical stick is strictly outside
+        /// the recharge boundary. Entering the boundary both drops tracking and rearms a flick.
+        /// </summary>
+        public bool IsStickBeyondRechargeBoundary(StickSide side) =>
+            input.IsBeyondRechargeBoundary(side);
 
         public SticksPlayfield(SticksReplayInputProvider replayInputProvider = null)
         {
@@ -335,12 +354,23 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (left == lastReportedPhysicalLeft && right == lastReportedPhysicalRight)
                 return;
 
+            bool important = crossesGestureBoundary(lastReportedPhysicalLeft, left)
+                             || crossesGestureBoundary(lastReportedPhysicalRight, right);
             lastReportedPhysicalLeft = left;
             lastReportedPhysicalRight = right;
 
             // Joystick X and Y arrive as separate framework events. Publishing here, after the
             // input event batch has completed, prevents recording a new X with the previous Y.
-            PhysicalStickInputChanged?.Invoke();
+            PhysicalStickInputChanged?.Invoke(important);
+        }
+
+        private bool crossesGestureBoundary(Vector2 previous, Vector2 current)
+        {
+            bool returnedToNeutral = previous.Length > RechargeThreshold
+                                     && current.Length <= RechargeThreshold;
+            bool crossedFlickThreshold = MapStickDistance(previous, PhysicalStickDistanceAtGameEdge).Length < FlickActivationThreshold
+                                         && MapStickDistance(current, PhysicalStickDistanceAtGameEdge).Length >= FlickActivationThreshold;
+            return returnedToNeutral || crossedFlickThreshold;
         }
 
         private void updateCursor(CircularContainer drawable, StickSide side)

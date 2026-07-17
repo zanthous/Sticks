@@ -14,10 +14,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestFlickRequiresNeutralAndFreshOutwardCrossing()
         {
             var tracker = new SticksInputTracker();
-            Assert.That(SticksInputTracker.NEUTRAL_THRESHOLD, Is.EqualTo(0.5f));
+            Assert.Multiple(() =>
+            {
+                Assert.That(tracker.ActivationThreshold, Is.EqualTo(0.95f));
+                Assert.That(tracker.RechargeThreshold, Is.EqualTo(0.65f).Within(0.0001));
+            });
 
             tracker.Update(StickSide.Left, Vector2.Zero, 0);
-            tracker.Update(StickSide.Left, new Vector2(0.9f, 0), 100);
+            tracker.Update(StickSide.Left, new Vector2(1, 0), 100);
             Assert.That(tracker.SequenceFor(StickSide.Left), Is.EqualTo(1));
             Assert.That(tracker.LastFlickFor(StickSide.Left).Angle, Is.EqualTo(0).Within(0.001));
 
@@ -25,7 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(tracker.SequenceFor(StickSide.Left), Is.EqualTo(1));
 
             tracker.Update(StickSide.Left, Vector2.Zero, 300);
-            tracker.Update(StickSide.Left, new Vector2(0, -0.9f), 400);
+            tracker.Update(StickSide.Left, new Vector2(0, -1), 400);
             Assert.That(tracker.SequenceFor(StickSide.Left), Is.EqualTo(2));
             Assert.That(tracker.LastFlickFor(StickSide.Left).Angle, Is.EqualTo(270).Within(0.001));
         }
@@ -34,7 +38,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestEightyPercentTravelMappingFeedsGestureDetection()
         {
             var tracker = new SticksInputTracker();
-            var physicalNeutral = new Vector2(0.5f, 0);
+            var physicalNeutral = new Vector2(0.65f, 0);
             var physicalEdge = new Vector2(0.8f, 0);
             Vector2 mappedNeutral = SticksPlayfield.MapStickDistance(physicalNeutral, 0.8f);
             Vector2 mappedEdge = SticksPlayfield.MapStickDistance(physicalEdge, 0.8f);
@@ -44,8 +48,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(physicalNeutral.Length, Is.EqualTo(SticksInputTracker.NEUTRAL_THRESHOLD).Within(0.0001));
-                Assert.That(mappedNeutral.Length, Is.EqualTo(0.625f).Within(0.0001));
+                Assert.That(physicalNeutral.Length, Is.EqualTo(tracker.RechargeThreshold).Within(0.0001));
+                Assert.That(mappedNeutral.Length, Is.EqualTo(0.8125f).Within(0.0001));
                 Assert.That(mappedEdge.Length, Is.EqualTo(1).Within(0.0001));
                 Assert.That(tracker.SequenceFor(StickSide.Left), Is.EqualTo(1));
             });
@@ -56,7 +60,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var tracker = new SticksInputTracker();
             var physicalEdge = new Vector2(0.8f, 0);
-            var physicalReturn = new Vector2(0.45f, 0);
+            var physicalReturn = new Vector2(0.6f, 0);
 
             tracker.Update(StickSide.Left, Vector2.Zero, Vector2.Zero, 0);
             tracker.Update(StickSide.Left, physicalEdge, SticksPlayfield.MapStickDistance(physicalEdge, 0.8f), 100);
@@ -64,7 +68,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             tracker.Update(StickSide.Left, physicalEdge, SticksPlayfield.MapStickDistance(physicalEdge, 0.8f), 300);
 
             Assert.That(tracker.SequenceFor(StickSide.Left), Is.EqualTo(2),
-                "Returning inside the requested 50% physical neutral zone must recharge the next start gesture.");
+                "Returning inside the derived 65% physical recharge zone must arm the next start gesture.");
         }
 
         [Test]
@@ -105,7 +109,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var tracker = new SticksInputTracker();
             tracker.Update(StickSide.Left, Vector2.Zero, 0);
-            tracker.Update(StickSide.Left, new Vector2(0.9f, 0), 100);
+            tracker.Update(StickSide.Left, new Vector2(1, 0), 100);
             long firstSequence = tracker.SequenceFor(StickSide.Left);
 
             Assert.Multiple(() =>
@@ -116,10 +120,35 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             tracker.Update(StickSide.Left, Vector2.Zero, 200);
-            tracker.Update(StickSide.Left, new Vector2(0, 0.9f), 300);
+            tracker.Update(StickSide.Left, new Vector2(0, 1), 300);
             long secondSequence = tracker.SequenceFor(StickSide.Left);
 
             Assert.That(tracker.TryConsumeFlick(StickSide.Left, secondSequence), Is.True);
+        }
+
+        [Test]
+        public void TestActivationSettingDerivesRechargeBoundary()
+        {
+            var tracker = new SticksInputTracker { ActivationThreshold = 0.85f };
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(tracker.ActivationThreshold, Is.EqualTo(0.85f));
+                Assert.That(tracker.RechargeThreshold, Is.EqualTo(0.55f).Within(0.0001));
+            });
+
+            tracker.Update(StickSide.Left, new Vector2(0.55f, 0), new Vector2(0.84f, 0), 0);
+            tracker.Update(StickSide.Left, new Vector2(0.56f, 0), new Vector2(0.85f, 0), 100);
+            Assert.That(tracker.SequenceFor(StickSide.Left), Is.EqualTo(1));
+
+            tracker.ActivationThreshold = 1;
+            Assert.That(tracker.RechargeThreshold, Is.EqualTo(0.7f).Within(0.0001));
+
+            tracker.Update(StickSide.Right, new Vector2(0.7f, 0), Vector2.Zero, 200);
+            Assert.That(tracker.IsBeyondRechargeBoundary(StickSide.Right), Is.False,
+                "The exact recharge boundary is no longer trackable.");
+            tracker.Update(StickSide.Right, new Vector2(0.701f, 0), Vector2.Zero, 300);
+            Assert.That(tracker.IsBeyondRechargeBoundary(StickSide.Right), Is.True);
         }
 
         [Test]

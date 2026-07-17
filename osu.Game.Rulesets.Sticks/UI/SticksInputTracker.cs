@@ -8,13 +8,38 @@ namespace osu.Game.Rulesets.Sticks.UI
 {
     public sealed class SticksInputTracker
     {
-        public const float NEUTRAL_THRESHOLD = 0.5f;
-        public const float FLICK_THRESHOLD = 0.82f;
+        public const float MIN_ACTIVATION_THRESHOLD = 0.85f;
+        public const float MAX_ACTIVATION_THRESHOLD = 1f;
+        public const float DEFAULT_ACTIVATION_THRESHOLD = 0.95f;
+        public const float RECHARGE_OFFSET = 0.30f;
 
         private readonly TrackedStick left = new TrackedStick();
         private readonly TrackedStick right = new TrackedStick();
+        private float activationThreshold = DEFAULT_ACTIVATION_THRESHOLD;
+
+        /// <summary>
+        /// Gameplay-radius boundary which an armed stick must cross outwards to create a flick.
+        /// </summary>
+        public float ActivationThreshold
+        {
+            get => activationThreshold;
+            set => activationThreshold = Math.Clamp(value, MIN_ACTIVATION_THRESHOLD, MAX_ACTIVATION_THRESHOLD);
+        }
+
+        /// <summary>
+        /// Physical-radius boundary which rearms a stick. Duration tracking uses the strict
+        /// opposite side of this same boundary.
+        /// </summary>
+        public float RechargeThreshold => RechargeThresholdFor(ActivationThreshold);
+
+        public static float RechargeThresholdFor(float activationThreshold) =>
+            Math.Clamp(activationThreshold, MIN_ACTIVATION_THRESHOLD, MAX_ACTIVATION_THRESHOLD) - RECHARGE_OFFSET;
 
         public Vector2 VectorFor(StickSide side) => tracked(side).Vector;
+
+        public Vector2 PhysicalVectorFor(StickSide side) => tracked(side).PhysicalVector;
+
+        public bool IsBeyondRechargeBoundary(StickSide side) => PhysicalVectorFor(side).Length > RechargeThreshold;
 
         public long SequenceFor(StickSide side) => tracked(side).Sequence;
 
@@ -38,20 +63,21 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         /// <summary>
         /// Updates a stick using its physical controller position for neutral charging and its
-        /// mapped gameplay position for edge crossing. This keeps the neutral requirement at
-        /// 50% physical travel even when a difficulty setting maps 80% travel to the playfield edge.
+        /// mapped gameplay position for edge crossing. The recharge boundary remains a physical
+        /// stick distance even when a difficulty setting remaps the playfield edge.
         /// </summary>
         public void Update(StickSide side, Vector2 physicalValue, Vector2 gameplayValue, double time)
         {
             TrackedStick stick = tracked(side);
             float physicalMagnitude = Math.Clamp(physicalValue.Length, 0, 1);
             float gameplayMagnitude = Math.Clamp(gameplayValue.Length, 0, 1);
+            stick.PhysicalVector = physicalValue.LengthSquared > 1 ? physicalValue.Normalized() : physicalValue;
             stick.Vector = gameplayValue.LengthSquared > 1 ? gameplayValue.Normalized() : gameplayValue;
 
-            if (physicalMagnitude <= NEUTRAL_THRESHOLD)
+            if (physicalMagnitude <= RechargeThreshold)
                 stick.NeutralReady = true;
 
-            if (stick.NeutralReady && stick.PreviousGameplayMagnitude < FLICK_THRESHOLD && gameplayMagnitude >= FLICK_THRESHOLD)
+            if (stick.NeutralReady && stick.PreviousGameplayMagnitude < ActivationThreshold && gameplayMagnitude >= ActivationThreshold)
             {
                 float angle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Vector.Y, stick.Vector.X) * 180 / MathF.PI);
                 stick.Sequence++;
@@ -66,6 +92,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private sealed class TrackedStick
         {
+            public Vector2 PhysicalVector;
             public Vector2 Vector;
             public float PreviousGameplayMagnitude;
             // A stick must be observed inside the neutral zone after the tracker starts. Starting

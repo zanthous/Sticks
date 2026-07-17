@@ -7,6 +7,7 @@ using System.Reflection;
 using NUnit.Framework;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Effects;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.StateChanges;
 using osu.Framework.Timing;
 using osu.Game.Beatmaps;
@@ -512,6 +513,25 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestPersistentFlickActivationRangeAndDerivedRecharge()
+        {
+            var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(config.Get<float>(SticksRulesetSetting.FlickActivationThreshold), Is.EqualTo(0.95f));
+                Assert.That(SticksInputTracker.RechargeThresholdFor(
+                    config.Get<float>(SticksRulesetSetting.FlickActivationThreshold)), Is.EqualTo(0.65f).Within(0.0001));
+            });
+
+            config.SetValue(SticksRulesetSetting.FlickActivationThreshold, 0.5f);
+            Assert.That(config.Get<float>(SticksRulesetSetting.FlickActivationThreshold), Is.EqualTo(0.85f));
+
+            config.SetValue(SticksRulesetSetting.FlickActivationThreshold, 2f);
+            Assert.That(config.Get<float>(SticksRulesetSetting.FlickActivationThreshold), Is.EqualTo(1f));
+        }
+
+        [Test]
         public void TestAutoplayControlsBothSticksAndTracksSliders()
         {
             var beatmap = new Beatmap<SticksHitObject>();
@@ -683,14 +703,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestReplayPlaybackHoldsCompleteSamplesUntilTheirRecordedTime()
+        public void TestReplayPlaybackInterpolatesSafeAnaloguePaths()
         {
             var replay = new Replay
             {
                 Frames = new List<ReplayFrame>
                 {
-                    new SticksReplayFrame(0, new Vector2(-1, 0.2f), new Vector2(0.4f, -0.8f)),
-                    new SticksReplayFrame(1000, new Vector2(1, -0.6f), new Vector2(-0.4f, 0.8f)),
+                    new SticksReplayFrame(0, Vector2.UnitX, -Vector2.UnitY),
+                    new SticksReplayFrame(1000, Vector2.UnitY, Vector2.UnitX),
                 },
             };
             var provider = new SticksReplayInputProvider();
@@ -698,8 +718,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(handler.SetFrameFromTime(-100), Is.EqualTo(-100));
             handler.CollectPendingInputs(new List<IInput>());
-            Assert.That(provider.Snapshot(), Is.EqualTo((Vector2.Zero, Vector2.Zero)),
-                "The first controller sample must not be anticipated before its timestamp.");
+            Assert.That(provider.Snapshot(), Is.EqualTo((Vector2.UnitX, -Vector2.UnitY)),
+                "Pre-first playback must preserve the replay's initial controller state.");
 
             Assert.That(handler.SetFrameFromTime(0), Is.EqualTo(0));
             Assert.That(handler.SetFrameFromTime(250), Is.EqualTo(250));
@@ -708,8 +728,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(left, Is.EqualTo(new Vector2(-1, 0.2f)));
-                Assert.That(right, Is.EqualTo(new Vector2(0.4f, -0.8f)));
+                Assert.That(left.Length, Is.EqualTo(1).Within(0.0001));
+                Assert.That(SticksHitObject.NormaliseAngle(System.MathF.Atan2(left.Y, left.X) * 180 / System.MathF.PI), Is.EqualTo(22.5f).Within(0.001));
+                Assert.That(right.Length, Is.EqualTo(1).Within(0.0001));
+                Assert.That(System.MathF.Atan2(right.Y, right.X) * 180 / System.MathF.PI, Is.EqualTo(-67.5f).Within(0.001));
             });
 
             Assert.That(handler.SetFrameFromTime(1000), Is.EqualTo(1000));
@@ -718,9 +740,95 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(left, Is.EqualTo(new Vector2(1, -0.6f)));
-                Assert.That(right, Is.EqualTo(new Vector2(-0.4f, 0.8f)));
+                Assert.That(left, Is.EqualTo(Vector2.UnitY));
+                Assert.That(right, Is.EqualTo(Vector2.UnitX));
             });
+        }
+
+        [Test]
+        public void TestReplayHeldOutAtStartDoesNotManufactureFirstFlick()
+        {
+            Vector2 held = Vector2.UnitX;
+            var frames = new List<SticksReplayFrame>
+            {
+                new SticksReplayFrame(1000, held, Vector2.Zero),
+                new SticksReplayFrame(1100, held, Vector2.Zero),
+            };
+
+            var originalInput = new SticksInputTracker();
+            originalInput.Update(StickSide.Left, held, 1000);
+
+            var replay = new Replay { Frames = frames.Cast<ReplayFrame>().ToList() };
+            var provider = new SticksReplayInputProvider();
+            var handler = new SticksFramedReplayInputHandler(replay, provider);
+            var replayedInput = new SticksInputTracker();
+
+            Assert.That(handler.SetFrameFromTime(900), Is.EqualTo(900));
+            handler.CollectPendingInputs(new List<IInput>());
+            replayedInput.Update(StickSide.Left, provider.Snapshot().Left, 900);
+
+            Assert.That(handler.SetFrameFromTime(1000), Is.EqualTo(1000));
+            handler.CollectPendingInputs(new List<IInput>());
+            replayedInput.Update(StickSide.Left, provider.Snapshot().Left, 1000);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(originalInput.SequenceFor(StickSide.Left), Is.Zero);
+                Assert.That(replayedInput.SequenceFor(StickSide.Left), Is.EqualTo(originalInput.SequenceFor(StickSide.Left)),
+                    "A held-out initial sample must remain unarmed in both the original play and replay.");
+                Assert.That(provider.Snapshot().Left, Is.EqualTo(held));
+            });
+        }
+
+        [Test]
+        public void TestReplayInterpolationDefersGameplayThresholdCrossings()
+        {
+            Vector2 beforeFlick = Vector2.UnitX * 0.75f;
+            Vector2 flick = Vector2.UnitX * 0.78f;
+            Vector2 beforeNeutral = Vector2.UnitY * 0.7f;
+            Vector2 neutral = Vector2.UnitY * 0.6f;
+
+            // With 80% physical travel mapped to the edge, activation is at 76% physical
+            // travel. Interpolation may approach it but must not activate before the end frame.
+            Vector2 activationApproach = SticksFramedReplayInputHandler.InterpolateStick(beforeFlick, flick, 999, 0, 1000, 0.8f);
+            Vector2 activationEndpoint = SticksFramedReplayInputHandler.InterpolateStick(beforeFlick, flick, 1000, 0, 1000, 0.8f);
+            Vector2 neutralApproach = SticksFramedReplayInputHandler.InterpolateStick(beforeNeutral, neutral, 999, 0, 1000);
+            Vector2 neutralEndpoint = SticksFramedReplayInputHandler.InterpolateStick(beforeNeutral, neutral, 1000, 0, 1000);
+            Vector2 wideRotation = SticksFramedReplayInputHandler.InterpolateStick(Vector2.UnitX, -Vector2.UnitX, 500, 0, 1000);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.MapStickDistance(activationApproach, 0.8f).Length, Is.LessThan(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD));
+                Assert.That(SticksPlayfield.MapStickDistance(activationEndpoint, 0.8f).Length, Is.GreaterThanOrEqualTo(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD));
+                Assert.That(neutralApproach.Length, Is.GreaterThan(SticksInputTracker.RechargeThresholdFor(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD)));
+                Assert.That(neutralEndpoint.Length, Is.LessThanOrEqualTo(SticksInputTracker.RechargeThresholdFor(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD)));
+                Assert.That(wideRotation.Length, Is.EqualTo(1).Within(0.0001),
+                    "A wide high-magnitude path must rotate around the edge instead of cutting through neutral.");
+            });
+        }
+
+        [Test]
+        public void TestReplayInterpolationFollowsSliderPathBetweenRecordedSamples()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 1000,
+                Angle = 0,
+                ArcAngle = 90,
+            };
+
+            foreach (double time in new[] { 1000d, 1125, 1250, 1500, 1750, 1875, 2000 })
+            {
+                Vector2 replayed = SticksFramedReplayInputHandler.InterpolateStick(Vector2.UnitX, Vector2.UnitY, time, 1000, 2000);
+                float replayedAngle = SticksHitObject.NormaliseAngle(System.MathF.Atan2(replayed.Y, replayed.X) * 180 / System.MathF.PI);
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(replayed.Length, Is.EqualTo(1).Within(0.0001), $"Magnitude at {time}");
+                    Assert.That(SticksHitObject.DeltaAngle(replayedAngle, slider.AngleAt(time)), Is.Zero.Within(0.001), $"Slider angle at {time}");
+                });
+            }
         }
 
         [Test]
@@ -728,20 +836,22 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var playfield = new SticksPlayfield();
             int notifications = 0;
+            bool reportedAsImportant = false;
             Vector2 reportedLeft = Vector2.Zero;
             Vector2 reportedRight = Vector2.Zero;
 
-            playfield.PhysicalStickInputChanged += () =>
+            playfield.PhysicalStickInputChanged += important =>
             {
                 notifications++;
+                reportedAsImportant = important;
                 reportedLeft = playfield.PhysicalStickVector(StickSide.Left);
                 reportedRight = playfield.PhysicalStickVector(StickSide.Right);
             };
 
             // Framework joystick axes are delivered independently. Neither assignment may
             // publish a half-updated vector; publication happens once in the playfield update.
-            setPrivateField(playfield, "leftX", 0.8f);
-            setPrivateField(playfield, "leftY", -0.45f);
+            setPrivateField(playfield, "leftX", 0.9f);
+            setPrivateField(playfield, "leftY", -0.35f);
             setPrivateField(playfield, "rightX", -0.65f);
             setPrivateField(playfield, "rightY", 0.35f);
             Assert.That(notifications, Is.Zero);
@@ -756,7 +866,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(notifications, Is.EqualTo(1));
-                Assert.That(reportedLeft, Is.EqualTo(new Vector2(0.8f, -0.45f)));
+                Assert.That(reportedAsImportant, Is.True, "A flick-threshold crossing must be recorded without the 60 Hz movement limit.");
+                Assert.That(reportedLeft, Is.EqualTo(new Vector2(0.9f, -0.35f)));
                 Assert.That(reportedRight, Is.EqualTo(new Vector2(-0.65f, 0.35f)));
             });
 
@@ -1249,6 +1360,68 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.UpcomingSegmentEndsWithReversalAt(2500), Is.False,
                     "The final segment must not imply another reversal.");
                 Assert.That(slider.UpcomingSegmentIndexAt(3000), Is.EqualTo(-1));
+            });
+        }
+
+        [Test]
+        public void TestWhiteOutlineExistsOnlyForSegmentsWithAnotherReversal()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                Angle = 0,
+            };
+            slider.SetCustomSegments(new[] { 90f, -90f, 90f });
+
+            var drawable = new DrawableSticksSlider(slider);
+            MethodInfo updatePreview = typeof(DrawableSticksSlider).GetMethod(
+                "updateReversalPathPreview",
+                BindingFlags.Instance | BindingFlags.NonPublic)!;
+            MethodInfo updateActive = typeof(DrawableSticksSlider).GetMethod(
+                "updateReversalOutline",
+                BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var previewOutline = (CircularProgress)typeof(DrawableSticksSlider).GetField(
+                "reversalPathPreviewOutline",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
+            var activeOutline = (CircularProgress)typeof(DrawableSticksSlider).GetField(
+                "reversalOutline",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
+            var activePath = (CircularProgress)typeof(DrawableSticksSlider).GetField(
+                "path",
+                BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(previewOutline.Size.X - activePath.Size.X, Is.EqualTo(4).Within(0.001),
+                    "The white reversal underline should extend two pixels beyond each side of the coloured path.");
+                Assert.That(activeOutline.Size.X, Is.EqualTo(previewOutline.Size.X).Within(0.001));
+            });
+
+            // Segment 1 is previewed from segment 0 and itself ends at another reversal.
+            updatePreview.Invoke(drawable, new object[] { 1500d, true });
+            Assert.Multiple(() =>
+            {
+                Assert.That(previewOutline.Alpha, Is.EqualTo(1));
+                Assert.That(previewOutline.Progress, Is.GreaterThan(0));
+            });
+
+            // Segment 2 is the final segment: its coloured preview remains, but no white geometry may survive.
+            updatePreview.Invoke(drawable, new object[] { 2500d, true });
+            Assert.Multiple(() =>
+            {
+                Assert.That(previewOutline.Alpha, Is.Zero);
+                Assert.That(previewOutline.Progress, Is.Zero);
+            });
+
+            updateActive.Invoke(drawable, new object[] { 2500d, false, true, 1, 0.5d, 1d });
+            Assert.That(activeOutline.Alpha, Is.EqualTo(1));
+
+            updateActive.Invoke(drawable, new object[] { 3500d, false, true, 2, 0.5d, 1d });
+            Assert.Multiple(() =>
+            {
+                Assert.That(activeOutline.Alpha, Is.Zero);
+                Assert.That(activeOutline.Progress, Is.Zero);
             });
         }
 

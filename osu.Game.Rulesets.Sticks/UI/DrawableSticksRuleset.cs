@@ -30,6 +30,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         protected new SticksRulesetConfigManager Config => (SticksRulesetConfigManager)base.Config;
 
         private readonly BindableFloat approachRate = new BindableFloat();
+        private readonly BindableFloat flickActivationThreshold = new BindableFloat();
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
 
         [Resolved(CanBeNull = true)]
@@ -45,13 +46,20 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             Config.BindWith(SticksRulesetSetting.ApproachRate, approachRate);
             approachRate.BindValueChanged(rate => applyApproachRate(rate.NewValue), true);
+            Config.BindWith(SticksRulesetSetting.FlickActivationThreshold, flickActivationThreshold);
+            flickActivationThreshold.BindValueChanged(threshold =>
+                ((SticksPlayfield)Playfield).FlickActivationThreshold = threshold.NewValue, true);
         }
 
         public override PlayfieldAdjustmentContainer CreatePlayfieldAdjustmentContainer() => new SticksPlayfieldAdjustmentContainer();
 
         protected override Playfield CreatePlayfield() => new SticksPlayfield(replayInputProvider);
 
-        protected override ReplayInputHandler CreateReplayInputHandler(Replay replay) => new SticksFramedReplayInputHandler(replay, replayInputProvider);
+        protected override ReplayInputHandler CreateReplayInputHandler(Replay replay) => new SticksFramedReplayInputHandler(
+            replay,
+            replayInputProvider,
+            () => ((SticksPlayfield)Playfield).PhysicalStickDistanceAtGameEdge,
+            () => ((SticksPlayfield)Playfield).FlickActivationThreshold);
 
         protected override ReplayRecorder CreateReplayRecorder(Score score) => new SticksReplayRecorder(score, (SticksPlayfield)Playfield);
 

@@ -24,9 +24,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             AlwaysPresent = true;
         }
 
-        internal void ApplyAngleResult(HitResult result) => ApplyResult(result);
+        internal void ApplyAngleResult(HitResult result, float angleError)
+        {
+            HitObject.HitError = angleError;
+            ApplyResult(result);
+        }
 
-        internal void ApplyMiss() => ApplyMinResult();
+        internal void ApplyMiss()
+        {
+            HitObject.HitError = null;
+            ApplyMinResult();
+        }
 
         protected override void CheckForResult(bool userTriggered, double timeOffset)
         {

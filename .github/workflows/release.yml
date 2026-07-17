@@ -40,7 +40,8 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^v', ''
-          if ($version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+          $semVer = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$'
+          if ($version -notmatch $semVer) {
               throw "Release tag does not contain a supported version: $version"
           }
           "RULESET_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -50,7 +51,7 @@ jobs:
 
       - name: Build and test release
         shell: pwsh
-        run: dotnet test .\osu.Game.Rulesets.Sticks.sln --configuration Release --no-restore -p:Version=$env:RULESET_VERSION
+        run: dotnet test .\osu.Game.Rulesets.Sticks.sln --configuration Release --no-restore -p:Version=$env:RULESET_VERSION -p:IncludeSourceRevisionInInformationalVersion=false
 
       - name: Validate companion mapper timing
         run: node .\osu.Game.Rulesets.Sticks.Tests\validate-mapper-timing.mjs
@@ -71,6 +72,17 @@ jobs:
           Copy-Item -LiteralPath $source -Destination $dll -Force
           Copy-Item -LiteralPath ".\LICENSE.md" -Destination $output -Force
           Copy-Item -LiteralPath ".\THIRD_PARTY_NOTICES.md" -Destination $output -Force
+
+          $assemblyVersion = [System.Reflection.AssemblyName]::GetAssemblyName((Resolve-Path -LiteralPath $dll)).Version
+          $expectedAssemblyVersion = [System.Version]::Parse(($env:RULESET_VERSION -split '[-+]', 2)[0] + '.0')
+          if ($assemblyVersion -ne $expectedAssemblyVersion) {
+              throw "Release DLL assembly version $assemblyVersion does not match tag version $expectedAssemblyVersion."
+          }
+
+          $informationalVersion = [System.Diagnostics.FileVersionInfo]::GetVersionInfo((Resolve-Path -LiteralPath $dll)).ProductVersion
+          if ($informationalVersion -ne $env:RULESET_VERSION) {
+              throw "Release DLL informational version '$informationalVersion' does not match tag version '$env:RULESET_VERSION'."
+          }
 
           $hash = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  osu.Game.Rulesets.Sticks.dll" | Set-Content -LiteralPath $checksum -Encoding utf8NoBOM

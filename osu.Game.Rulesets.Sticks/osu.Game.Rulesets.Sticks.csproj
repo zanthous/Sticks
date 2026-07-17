@@ -19,6 +19,9 @@
     <PackageReference Include="ppy.osu.Game" Version="2026.702.1" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="osu.Game.Rulesets.Sticks.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Include="..\cursors\*.png"
                       Link="Resources\Textures\Cursors\%(Filename)%(Extension)"
                       LogicalName="$(RootNamespace).Resources.Textures.Cursors.%(Filename)%(Extension)" />

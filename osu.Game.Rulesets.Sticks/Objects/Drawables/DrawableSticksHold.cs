@@ -23,8 +23,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     public partial class DrawableSticksHold : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable, ISticksTrackingSource
     {
-        private const float tracking_magnitude = 0.56f;
-
         private readonly SticksArcMarker headMarker;
         private readonly SmoothPath durationRail;
         private readonly Circle durationCursor;
@@ -468,7 +466,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Vector2 stick = playfield.StickVector(HitObject.Side);
             float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
             float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, HitObject.Angle));
-            return stick.Length >= tracking_magnitude && angleError <= HitObject.LenientHalfAngle;
+            return playfield.IsStickBeyondRechargeBoundary(HitObject.Side) && angleError <= HitObject.LenientHalfAngle;
         }
 
         protected override void UpdateInitialTransforms() => this.Show();

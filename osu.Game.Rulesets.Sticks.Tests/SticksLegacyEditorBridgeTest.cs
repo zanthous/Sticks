@@ -56,7 +56,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestCorruptedTimelineRepeatCountIsBoundedOnDecode()
+        public void TestCorruptedTimelineRepeatCountIsRejectedOnDecode()
         {
             var source = new TestPositionHitObject
             {
@@ -67,29 +67,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 },
             };
 
-            Assert.That(SticksAuthoredBeatmapCodec.TryDecode(source, out SticksHitObject? decoded), Is.True);
-            var slider = (SticksSlider)decoded!;
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(source);
 
             Assert.Multiple(() =>
             {
-                Assert.That(slider.RepeatCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT - 1));
-                Assert.That(slider.SegmentCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT));
-                Assert.That(slider.Duration, Is.EqualTo(1000));
-                Assert.That(slider.ArcAngle, Is.EqualTo(180));
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
+                Assert.That(inspection.Decoded, Is.Null);
+                Assert.That(SticksAuthoredBeatmapCodec.TryDecode(source, out _), Is.False);
             });
-
-            var controlPoints = new ControlPointInfo();
-            controlPoints.Add(0, new TimingControlPoint { BeatLength = 500 });
-            slider.ApplyDefaults(controlPoints, new BeatmapDifficulty { SliderTickRate = 1 });
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.NestedHitObjects, Has.Count.EqualTo(SticksSlider.MAX_SEGMENT_COUNT + 1));
-                Assert.That(slider.NestedHitObjects.OfType<SticksSliderRepeat>().ToArray(), Has.Length.EqualTo(SticksSlider.MAX_SEGMENT_COUNT - 1));
-            });
-
-            slider.EnsureLegacyEditorMarker();
-            Assert.That(markerFilename(slider), Is.EqualTo("sticks-v1~s~l~45~1000~180~15.wav"));
         }
 
         [Test]

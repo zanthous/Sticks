@@ -1,7 +1,9 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
+using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using NUnit.Framework;
 using osu.Game.Beatmaps.Formats;
 using osu.Game.Beatmaps.Timing;
@@ -120,6 +122,60 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(((SticksSlider)converted[3]).RepeatCount, Is.EqualTo(2));
                 Assert.That(converted, Has.All.Matches<SticksHitObject>(hitObject => hitObject.Samples.Any(sample => sample.Name == "hitnormal")));
             });
+        }
+
+        [Test]
+        public void TestPackageExportStripsDecoderRecognisedOnlineIdsWithoutReencodingCarrierData()
+        {
+            const string storedCarrier = "osu file format v128\r\n[Metadata]\r\u00a0BeatmapID\u00a0:\u00a097531\rBeatmapSetID\u2003:\u200324680\n"
+                                         + "Title:Authored carrier\r\n[HitObjects]\r416,192,1000,1,0,0:0:0:100:sticks-v1~f~l~0.wav";
+            const string expectedCarrier = "osu file format v128\r\n[Metadata]\rTitle:Authored carrier\r\n[HitObjects]\r"
+                                           + "416,192,1000,1,0,0:0:0:100:sticks-v1~f~l~0.wav";
+
+            byte[] preamble = Encoding.UTF8.GetPreamble();
+            byte[] storedBytes = preamble.Concat(Encoding.UTF8.GetBytes(storedCarrier)).ToArray();
+            byte[] expectedBytes = preamble.Concat(Encoding.UTF8.GetBytes(expectedCarrier)).ToArray();
+            byte[] packagedBytes = SticksBeatmapPackageExporter.StripOnlineIds(storedBytes);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(packagedBytes, Is.EqualTo(expectedBytes));
+                Assert.That(packagedBytes.Take(preamble.Length), Is.EqualTo(preamble));
+                Assert.That(Encoding.UTF8.GetString(packagedBytes), Does.Contain("Title:Authored carrier"));
+                Assert.That(Encoding.UTF8.GetString(packagedBytes), Does.Contain("sticks-v1~f~l~0.wav"));
+            });
+        }
+
+        [Test]
+        public void TestPackageExportReturnsOriginalBytesWhenNoOnlineIdsExist()
+        {
+            byte[] storedBytes = Encoding.UTF8.GetBytes("osu file format v128\r\n[Metadata]\r\nTitle:Unlinked carrier\r\n");
+
+            byte[] packagedBytes = SticksBeatmapPackageExporter.StripOnlineIds(storedBytes);
+
+            Assert.That(packagedBytes, Is.SameAs(storedBytes));
+        }
+
+        [Test]
+        public void TestPackageExportRetainsBomWhenFirstLineIsOnlineId()
+        {
+            byte[] preamble = Encoding.UTF8.GetPreamble();
+            byte[] storedBytes = preamble.Concat(Encoding.UTF8.GetBytes("BeatmapID:97531\r\nTitle:Carrier\r\n")).ToArray();
+            byte[] expectedBytes = preamble.Concat(Encoding.UTF8.GetBytes("Title:Carrier\r\n")).ToArray();
+
+            byte[] packagedBytes = SticksBeatmapPackageExporter.StripOnlineIds(storedBytes);
+
+            Assert.That(packagedBytes, Is.EqualTo(expectedBytes));
+        }
+
+        [Test]
+        public void TestPackageExportDoesNotStripMetadataKeysTheDecoderWouldIgnore()
+        {
+            byte[] storedBytes = Encoding.UTF8.GetBytes("[Metadata]\nbeatmapID:97531\nBeatmapIdentifier:24680\n");
+
+            byte[] packagedBytes = SticksBeatmapPackageExporter.StripOnlineIds(storedBytes);
+
+            Assert.That(packagedBytes, Is.SameAs(storedBytes));
         }
     }
 }

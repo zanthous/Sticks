@@ -23,6 +23,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         public const float REVERSAL_PREVIEW_ALPHA = 0.28f;
 
+        private const float path_half_thickness = 7;
+        private const float reversal_outline_half_thickness = 9;
+        private const float direction_preview_half_thickness = 4;
+        private const float reversal_direction_outline_half_thickness = 6;
+
         private readonly CircularProgress path;
         private readonly CircularProgress reversalPathPreview;
         private readonly CircularProgress reversalPathPreviewOutline;
@@ -79,17 +84,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             // This is deliberately behind the opaque active path. As the played portion is
             // erased, the translucent upcoming reversal is revealed without covering it.
-            AddInternal(reversalPathPreviewOutline = createArc(hitObject, 8, 0, 10, Color4.White));
+            AddInternal(reversalPathPreviewOutline = createArc(hitObject, reversal_outline_half_thickness, 0, 10, Color4.White));
 
-            AddInternal(reversalPathPreview = createArc(hitObject, 7, 0, 9));
+            AddInternal(reversalPathPreview = createArc(hitObject, path_half_thickness, 0, 9));
 
-            AddInternal(reversalPreviewOutline = createArc(hitObject, 5, 0, 11, Color4.White));
+            AddInternal(reversalPreviewOutline = createArc(hitObject, reversal_direction_outline_half_thickness, 0, 11, Color4.White));
 
-            AddInternal(directionPreview = createArc(hitObject, 4, 0.28f, 10));
+            AddInternal(directionPreview = createArc(hitObject, direction_preview_half_thickness, 0.28f, 10));
 
-            AddInternal(reversalOutline = createArc(hitObject, 8, 0, 6, Color4.White));
+            AddInternal(reversalOutline = createArc(hitObject, reversal_outline_half_thickness, 0, 6, Color4.White));
 
-            AddInternal(path = createArc(hitObject, 7, 1, 5));
+            AddInternal(path = createArc(hitObject, path_half_thickness, 1, 5));
 
             AddInternal(headMarker = new SticksSliderHeadMarker(hitObject.Side, hitObject.InitialDirection, colourFor(hitObject.Side), true)
             {
@@ -154,12 +159,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             if (displayedSide != HitObject.Side)
             {
-                updateArcLane(path, HitObject.Side, 7, colour);
-                updateArcLane(reversalPathPreview, HitObject.Side, 7, colour);
-                updateArcLane(reversalPathPreviewOutline, HitObject.Side, 8, Color4.White);
-                updateArcLane(directionPreview, HitObject.Side, 4, colour);
-                updateArcLane(reversalOutline, HitObject.Side, 8, Color4.White);
-                updateArcLane(reversalPreviewOutline, HitObject.Side, 5, Color4.White);
+                updateArcLane(path, HitObject.Side, path_half_thickness, colour);
+                updateArcLane(reversalPathPreview, HitObject.Side, path_half_thickness, colour);
+                updateArcLane(reversalPathPreviewOutline, HitObject.Side, reversal_outline_half_thickness, Color4.White);
+                updateArcLane(directionPreview, HitObject.Side, direction_preview_half_thickness, colour);
+                updateArcLane(reversalOutline, HitObject.Side, reversal_outline_half_thickness, Color4.White);
+                updateArcLane(reversalPreviewOutline, HitObject.Side, reversal_direction_outline_half_thickness, Color4.White);
                 headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
                 trackingMarker.SetLane(HitObject.Side, colour);
                 displayedSide = HitObject.Side;
@@ -175,6 +180,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             reversalPathPreview.Alpha = 0;
             reversalPathPreviewOutline.Alpha = 0;
+            reversalPathPreviewOutline.Progress = 0;
 
             int upcomingSegment = active ? HitObject.UpcomingSegmentIndexAt(now) : -1;
             double previewProgress = upcomingSegment >= 0
@@ -190,14 +196,21 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 HitObject.SegmentArcAngleAt(upcomingSegment),
                 0,
                 previewProgress);
-            setVisibleRange(
-                reversalPathPreviewOutline,
-                HitObject.SegmentStartAngleAt(upcomingSegment),
-                HitObject.SegmentArcAngleAt(upcomingSegment),
-                0,
-                previewProgress);
             reversalPathPreview.Alpha = REVERSAL_PREVIEW_ALPHA;
-            reversalPathPreviewOutline.Alpha = HitObject.UpcomingSegmentEndsWithReversalAt(now) ? 1 : 0;
+
+            // The transparent segment preview always snakes in, but the white treatment belongs
+            // only to a segment which itself ends at another reversal. Keeping zero geometry for
+            // an unoutlined segment prevents the previous segment's arc from lingering visually.
+            if (HitObject.SegmentEndsWithReversal(upcomingSegment))
+            {
+                setVisibleRange(
+                    reversalPathPreviewOutline,
+                    HitObject.SegmentStartAngleAt(upcomingSegment),
+                    HitObject.SegmentArcAngleAt(upcomingSegment),
+                    0,
+                    previewProgress);
+                reversalPathPreviewOutline.Alpha = 1;
+            }
         }
 
         private void ensureSyncedNoteLink()
@@ -250,9 +263,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private void updateReversalOutline(double now, bool cueActive, bool active, int segmentIndex, double remainingStart, double remainingEnd)
         {
             reversalOutline.Alpha = 0;
+            reversalOutline.Progress = 0;
             reversalPreviewOutline.Alpha = 0;
+            reversalPreviewOutline.Progress = 0;
 
-            if ((!cueActive && !active) || !HitObject.CurrentSpanEndsWithReversal(now))
+            if ((!cueActive && !active) || !HitObject.SegmentEndsWithReversal(segmentIndex))
                 return;
 
             if (active)

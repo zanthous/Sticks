@@ -99,7 +99,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     // Apply in reading order. Both are native basic judgements and therefore each
                     // contributes exactly half of this note's accuracy.
                     ApplyResult(timingResult);
-                    angleComponent.ApplyAngleResult(angleResult);
+                    angleComponent.ApplyAngleResult(angleResult, angleError);
                     return;
                 }
             }

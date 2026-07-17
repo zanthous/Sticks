@@ -19,6 +19,7 @@ using osu.Game.Rulesets.Sticks.Beatmaps;
 using osu.Game.Rulesets.Sticks.Mods;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
+using osu.Game.Rulesets.UI;
 using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Tests
@@ -436,6 +437,311 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
 
             Assert.That(SticksAuthoredBeatmapCodec.TryDecode(source, out _), Is.False);
+        }
+
+        [Test]
+        public void TestFutureAuthoredMarkerFailsClosed()
+        {
+            var source = new Beatmap<HitObject>();
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(416, 192),
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo("sticks-v3~f~l~0.wav", 100) },
+            };
+            source.HitObjects.Add(hitObject);
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
+                Assert.That(inspection.Version, Is.EqualTo(3));
+                Assert.That(converter.CanConvert(), Is.False);
+                Assert.That(converter.AuthoredCarrierError, Does.Contain("unsupported marker version v3"));
+                Assert.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>()
+                                                          .With.Message.Contains("Update Sticks"));
+            });
+        }
+
+        [Test]
+        public void TestOverflowedAuthoredMarkerVersionFailsClosed()
+        {
+            var source = new Beatmap<HitObject>();
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(416, 192),
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo("sticks-v999999999999999999999~f~l~0.wav", 100) },
+            };
+            source.HitObjects.Add(hitObject);
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
+                Assert.That(inspection.Version, Is.Null);
+                Assert.That(converter.CanConvert(), Is.False);
+                Assert.That(converter.AuthoredCarrierError, Does.Contain("unsupported marker version vunknown"));
+            });
+        }
+
+        [Test]
+        public void TestMalformedSupportedAuthoredMarkerFailsClosed()
+        {
+            var source = new Beatmap<HitObject>();
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(416, 192),
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo("sticks-v1~f~x~0.wav", 100) },
+            };
+            source.HitObjects.Add(hitObject);
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
+                Assert.That(converter.CanConvert(), Is.False);
+                Assert.That(converter.AuthoredCarrierError, Does.Contain("malformed v1 marker"));
+                Assert.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>());
+            });
+        }
+
+        [TestCase("sticks-vx~f~l~0.wav")]
+        [TestCase("sticks-v~f~l~0.wav")]
+        public void TestMalformedReservedNamespaceWithoutNumericVersionFailsClosed(string marker)
+        {
+            var source = new Beatmap<HitObject>();
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(416, 192),
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo(marker, 100) },
+            };
+            source.HitObjects.Add(hitObject);
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
+                Assert.That(inspection.Version, Is.Null);
+                Assert.That(converter.CanConvert(), Is.False);
+                Assert.That(converter.AuthoredCarrierError, Does.Contain("malformed marker"));
+            });
+        }
+
+        [TestCase("sticks-video.wav")]
+        [TestCase("samples/sticks-video.wav")]
+        [TestCase(@"samples\sticks-video.wav")]
+        public void TestOrdinarySampleSharingMarkerPrefixDoesNotReserveNamespace(string sampleFilename)
+        {
+            var source = new Beatmap<HitObject>();
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(416, 192),
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo(sampleFilename, 100) },
+            };
+            source.HitObjects.Add(hitObject);
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksAuthoredBeatmapCodec.IsMarker(hitObject.Samples.Single()), Is.False);
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.None));
+                Assert.That(converter.CanConvert(), Is.True);
+                Assert.That(converter.AuthoredCarrierError, Is.Null);
+            });
+        }
+
+        [TestCase("samples/sticks-v1~f~l~90.wav")]
+        [TestCase(@"samples\sticks-v1~f~l~90.wav")]
+        public void TestAuthoredMarkerPathsSupportEitherDirectorySeparator(string marker)
+        {
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo(marker, 100) },
+            };
+
+            bool decoded = SticksAuthoredBeatmapCodec.TryDecode(hitObject, out var result);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(decoded, Is.True);
+                Assert.That(result, Is.TypeOf<SticksFlick>());
+                Assert.That(result!.Side, Is.EqualTo(StickSide.Left));
+                Assert.That(result.Angle, Is.EqualTo(90));
+            });
+        }
+
+        [TestCase("samples/sticks-v3~f~l~0.wav")]
+        [TestCase(@"samples\sticks-v3~f~l~0.wav")]
+        public void TestFutureMarkerPathsFailClosedWithEitherDirectorySeparator(string marker)
+        {
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo(marker, 100) },
+            };
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksAuthoredBeatmapCodec.IsMarker(hitObject.Samples.Single()), Is.True);
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
+                Assert.That(inspection.Version, Is.EqualTo(3));
+            });
+        }
+
+        [Test]
+        public void TestDuplicateAuthoredMarkersFailClosed()
+        {
+            var source = new Beatmap<HitObject>();
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(416, 192),
+                Samples = new HitSampleInfo[]
+                {
+                    new ConvertHitObjectParser.FileHitSampleInfo("sticks-v1~f~l~0.wav", 100),
+                    new ConvertHitObjectParser.FileHitSampleInfo("sticks-v1~f~r~180.wav", 100),
+                },
+            };
+            source.HitObjects.Add(hitObject);
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(inspection.MarkerCount, Is.EqualTo(2));
+                Assert.That(converter.CanConvert(), Is.False);
+                Assert.That(converter.AuthoredCarrierError, Does.Contain("has 2 Sticks markers"));
+            });
+        }
+
+        [Test]
+        public void TestMixedAuthoredAndUnmarkedObjectsFailClosed()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
+            {
+                StartTime = 1000,
+                Side = StickSide.Left,
+                Angle = 0,
+            }));
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1500,
+                Position = new Vector2(96, 192),
+            });
+
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converter.CanConvert(), Is.False);
+                Assert.That(converter.AuthoredCarrierError, Does.Contain("object 2 at 1500ms has no Sticks marker"));
+                Assert.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>());
+            });
+        }
+
+        [Test]
+        public void TestAllValidV1AndV2AuthoredMarkersConvertExactly()
+        {
+            var segmentedSlider = new SticksSlider
+            {
+                StartTime = 2000,
+                Duration = 3000,
+                Side = StickSide.Right,
+                Angle = 45,
+            };
+            segmentedSlider.SetCustomSegments(new[] { 90f, -180f, 45f });
+
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
+            {
+                StartTime = 1000,
+                Side = StickSide.Left,
+                Angle = 15,
+            }));
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(segmentedSlider));
+
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converter.CanConvert(), Is.True);
+                Assert.That(converter.AuthoredCarrierError, Is.Null);
+                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(converted[0], Is.TypeOf<SticksFlick>());
+                Assert.That(converted[0].Side, Is.EqualTo(StickSide.Left));
+                Assert.That(converted[0].Angle, Is.EqualTo(15));
+                Assert.That(converted[1], Is.TypeOf<SticksSlider>());
+                Assert.That(((SticksSlider)converted[1]).SegmentArcAngles, Is.EqualTo(new[] { 90f, -180f, 45f }));
+            });
+        }
+
+        [TestCase("sticks-v1~s~l~45~1000~180~16.wav")]
+        [TestCase("sticks-v1~s~l~45~1000~0~0.wav")]
+        [TestCase("sticks-v1~s~l~45~1000~0.999~0.wav")]
+        [TestCase("sticks-v2~s~l~45~1000~90_90_90_90_90_90_90_90_90_90_90_90_90_90_90_90_90.wav")]
+        public void TestAuthoredMarkerRejectsInvalidOrSilentlyClampedValues(string marker)
+        {
+            var source = new Beatmap<HitObject>();
+            var hitObject = new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(416, 192),
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo(marker, 100) },
+            };
+            source.HitObjects.Add(hitObject);
+
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
+                Assert.That(SticksAuthoredBeatmapCodec.TryDecode(hitObject, out _), Is.False);
+                Assert.That(converter.CanConvert(), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestOrdinaryStandardMapStillProcedurallyConverts()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(512, 192),
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo("ordinary-custom-sample.wav", 80) },
+            });
+
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            var converted = (SticksFlick)converter.Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converter.CanConvert(), Is.True);
+                Assert.That(converter.AuthoredCarrierError, Is.Null);
+                Assert.That(converted.Angle, Is.EqualTo(0).Within(0.001));
+                Assert.That(converted.Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_NORMAL));
+            });
         }
 
         [Test]

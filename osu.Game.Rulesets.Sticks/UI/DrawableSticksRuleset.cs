@@ -31,6 +31,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly BindableFloat approachRate = new BindableFloat();
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
+        private readonly BindableBool radialStackedNoteSpacing = new BindableBool(true);
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
 
         [Resolved(CanBeNull = true)]
@@ -49,6 +50,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.FlickActivationThreshold, flickActivationThreshold);
             flickActivationThreshold.BindValueChanged(threshold =>
                 ((SticksPlayfield)Playfield).FlickActivationThreshold = threshold.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.RadialStackedNoteSpacing, radialStackedNoteSpacing);
+            radialStackedNoteSpacing.BindValueChanged(enabled =>
+                ((SticksPlayfield)Playfield).RadialStackedNoteSpacing = enabled.NewValue, true);
         }
 
         public override PlayfieldAdjustmentContainer CreatePlayfieldAdjustmentContainer() => new SticksPlayfieldAdjustmentContainer();

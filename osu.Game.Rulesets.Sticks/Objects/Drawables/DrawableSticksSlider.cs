@@ -7,6 +7,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Utils;
 using osu.Game.Audio;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
@@ -19,7 +20,7 @@ using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
-    public partial class DrawableSticksSlider : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable, ISticksTrackingSource
+    public partial class DrawableSticksSlider : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable, ISticksTrackingSource, ISticksVisualRadialOffsetSource
     {
         public const float REVERSAL_PREVIEW_ALPHA = 0.28f;
 
@@ -46,6 +47,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private StickSide? displayedSide;
         private bool headSamplePlayed;
         private double previousEditorTime = double.NaN;
+        private float visualRadialOffset;
+        private bool visualRadialOffsetInitialised;
 
         [Resolved(CanBeNull = true)]
         private Editor editor { get; set; }
@@ -67,7 +70,54 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         internal bool HasResult => Judged;
 
+        /// <summary>
+        /// Whether any not-yet-erased portion of this earlier slider will cross an approaching
+        /// head's angular footprint. Future path is treated as fully extended rather than waiting
+        /// for the snake animation to reach the head, preventing the head from spawning in a slot
+        /// which is already scheduled to become occupied.
+        /// </summary>
+        internal bool FuturePathObstructsHeadAt(double time, float headAngle, float headHalfSpan)
+        {
+            if (HitObject.Side is not (StickSide.Left or StickSide.Right)
+                || time < HitObject.StartTime - HitObject.ApproachDuration
+                || time > HitObject.EndTime)
+                return false;
+
+            int firstFutureSegment;
+            double firstFutureRangeStart;
+
+            if (time < HitObject.StartTime)
+            {
+                firstFutureSegment = 0;
+                firstFutureRangeStart = 0;
+            }
+            else
+            {
+                firstFutureSegment = HitObject.SegmentIndexAt(time);
+                firstFutureRangeStart = HitObject.SegmentProgressAt(time);
+            }
+
+            for (int segment = firstFutureSegment; segment < HitObject.SegmentCount; segment++)
+            {
+                double rangeStart = segment == firstFutureSegment ? firstFutureRangeStart : 0;
+                if (angleFallsWithinVisibleRange(
+                    headAngle,
+                    headHalfSpan,
+                    HitObject.SegmentStartAngleAt(segment),
+                    HitObject.SegmentArcAngleAt(segment),
+                    rangeStart,
+                    1))
+                    return true;
+            }
+
+            return false;
+        }
+
         public bool TrackingAuthorised => trackingEligibility.IsAuthorised;
+
+        internal float VisualRadialOffset => visualRadialOffset;
+
+        float ISticksVisualRadialOffsetSource.VisualRadialOffset => visualRadialOffset;
 
         public DrawableSticksSlider(SticksSlider hitObject)
             : base(hitObject)
@@ -127,6 +177,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             base.Update();
 
             refreshEditorGeometry();
+            updateVisualRadialOffset();
 
             double now = Time.Current;
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
@@ -159,21 +210,61 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             if (displayedSide != HitObject.Side)
             {
-                updateArcLane(path, HitObject.Side, path_half_thickness, colour);
-                updateArcLane(reversalPathPreview, HitObject.Side, path_half_thickness, colour);
-                updateArcLane(reversalPathPreviewOutline, HitObject.Side, reversal_outline_half_thickness, Color4.White);
-                updateArcLane(directionPreview, HitObject.Side, direction_preview_half_thickness, colour);
-                updateArcLane(reversalOutline, HitObject.Side, reversal_outline_half_thickness, Color4.White);
-                updateArcLane(reversalPreviewOutline, HitObject.Side, reversal_direction_outline_half_thickness, Color4.White);
                 headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
                 trackingMarker.SetLane(HitObject.Side, colour);
                 displayedSide = HitObject.Side;
+                applyVisualRadialOffset(visualRadialOffset);
                 trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
             }
 
             if (headMarker.Direction != HitObject.InitialDirection)
                 headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
             headMarker.Angle = HitObject.Angle;
+        }
+
+        private void updateVisualRadialOffset()
+        {
+            if (Time.Current < HitObject.StartTime - HitObject.ApproachDuration)
+            {
+                visualRadialOffsetInitialised = false;
+                return;
+            }
+
+            float targetOffset = playfield.HeadStackOffsetFor(this);
+
+            if (!visualRadialOffsetInitialised)
+            {
+                visualRadialOffsetInitialised = true;
+                applyVisualRadialOffset(targetOffset);
+                return;
+            }
+
+            float nextOffset = (float)Interpolation.DampContinuously(visualRadialOffset, targetOffset, 45, Math.Abs(Time.Elapsed));
+            if (Math.Abs(nextOffset - visualRadialOffset) < 0.001f)
+                return;
+
+            applyVisualRadialOffset(nextOffset);
+        }
+
+        internal void ApplyVisualRadialOffsetForTesting(float offset)
+        {
+            visualRadialOffsetInitialised = true;
+            applyVisualRadialOffset(offset);
+        }
+
+        private void applyVisualRadialOffset(float offset)
+        {
+            visualRadialOffset = offset;
+            Color4 colour = colourFor(HitObject.Side);
+
+            updateArcLane(path, HitObject.Side, path_half_thickness, colour, offset);
+            updateArcLane(reversalPathPreview, HitObject.Side, path_half_thickness, colour, offset);
+            updateArcLane(reversalPathPreviewOutline, HitObject.Side, reversal_outline_half_thickness, Color4.White, offset);
+            updateArcLane(directionPreview, HitObject.Side, direction_preview_half_thickness, colour, offset);
+            updateArcLane(reversalOutline, HitObject.Side, reversal_outline_half_thickness, Color4.White, offset);
+            updateArcLane(reversalPreviewOutline, HitObject.Side, reversal_direction_outline_half_thickness, Color4.White, offset);
+            headMarker.SetRadialOffset(offset, true);
+            trackingMarker.SetRadialOffset(offset, true);
         }
 
         private void updateReversalPathPreview(double now, bool active)
@@ -490,9 +581,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             };
         }
 
-        private static void updateArcLane(CircularProgress drawable, StickSide side, float halfThickness, Color4 colour)
+        private static void updateArcLane(CircularProgress drawable, StickSide side, float halfThickness, Color4 colour, float radialOffset = 0)
         {
-            float radius = SticksPlayfield.RadiusFor(side);
+            float radius = SticksPlayfield.RadiusFor(side) + radialOffset;
             float outerRadius = radius + halfThickness;
             Vector2 size = new Vector2(outerRadius * 2);
 
@@ -519,5 +610,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private static Color4 colourFor(StickSide side) => side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
             : SticksPlayfield.RIGHT_COLOUR;
+
+        private static bool angleFallsWithinVisibleRange(float angle, float halfSpan, float segmentStartAngle, float segmentArcAngle, double rangeStart, double rangeEnd)
+        {
+            rangeStart = Math.Clamp(rangeStart, 0, 1);
+            rangeEnd = Math.Clamp(rangeEnd, 0, 1);
+            if (rangeEnd <= rangeStart)
+                return false;
+
+            double visibleStart = segmentStartAngle + segmentArcAngle * rangeStart;
+            double visibleEnd = segmentStartAngle + segmentArcAngle * rangeEnd;
+            double lower = Math.Min(visibleStart, visibleEnd) - Math.Max(0, halfSpan);
+            double upper = Math.Max(visibleStart, visibleEnd) + Math.Max(0, halfSpan);
+
+            // Compare against every equivalent revolution without iterating through long,
+            // multi-turn slider arcs.
+            double firstEquivalent = Math.Ceiling((lower - angle) / 360);
+            double lastEquivalent = Math.Floor((upper - angle) / 360);
+            return firstEquivalent <= lastEquivalent;
+        }
     }
 }

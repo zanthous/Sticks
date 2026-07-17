@@ -74,6 +74,11 @@ namespace osu.Game.Rulesets.Sticks
                     LabelFormat = value =>
                         $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
                 }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Radial spacing for stacked notes",
+                    Current = config.GetBindable<bool>(SticksRulesetSetting.RadialStackedNoteSpacing),
+                }),
                 new SettingsButtonV2
                 {
                     Text = "Create blank Sticks difficulty",

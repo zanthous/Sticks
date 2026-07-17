@@ -8,6 +8,7 @@ using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Utils;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -33,6 +34,33 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SpriteIcon directionArrow;
         private readonly bool reversalStyle;
         private float span;
+        private float radialOffset;
+        private float targetRadialOffset;
+        private bool radialOffsetInitialised;
+
+        public float RadialOffset
+        {
+            get => targetRadialOffset;
+            set => SetRadialOffset(value);
+        }
+
+        internal float DisplayedRadialOffset => radialOffset;
+
+        internal void SetRadialOffset(float value, bool immediate = false)
+        {
+            targetRadialOffset = value;
+
+            if (!radialOffsetInitialised || immediate)
+            {
+                radialOffsetInitialised = true;
+
+                if (Math.Abs(radialOffset - value) < 0.001f)
+                    return;
+
+                radialOffset = value;
+                updateGeometry();
+            }
+        }
 
         public float Angle
         {
@@ -103,6 +131,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Span = SticksHitObject.VISIBLE_ARC_SPAN;
         }
 
+        protected override void Update()
+        {
+            base.Update();
+
+            float nextOffset = (float)Interpolation.DampContinuously(radialOffset, targetRadialOffset, 45, Math.Abs(Time.Elapsed));
+            if (Math.Abs(nextOffset - radialOffset) < 0.001f)
+                return;
+
+            radialOffset = nextOffset;
+            updateGeometry();
+        }
+
         public void SetLaneAndDirection(StickSide newSide, int newDirection, Color4 colour)
         {
             side = newSide;
@@ -122,7 +162,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateGeometry()
         {
-            float radius = SticksPlayfield.RadiusFor(side);
+            float radius = SticksPlayfield.RadiusFor(side) + radialOffset;
             float outsideAngle = -direction * span / 2;
             float arcStart = reversalStyle ? Math.Min(0, outsideAngle) : -span / 2;
             float arcEnd = reversalStyle ? Math.Max(0, outsideAngle) : span / 2;

@@ -6,6 +6,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Utils;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -23,6 +24,33 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SmoothPath trailingCap;
         private readonly SmoothPath centreTick;
         private float span;
+        private float radialOffset;
+        private float targetRadialOffset;
+        private bool radialOffsetInitialised;
+
+        public float RadialOffset
+        {
+            get => targetRadialOffset;
+            set => SetRadialOffset(value);
+        }
+
+        internal float DisplayedRadialOffset => radialOffset;
+
+        internal void SetRadialOffset(float value, bool immediate = false)
+        {
+            targetRadialOffset = value;
+
+            if (!radialOffsetInitialised || immediate)
+            {
+                radialOffsetInitialised = true;
+
+                if (Math.Abs(radialOffset - value) < 0.001f)
+                    return;
+
+                radialOffset = value;
+                updateGeometry();
+            }
+        }
 
         public float Angle
         {
@@ -69,6 +97,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Span = SticksHitObject.VISIBLE_ARC_SPAN;
         }
 
+        protected override void Update()
+        {
+            base.Update();
+
+            float nextOffset = (float)Interpolation.DampContinuously(radialOffset, targetRadialOffset, 45, Math.Abs(Time.Elapsed));
+            if (Math.Abs(nextOffset - radialOffset) < 0.001f)
+                return;
+
+            radialOffset = nextOffset;
+            updateGeometry();
+        }
+
         public void SetLane(StickSide newSide, Color4 colour)
         {
             side = newSide;
@@ -85,7 +125,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateGeometry()
         {
-            float radius = SticksPlayfield.RadiusFor(side);
+            float radius = SticksPlayfield.RadiusFor(side) + radialOffset;
             if (animatedArc != null)
             {
                 float outerRadius = radius + stroke_radius;
@@ -143,18 +183,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             return vertices;
         }
 
-        private static SmoothPath createCap(Color4 colour, float halfLength = cap_half_length) => new SmoothPath
+        private static SmoothPath createCap(Color4 colour, float halfLength = cap_half_length, float pathRadius = stroke_radius) => new SmoothPath
         {
             Anchor = Anchor.TopLeft,
             Origin = Anchor.Centre,
             AutoSizeAxes = Axes.None,
-            Size = new Vector2(halfLength * 2 + stroke_radius * 2, stroke_radius * 2),
-            PathRadius = stroke_radius,
+            Size = new Vector2(halfLength * 2 + pathRadius * 2, pathRadius * 2),
+            PathRadius = pathRadius,
             Colour = colour,
             Vertices = new[]
             {
-                new Vector2(stroke_radius, stroke_radius),
-                new Vector2(stroke_radius + halfLength * 2, stroke_radius),
+                new Vector2(pathRadius, pathRadius),
+                new Vector2(pathRadius + halfLength * 2, pathRadius),
             },
         };
 

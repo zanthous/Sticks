@@ -532,6 +532,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestRadialStackedNoteSpacingDefaultsOn()
+        {
+            var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+
+            Assert.That(config.Get<bool>(SticksRulesetSetting.RadialStackedNoteSpacing), Is.True);
+        }
+
+        [Test]
         public void TestAutoplayControlsBothSticksAndTracksSliders()
         {
             var beatmap = new Beatmap<SticksHitObject>();

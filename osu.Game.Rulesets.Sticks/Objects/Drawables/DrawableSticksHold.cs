@@ -41,6 +41,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private bool headHit;
         private bool headSamplePlayed;
         private double previousEditorTime = double.NaN;
+        private bool visibleStackOffsetInitialised;
 
         [Resolved(CanBeNull = true)]
         private Editor editor { get; set; }
@@ -157,6 +158,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double headGrowth = SticksHitObject.ApproachGrowthProgress(approachProgress);
             updateSyncedNoteLink(now, headGrowth);
             headMarker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + 0.8 * headGrowth);
+
+            double approachStart = HitObject.StartTime - HitObject.ApproachDuration;
+            if (now < approachStart)
+            {
+                visibleStackOffsetInitialised = false;
+            }
+            else
+            {
+                headMarker.SetRadialOffset(playfield.HeadStackOffsetFor(this), !visibleStackOffsetInitialised);
+                visibleStackOffsetInitialised = true;
+            }
+
             double progress = Math.Clamp((now - HitObject.StartTime) / Math.Max(1, HitObject.Duration), 0, 1);
             durationRail.Alpha = now < HitObject.EndTime ? 0.38f : 0;
             durationCursor.Alpha = active ? 0.9f : 0;

@@ -71,6 +71,12 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public float RechargeThreshold => input.RechargeThreshold;
 
+        public bool RadialStackedNoteSpacing
+        {
+            get => ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing;
+            set => ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing = value;
+        }
+
         public CircularContainer LeftStickCursor => leftCursor;
 
         public CircularContainer RightStickCursor => rightCursor;
@@ -288,6 +294,13 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
 
         public readonly record struct FlickTarget(double StartTime, float Angle, float LenientHalfAngle);
+
+        /// <summary>
+        /// Returns the visual radial separation assigned to a later head which would otherwise
+        /// be occluded by an earlier head on the same stick and angular lane.
+        /// </summary>
+        public float HeadStackOffsetFor(DrawableHitObject drawable) =>
+            ((SticksHitObjectContainer)HitObjectContainer).HeadStackOffsetFor(drawable);
 
         public static float RadiusFor(StickSide side) => side == StickSide.Left ? OUTER_RADIUS : INNER_RADIUS;
 

@@ -24,6 +24,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 SticksInputTracker.MIN_ACTIVATION_THRESHOLD,
                 SticksInputTracker.MAX_ACTIVATION_THRESHOLD,
                 0.01f);
+            SetDefault(SticksRulesetSetting.RadialStackedNoteSpacing, true);
         }
 
         public override TrackedSettings CreateTrackedSettings() => new TrackedSettings
@@ -38,6 +39,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks flick activation",
                 value: $"{threshold * 100:0}%"
             )),
+            new TrackedSetting<bool>(SticksRulesetSetting.RadialStackedNoteSpacing, enabled => new SettingDescription(
+                rawValue: enabled,
+                name: "Sticks stacked-note spacing",
+                value: enabled ? "Radial" : "Disabled"
+            )),
         };
     }
 
@@ -45,5 +51,6 @@ namespace osu.Game.Rulesets.Sticks.Configuration
     {
         ApproachRate,
         FlickActivationThreshold,
+        RadialStackedNoteSpacing,
     }
 }

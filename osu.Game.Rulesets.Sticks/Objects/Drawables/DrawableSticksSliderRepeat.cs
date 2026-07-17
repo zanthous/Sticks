@@ -52,6 +52,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 marker.SetLaneAndDirection(HitObject.Side, HitObject.DirectionAfter, colourFor(HitObject.Side));
             marker.Angle = HitObject.Angle;
             marker.Span = HitObject.PrimaryHitAngle;
+            marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
         }
 
         protected override double InitialLifetimeOffset => HitObject.PreemptDuration;

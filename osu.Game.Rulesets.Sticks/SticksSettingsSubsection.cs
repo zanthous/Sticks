@@ -74,10 +74,24 @@ namespace osu.Game.Rulesets.Sticks
                     LabelFormat = value =>
                         $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
                 }),
-                new SettingsItemV2(new FormCheckBox
+                new SettingsItemV2(new FormEnumDropdown<SticksStackedNotePresentation>
                 {
-                    Caption = "Radial spacing for stacked notes",
-                    Current = config.GetBindable<bool>(SticksRulesetSetting.RadialStackedNoteSpacing),
+                    Caption = "Stacked note presentation",
+                    Current = config.GetBindable<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation),
+                }),
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = "Radial approach distance",
+                    Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachDistance),
+                    KeyboardStep = 1,
+                    LabelFormat = value => $"{value:0}",
+                }),
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = "Radial approach speed",
+                    Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachSpeed),
+                    KeyboardStep = 0.05f,
+                    LabelFormat = value => $"{value:0.00}x",
                 }),
                 new SettingsButtonV2
                 {

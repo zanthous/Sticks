@@ -17,6 +17,7 @@ using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -31,6 +32,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float LANE_OFFSET = 16;
         public const float OUTER_RADIUS = GUIDE_RADIUS + LANE_OFFSET;
         public const float INNER_RADIUS = GUIDE_RADIUS - LANE_OFFSET;
+        public const float DEFAULT_RADIAL_APPROACH_DISTANCE = 30;
+        public const float DEFAULT_RADIAL_APPROACH_SPEED = 1;
         public static readonly Color4 LEFT_COLOUR = new Color4(0.2f, 0.62f, 1f, 1f);
         public static readonly Color4 RIGHT_COLOUR = new Color4(1f, 0.25f, 0.3f, 1f);
 
@@ -41,6 +44,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksJudgementDisplay judgementDisplay;
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
+        private SticksStackedNotePresentation stackedNotePresentation = SticksStackedNotePresentation.RadialSpacing;
         private bool trailsWereVisible;
         private float leftX;
         private float leftY;
@@ -71,11 +75,21 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public float RechargeThreshold => input.RechargeThreshold;
 
-        public bool RadialStackedNoteSpacing
+        public SticksStackedNotePresentation StackedNotePresentation
         {
-            get => ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing;
-            set => ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing = value;
+            get => stackedNotePresentation;
+            set
+            {
+                stackedNotePresentation = value;
+                updateRadialPresentationMode();
+            }
         }
+
+        public bool RadialNoteApproach => stackedNotePresentation == SticksStackedNotePresentation.RadialApproach;
+
+        public float RadialApproachDistance { get; set; } = DEFAULT_RADIAL_APPROACH_DISTANCE;
+
+        public float RadialApproachSpeed { get; set; } = DEFAULT_RADIAL_APPROACH_SPEED;
 
         public CircularContainer LeftStickCursor => leftCursor;
 
@@ -296,11 +310,50 @@ namespace osu.Game.Rulesets.Sticks.UI
         public readonly record struct FlickTarget(double StartTime, float Angle, float LenientHalfAngle);
 
         /// <summary>
+        /// Returns a clock-derived radial approach position. Blue objects begin outside their
+        /// lane and red objects begin inside it, then linearly reach the normal lane exactly at
+        /// the hit time. This is deliberately not frame-rate-dependent damping.
+        /// </summary>
+        public float RadialApproachOffsetFor(SticksHitObject hitObject) => RadialNoteApproach
+            ? RadialApproachOffsetAt(
+                hitObject.Side,
+                Time.Current,
+                hitObject.StartTime,
+                hitObject.ApproachDuration,
+                RadialApproachDistance,
+                RadialApproachSpeed)
+            : 0;
+
+        public float VisualRadialOffsetFor(DrawableHitObject drawable, SticksHitObject hitObject) => RadialNoteApproach
+            ? RadialApproachOffsetFor(hitObject)
+            : HeadStackOffsetFor(drawable);
+
+        internal static float RadialApproachOffsetAt(
+            StickSide side,
+            double time,
+            double hitTime,
+            double approachDuration,
+            float distance = DEFAULT_RADIAL_APPROACH_DISTANCE,
+            float speed = DEFAULT_RADIAL_APPROACH_SPEED)
+        {
+            double progress = Math.Clamp((time - (hitTime - approachDuration)) / Math.Max(1, approachDuration), 0, 1);
+            double speedAdjustedProgress = 1 - Math.Pow(1 - progress, Math.Max(0.01f, speed));
+            float direction = side == StickSide.Left ? 1 : -1;
+            return direction * distance * (1 - (float)speedAdjustedProgress);
+        }
+
+        /// <summary>
         /// Returns the visual radial separation assigned to a later head which would otherwise
         /// be occluded by an earlier head on the same stick and angular lane.
         /// </summary>
         public float HeadStackOffsetFor(DrawableHitObject drawable) =>
             ((SticksHitObjectContainer)HitObjectContainer).HeadStackOffsetFor(drawable);
+
+        private void updateRadialPresentationMode()
+        {
+            ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing =
+                stackedNotePresentation == SticksStackedNotePresentation.RadialSpacing;
+        }
 
         public static float RadiusFor(StickSide side) => side == StickSide.Left ? OUTER_RADIUS : INNER_RADIUS;
 

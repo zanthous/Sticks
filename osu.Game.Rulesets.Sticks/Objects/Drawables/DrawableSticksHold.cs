@@ -8,6 +8,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Utils;
 using osu.Game.Audio;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
@@ -28,6 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
         private readonly Container nestedHitObjectContainer;
+        private readonly Container approachVisuals;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
         private SticksSyncedNoteLink syncedNoteLink;
         private Vector2 railStart;
@@ -41,7 +43,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private bool headHit;
         private bool headSamplePlayed;
         private double previousEditorTime = double.NaN;
-        private bool visibleStackOffsetInitialised;
+        private float visualRadialOffset;
+        private bool visualRadialOffsetInitialised;
 
         [Resolved(CanBeNull = true)]
         private Editor editor { get; set; }
@@ -91,29 +94,35 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Depth = -20,
             });
 
-            AddInternal(durationRail = new SmoothPath
+            AddInternal(approachVisuals = new Container
             {
-                AutoSizeAxes = Axes.None,
-                Size = new Vector2(SticksPlayfield.SIZE),
-                PathRadius = 4,
-                Colour = colourFor(hitObject.Side),
-                Alpha = 0,
-                Depth = 10,
-                Vertices = new[] { railStart, railEnd },
+                RelativeSizeAxes = Axes.Both,
+                AlwaysPresent = true,
+                Children = new Drawable[]
+                {
+                    durationRail = new SmoothPath
+                    {
+                        AutoSizeAxes = Axes.None,
+                        Size = new Vector2(SticksPlayfield.SIZE),
+                        PathRadius = 4,
+                        Colour = colourFor(hitObject.Side),
+                        Alpha = 0,
+                        Depth = 10,
+                        Vertices = new[] { railStart, railEnd },
+                    },
+                    durationCursor = new Circle
+                    {
+                        Anchor = Anchor.TopLeft,
+                        Origin = Anchor.Centre,
+                        Position = railEnd,
+                        Size = new Vector2(11),
+                        Colour = Color4.White,
+                        Alpha = 0,
+                        Depth = 5,
+                    },
+                    headMarker = createHeadMarker(),
+                },
             });
-
-            AddInternal(durationCursor = new Circle
-            {
-                Anchor = Anchor.TopLeft,
-                Origin = Anchor.Centre,
-                Position = railEnd,
-                Size = new Vector2(11),
-                Colour = Color4.White,
-                Alpha = 0,
-                Depth = 5,
-            });
-
-            AddInternal(headMarker = createHeadMarker());
 
             AddInternal(holdingSample = new PausableSkinnableSound
             {
@@ -149,6 +158,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
 
+            updateVisualRadialOffset();
+            float radians = HitObject.Angle * MathF.PI / 180;
+            approachVisuals.Position = new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * visualRadialOffset;
             refreshGeometry();
 
             double now = Time.Current;
@@ -158,17 +170,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double headGrowth = SticksHitObject.ApproachGrowthProgress(approachProgress);
             updateSyncedNoteLink(now, headGrowth);
             headMarker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + 0.8 * headGrowth);
-
-            double approachStart = HitObject.StartTime - HitObject.ApproachDuration;
-            if (now < approachStart)
-            {
-                visibleStackOffsetInitialised = false;
-            }
-            else
-            {
-                headMarker.SetRadialOffset(playfield.HeadStackOffsetFor(this), !visibleStackOffsetInitialised);
-                visibleStackOffsetInitialised = true;
-            }
 
             double progress = Math.Clamp((now - HitObject.StartTime) / Math.Max(1, HitObject.Duration), 0, 1);
             durationRail.Alpha = now < HitObject.EndTime ? 0.38f : 0;
@@ -182,6 +183,26 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             // checkpoint was missed. Only checkpoints crossed while away are lost.
             bool currentlyTracking = active && TrackingAuthorised && isStickInRange();
             updateHoldingSample(currentlyTracking && !Judged);
+        }
+
+        private void updateVisualRadialOffset()
+        {
+            if (Time.Current < HitObject.StartTime - HitObject.ApproachDuration)
+            {
+                visualRadialOffsetInitialised = false;
+                return;
+            }
+
+            float targetOffset = playfield.VisualRadialOffsetFor(this, HitObject);
+
+            if (playfield.RadialNoteApproach || !visualRadialOffsetInitialised)
+            {
+                visualRadialOffsetInitialised = true;
+                visualRadialOffset = targetOffset;
+                return;
+            }
+
+            visualRadialOffset = (float)Interpolation.DampContinuously(visualRadialOffset, targetOffset, 45, Math.Abs(Time.Elapsed));
         }
 
         private void refreshGeometry()

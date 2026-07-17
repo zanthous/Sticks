@@ -230,9 +230,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 return;
             }
 
-            float targetOffset = playfield.HeadStackOffsetFor(this);
+            float targetOffset = playfield.VisualRadialOffsetFor(this, HitObject);
 
-            if (!visualRadialOffsetInitialised)
+            if (playfield.RadialNoteApproach || !visualRadialOffsetInitialised)
             {
                 visualRadialOffsetInitialised = true;
                 applyVisualRadialOffset(targetOffset);

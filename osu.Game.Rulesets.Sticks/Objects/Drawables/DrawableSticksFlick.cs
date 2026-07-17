@@ -24,7 +24,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private DrawableSticksAngleComponent angleComponent = null!;
         private SticksPlayfield playfield = null!;
         private long observedSequence;
-        private bool visibleStackOffsetInitialised;
+        private bool visualRadialOffsetInitialised;
 
         public new SticksFlick HitObject => (SticksFlick)base.HitObject;
 
@@ -71,14 +71,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.Angle = HitObject.Angle;
 
             double approachStart = HitObject.StartTime - HitObject.ApproachDuration;
-            if (Time.Current < approachStart)
+            if (playfield.RadialNoteApproach)
             {
-                visibleStackOffsetInitialised = false;
+                marker.SetRadialOffset(playfield.VisualRadialOffsetFor(this, HitObject), true);
+            }
+            else if (Time.Current < approachStart)
+            {
+                visualRadialOffsetInitialised = false;
             }
             else
             {
-                marker.SetRadialOffset(playfield.HeadStackOffsetFor(this), !visibleStackOffsetInitialised);
-                visibleStackOffsetInitialised = true;
+                marker.SetRadialOffset(playfield.VisualRadialOffsetFor(this, HitObject), !visualRadialOffsetInitialised);
+                visualRadialOffsetInitialised = true;
             }
 
             double approach = Math.Clamp((Time.Current - approachStart) / HitObject.ApproachDuration, 0, 1);

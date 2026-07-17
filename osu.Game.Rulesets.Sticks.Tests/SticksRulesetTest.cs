@@ -532,11 +532,40 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestRadialStackedNoteSpacingDefaultsOn()
+        public void TestStackedNotePresentationSettings()
         {
             var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+            var playfield = new SticksPlayfield();
+            var hitObjectContainer = (SticksHitObjectContainer)playfield.HitObjectContainer;
 
-            Assert.That(config.Get<bool>(SticksRulesetSetting.RadialStackedNoteSpacing), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(config.Get<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation),
+                    Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
+                Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachDistance), Is.EqualTo(30));
+                Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachSpeed), Is.EqualTo(1));
+                Assert.That(playfield.RadialNoteApproach, Is.False);
+                Assert.That(playfield.StackedNotePresentation, Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
+                Assert.That(hitObjectContainer.RadialStackedNoteSpacing, Is.True);
+            });
+
+            playfield.StackedNotePresentation = SticksStackedNotePresentation.RadialApproach;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(playfield.RadialNoteApproach, Is.True);
+                Assert.That(hitObjectContainer.RadialStackedNoteSpacing, Is.False);
+            });
+
+            playfield.StackedNotePresentation = SticksStackedNotePresentation.None;
+            Assert.Multiple(() =>
+            {
+                Assert.That(playfield.RadialNoteApproach, Is.False);
+                Assert.That(hitObjectContainer.RadialStackedNoteSpacing, Is.False);
+            });
+
+            playfield.StackedNotePresentation = SticksStackedNotePresentation.RadialSpacing;
+            Assert.That(hitObjectContainer.RadialStackedNoteSpacing, Is.True);
         }
 
         [Test]

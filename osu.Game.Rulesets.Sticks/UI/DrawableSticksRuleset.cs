@@ -31,7 +31,10 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly BindableFloat approachRate = new BindableFloat();
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
-        private readonly BindableBool radialStackedNoteSpacing = new BindableBool(true);
+        private readonly Bindable<SticksStackedNotePresentation> stackedNotePresentation =
+            new Bindable<SticksStackedNotePresentation>(SticksStackedNotePresentation.RadialSpacing);
+        private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
+        private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
 
         [Resolved(CanBeNull = true)]
@@ -50,9 +53,15 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.FlickActivationThreshold, flickActivationThreshold);
             flickActivationThreshold.BindValueChanged(threshold =>
                 ((SticksPlayfield)Playfield).FlickActivationThreshold = threshold.NewValue, true);
-            Config.BindWith(SticksRulesetSetting.RadialStackedNoteSpacing, radialStackedNoteSpacing);
-            radialStackedNoteSpacing.BindValueChanged(enabled =>
-                ((SticksPlayfield)Playfield).RadialStackedNoteSpacing = enabled.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.StackedNotePresentation, stackedNotePresentation);
+            stackedNotePresentation.BindValueChanged(presentation =>
+                ((SticksPlayfield)Playfield).StackedNotePresentation = presentation.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.RadialApproachDistance, radialApproachDistance);
+            radialApproachDistance.BindValueChanged(distance =>
+                ((SticksPlayfield)Playfield).RadialApproachDistance = distance.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.RadialApproachSpeed, radialApproachSpeed);
+            radialApproachSpeed.BindValueChanged(speed =>
+                ((SticksPlayfield)Playfield).RadialApproachSpeed = speed.NewValue, true);
         }
 
         public override PlayfieldAdjustmentContainer CreatePlayfieldAdjustmentContainer() => new SticksPlayfieldAdjustmentContainer();

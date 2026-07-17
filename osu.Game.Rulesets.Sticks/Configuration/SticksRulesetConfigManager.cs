@@ -1,6 +1,8 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
+using System.ComponentModel;
 using osu.Framework.Configuration.Tracking;
+using osu.Framework.Extensions;
 using osu.Game.Configuration;
 using osu.Game.Rulesets.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -24,7 +26,17 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 SticksInputTracker.MIN_ACTIVATION_THRESHOLD,
                 SticksInputTracker.MAX_ACTIVATION_THRESHOLD,
                 0.01f);
-            SetDefault(SticksRulesetSetting.RadialStackedNoteSpacing, true);
+            SetDefault(SticksRulesetSetting.StackedNotePresentation, SticksStackedNotePresentation.RadialSpacing);
+            SetDefault(SticksRulesetSetting.RadialApproachDistance,
+                SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE,
+                0f,
+                120f,
+                1f);
+            SetDefault(SticksRulesetSetting.RadialApproachSpeed,
+                SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED,
+                0.25f,
+                4f,
+                0.05f);
         }
 
         public override TrackedSettings CreateTrackedSettings() => new TrackedSettings
@@ -39,10 +51,20 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks flick activation",
                 value: $"{threshold * 100:0}%"
             )),
-            new TrackedSetting<bool>(SticksRulesetSetting.RadialStackedNoteSpacing, enabled => new SettingDescription(
-                rawValue: enabled,
-                name: "Sticks stacked-note spacing",
-                value: enabled ? "Radial" : "Disabled"
+            new TrackedSetting<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation, presentation => new SettingDescription(
+                rawValue: presentation,
+                name: "Sticks stacked-note presentation",
+                value: presentation.GetDescription()
+            )),
+            new TrackedSetting<float>(SticksRulesetSetting.RadialApproachDistance, distance => new SettingDescription(
+                rawValue: distance,
+                name: "Sticks radial approach distance",
+                value: $"{distance:0}"
+            )),
+            new TrackedSetting<float>(SticksRulesetSetting.RadialApproachSpeed, speed => new SettingDescription(
+                rawValue: speed,
+                name: "Sticks radial approach speed",
+                value: $"{speed:0.00}x"
             )),
         };
     }
@@ -51,6 +73,19 @@ namespace osu.Game.Rulesets.Sticks.Configuration
     {
         ApproachRate,
         FlickActivationThreshold,
-        RadialStackedNoteSpacing,
+        StackedNotePresentation,
+        RadialApproachDistance,
+        RadialApproachSpeed,
+    }
+
+    public enum SticksStackedNotePresentation
+    {
+        None,
+
+        [Description("Radial spacing")]
+        RadialSpacing,
+
+        [Description("Radial approach")]
+        RadialApproach,
     }
 }

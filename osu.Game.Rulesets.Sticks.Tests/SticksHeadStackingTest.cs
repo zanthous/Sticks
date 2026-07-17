@@ -1,5 +1,6 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
+using System;
 using System.Reflection;
 using NUnit.Framework;
 using osu.Framework.Graphics.UserInterface;
@@ -12,6 +13,22 @@ namespace osu.Game.Rulesets.Sticks.Tests
     [TestFixture]
     public class SticksHeadStackingTest
     {
+        [TestCase(StickSide.Left, 30, 15, 0)]
+        [TestCase(StickSide.Right, -30, -15, 0)]
+        public void TestRadialApproachLerpsToLaneAtHitTime(StickSide side, float atApproachStart, float halfway, float atHit)
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.RadialApproachOffsetAt(side, -200, 1000, 1200), Is.EqualTo(atApproachStart).Within(0.001));
+                Assert.That(SticksPlayfield.RadialApproachOffsetAt(side, 400, 1000, 1200), Is.EqualTo(halfway).Within(0.001));
+                Assert.That(SticksPlayfield.RadialApproachOffsetAt(side, 1000, 1000, 1200), Is.EqualTo(atHit).Within(0.001));
+                Assert.That(SticksPlayfield.RadialApproachOffsetAt(side, 1200, 1000, 1200), Is.EqualTo(atHit).Within(0.001));
+                Assert.That(Math.Abs(SticksPlayfield.RadialApproachOffsetAt(side, -200, 1000, 1200, 45)), Is.EqualTo(45).Within(0.001));
+                Assert.That(Math.Abs(SticksPlayfield.RadialApproachOffsetAt(side, 400, 1000, 1200, 30, 2)), Is.EqualTo(7.5).Within(0.001));
+                Assert.That(Math.Abs(SticksPlayfield.RadialApproachOffsetAt(side, 400, 1000, 1200, 30, 0.5f)), Is.EqualTo(30 / Math.Sqrt(2)).Within(0.001));
+            });
+        }
+
         [Test]
         public void TestLaterOverlappingHeadReceivesStackRank()
         {

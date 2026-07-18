@@ -290,6 +290,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             var centreLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 180);
             var sharedAngleLink = new SticksSyncedNoteLink(StickSide.Left, 0, StickSide.Right, 360);
+            Vector2 notePosition = SticksPlayfield.PointAt(0, SticksPlayfield.OUTER_RADIUS);
+            Vector2 playfieldCentre = new Vector2(SticksPlayfield.SIZE / 2);
+            Vector2 shortEndpoint = SticksSyncedNoteLink.EndpointTowardCentre(
+                notePosition,
+                playfieldCentre,
+                SticksChordLinkPresentation.Short);
             Assert.Multiple(() =>
             {
                 Assert.That(SticksSyncedNoteLink.ColourFor(StickSide.Left), Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
@@ -304,7 +310,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(sharedAngleLink.UsesAlternatingDashes, Is.True);
                 Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.5f), Is.True);
                 Assert.That(SticksSyncedNoteLink.IsSharedAngle(15, 15.51f), Is.False);
+                Assert.That((shortEndpoint - notePosition).Length,
+                    Is.EqualTo((playfieldCentre - notePosition).Length * 0.25f).Within(0.001));
             });
+
+            centreLink.Presentation = SticksChordLinkPresentation.Short;
+            Assert.That(centreLink.DrawableSegmentCount, Is.EqualTo(2));
+            centreLink.Presentation = SticksChordLinkPresentation.Hidden;
+            Assert.That(centreLink.DrawableSegmentCount, Is.Zero);
         }
 
         [Test]
@@ -489,7 +502,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
             slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty { ApproachRate = 10 });
 
-            Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(5));
+            Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(8));
             Assert.Multiple(() =>
             {
                 Assert.That(SticksHitObject.ApproachDurationFor(0), Is.EqualTo(1800));
@@ -536,8 +549,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestRelaxRemembersDirectionAndGeneratesFreshGesturesWithoutNeutral()
         {
-            Vector2 direction = SticksPlayfield.RememberRelaxDirection(Vector2.Zero, new Vector2(0.25f, 0.25f));
-            direction = SticksPlayfield.RememberRelaxDirection(direction, Vector2.Zero);
+            float sliderCutoff = SticksInputTracker.RechargeThresholdFor(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD);
+            Vector2 direction = SticksPlayfield.RememberRelaxDirection(Vector2.Zero, new Vector2(0.8f, 0.8f), sliderCutoff);
+            Vector2 unchangedBelowSliderCutoff = SticksPlayfield.RememberRelaxDirection(direction, new Vector2(0.6f, 0), sliderCutoff);
+            Vector2 unchangedAtSliderCutoff = SticksPlayfield.RememberRelaxDirection(direction, new Vector2(sliderCutoff, 0), sliderCutoff);
+            Vector2 changedAboveSliderCutoff = SticksPlayfield.RememberRelaxDirection(direction, new Vector2(sliderCutoff + 0.01f, 0), sliderCutoff);
+            Vector2 directionLineEndpoint = SticksPlayfield.RelaxDirectionEndpoint(Vector2.UnitX, StickSide.Left);
+            direction = SticksPlayfield.RememberRelaxDirection(unchangedBelowSliderCutoff, Vector2.Zero, sliderCutoff);
             var input = new SticksInputTracker();
             input.UpdateRelaxDirection(StickSide.Left, direction);
 
@@ -553,6 +571,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(direction.Length, Is.EqualTo(1).Within(0.0001));
+                Assert.That(unchangedBelowSliderCutoff, Is.EqualTo(direction));
+                Assert.That(unchangedAtSliderCutoff, Is.EqualTo(direction));
+                Assert.That(changedAboveSliderCutoff, Is.EqualTo(Vector2.UnitX));
+                Assert.That(directionLineEndpoint.X - SticksPlayfield.SIZE / 2,
+                    Is.EqualTo(SticksPlayfield.OUTER_RADIUS * 0.25f).Within(0.0001));
+                Assert.That(directionLineEndpoint.Y, Is.EqualTo(SticksPlayfield.SIZE / 2));
                 Assert.That(input.VectorFor(StickSide.Left).X, Is.EqualTo(direction.X).Within(0.0001));
                 Assert.That(input.VectorFor(StickSide.Left).Y, Is.EqualTo(direction.Y).Within(0.0001));
                 Assert.That(input.IsBeyondRechargeBoundary(StickSide.Left), Is.True);
@@ -574,6 +598,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(config.Get<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation),
                     Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
+                Assert.That(config.Get<SticksChordLinkPresentation>(SticksRulesetSetting.ChordLinkPresentation),
+                    Is.EqualTo(SticksChordLinkPresentation.FullToCentre));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachDistance), Is.EqualTo(30));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachSpeed), Is.EqualTo(1));
                 Assert.That(playfield.RadialNoteApproach, Is.False);
@@ -1104,10 +1130,49 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(crossProduct, Is.EqualTo(0).Within(0.01), "The refreshed hold rail must remain radial through the playfield centre.");
+                Assert.That(crossProduct, Is.EqualTo(0).Within(0.01), "The refreshed hold rail must remain radial through the playfield center.");
                 Assert.That(endOffset.Length, Is.GreaterThan(startOffset.Length));
                 Assert.That(blue.RailStart.X, Is.LessThan(centre));
                 Assert.That(blue.RailStart.Y, Is.LessThan(centre));
+            });
+        }
+
+        [Test]
+        public void TestLongHoldRailRemainsRadialAndInsidePlayfield()
+        {
+            const float angle = 0;
+            const float radialStackOffset = 40;
+            float localEndRadius = DrawableSticksHold.RailEndRadiusFor(StickSide.Left, angle, 100_000, radialStackOffset);
+            float effectiveEndRadius = localEndRadius + radialStackOffset;
+            Vector2 centre = new Vector2(SticksPlayfield.SIZE / 2);
+            Vector2 direction = Vector2.UnitX;
+            Vector2 effectiveStart = SticksPlayfield.PointAt(angle, SticksPlayfield.OUTER_RADIUS) + direction * radialStackOffset;
+            Vector2 effectiveEnd = SticksPlayfield.PointAt(angle, localEndRadius) + direction * radialStackOffset;
+            Vector2 startOffset = effectiveStart - centre;
+            Vector2 endOffset = effectiveEnd - centre;
+            float crossProduct = startOffset.X * endOffset.Y - startOffset.Y * endOffset.X;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(effectiveEndRadius, Is.LessThanOrEqualTo(SticksPlayfield.SIZE / 2 - 6));
+                Assert.That(effectiveEnd.X, Is.LessThan(SticksPlayfield.SIZE));
+                Assert.That(effectiveEnd.Y, Is.InRange(0, SticksPlayfield.SIZE));
+                Assert.That(crossProduct, Is.EqualTo(0).Within(0.001),
+                    "Clamping a long hold must never rotate its rail away from the note angle.");
+                Assert.That(endOffset.Length, Is.GreaterThanOrEqualTo(startOffset.Length));
+            });
+
+            // Diagonal holds may use the extra distance available toward a playfield corner, but
+            // both endpoint coordinates and the cursor padding must still remain inside the box.
+            const float diagonalAngle = 225;
+            float diagonalRadius = DrawableSticksHold.RailEndRadiusFor(StickSide.Left, diagonalAngle, 100_000);
+            Vector2 diagonalEnd = SticksPlayfield.PointAt(diagonalAngle, diagonalRadius);
+            Assert.Multiple(() =>
+            {
+                Assert.That(diagonalEnd.X, Is.GreaterThanOrEqualTo(6));
+                Assert.That(diagonalEnd.Y, Is.GreaterThanOrEqualTo(6));
+                Assert.That(diagonalEnd.X, Is.LessThanOrEqualTo(SticksPlayfield.SIZE - 6));
+                Assert.That(diagonalEnd.Y, Is.LessThanOrEqualTo(SticksPlayfield.SIZE - 6));
             });
         }
 

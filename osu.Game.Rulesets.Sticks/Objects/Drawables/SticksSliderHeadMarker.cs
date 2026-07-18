@@ -16,8 +16,8 @@ using osuTK.Graphics;
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     /// <summary>
-    /// A compact slider head with a centred direction glyph framed by its angular hit width.
-    /// It intentionally omits the centre tick used by flick markers so the double arrow is
+    /// A compact slider head with a centered direction glyph framed by its angular hit width.
+    /// It intentionally omits the center tick used by flick markers so the double arrow is
     /// the sole focal point.
     /// </summary>
     public partial class SticksSliderHeadMarker : CompositeDrawable

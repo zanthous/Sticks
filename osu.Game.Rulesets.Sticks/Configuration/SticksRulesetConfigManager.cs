@@ -20,12 +20,13 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         protected override void InitialiseDefaults()
         {
             base.InitialiseDefaults();
-            SetDefault(SticksRulesetSetting.ApproachRate, 5f, 0f, 12f, 0.1f);
+            SetDefault(SticksRulesetSetting.ApproachRate, 8f, 0f, 12f, 0.1f);
             SetDefault(SticksRulesetSetting.FlickActivationThreshold,
                 SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD,
                 SticksInputTracker.MIN_ACTIVATION_THRESHOLD,
                 SticksInputTracker.MAX_ACTIVATION_THRESHOLD,
                 0.01f);
+            SetDefault(SticksRulesetSetting.ChordLinkPresentation, SticksChordLinkPresentation.FullToCentre);
             SetDefault(SticksRulesetSetting.StackedNotePresentation, SticksStackedNotePresentation.RadialSpacing);
             SetDefault(SticksRulesetSetting.RadialApproachDistance,
                 SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE,
@@ -51,6 +52,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks flick activation",
                 value: $"{threshold * 100:0}%"
             )),
+            new TrackedSetting<SticksChordLinkPresentation>(SticksRulesetSetting.ChordLinkPresentation, presentation => new SettingDescription(
+                rawValue: presentation,
+                name: "Sticks synced-note links",
+                value: presentation.GetDescription()
+            )),
             new TrackedSetting<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation, presentation => new SettingDescription(
                 rawValue: presentation,
                 name: "Sticks stacked-note presentation",
@@ -73,9 +79,22 @@ namespace osu.Game.Rulesets.Sticks.Configuration
     {
         ApproachRate,
         FlickActivationThreshold,
+        ChordLinkPresentation,
         StackedNotePresentation,
         RadialApproachDistance,
         RadialApproachSpeed,
+    }
+
+    public enum SticksChordLinkPresentation
+    {
+        [Description("Full to center")]
+        FullToCentre,
+
+        [Description("Short cues")]
+        Short,
+
+        [Description("Hidden")]
+        Hidden,
     }
 
     public enum SticksStackedNotePresentation

@@ -162,6 +162,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     linkedSide,
                     HitObject.SyncedNoteAngle);
             }
+
+            if (playfield != null)
+                syncedNoteLink.Presentation = playfield.ChordLinkPresentation;
         }
 
         protected override void AddNestedHitObject(DrawableHitObject hitObject)

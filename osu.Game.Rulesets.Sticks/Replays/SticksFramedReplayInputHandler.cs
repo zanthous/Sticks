@@ -73,7 +73,7 @@ namespace osu.Game.Rulesets.Sticks.Replays
             if (startMagnitude <= rechargeThreshold && endMagnitude <= rechargeThreshold)
             {
                 // The neutral disc is convex, so Cartesian interpolation cannot accidentally
-                // leave it and reads naturally when the stick passes through its centre.
+                // leave it and reads naturally when the stick passes through its center.
                 value = start + (end - start) * progress;
             }
             else

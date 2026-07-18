@@ -89,6 +89,11 @@ namespace osu.Game.Rulesets.Sticks
                     LabelFormat = value =>
                         $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
                 }),
+                new SettingsItemV2(new FormEnumDropdown<SticksChordLinkPresentation>
+                {
+                    Caption = "Synced-note links",
+                    Current = config.GetBindable<SticksChordLinkPresentation>(SticksRulesetSetting.ChordLinkPresentation),
+                }),
                 new SettingsItemV2(new FormEnumDropdown<SticksStackedNotePresentation>
                 {
                     Caption = "Stacked note presentation",

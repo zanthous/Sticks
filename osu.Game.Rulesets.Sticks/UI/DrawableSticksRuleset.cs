@@ -31,6 +31,8 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly BindableFloat approachRate = new BindableFloat();
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
+        private readonly Bindable<SticksChordLinkPresentation> chordLinkPresentation =
+            new Bindable<SticksChordLinkPresentation>(SticksChordLinkPresentation.FullToCentre);
         private readonly Bindable<SticksStackedNotePresentation> stackedNotePresentation =
             new Bindable<SticksStackedNotePresentation>(SticksStackedNotePresentation.RadialSpacing);
         private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
@@ -53,6 +55,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.FlickActivationThreshold, flickActivationThreshold);
             flickActivationThreshold.BindValueChanged(threshold =>
                 ((SticksPlayfield)Playfield).FlickActivationThreshold = threshold.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.ChordLinkPresentation, chordLinkPresentation);
+            chordLinkPresentation.BindValueChanged(presentation =>
+                ((SticksPlayfield)Playfield).ChordLinkPresentation = presentation.NewValue, true);
             Config.BindWith(SticksRulesetSetting.StackedNotePresentation, stackedNotePresentation);
             stackedNotePresentation.BindValueChanged(presentation =>
                 ((SticksPlayfield)Playfield).StackedNotePresentation = presentation.NewValue, true);

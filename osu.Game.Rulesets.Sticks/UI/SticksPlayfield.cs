@@ -7,6 +7,7 @@ using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
+using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
@@ -34,6 +35,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float INNER_RADIUS = GUIDE_RADIUS - LANE_OFFSET;
         public const float DEFAULT_RADIAL_APPROACH_DISTANCE = 30;
         public const float DEFAULT_RADIAL_APPROACH_SPEED = 1;
+        public const float RELAX_DIRECTION_LENGTH_FRACTION = 0.25f;
         public static readonly Color4 LEFT_COLOUR = new Color4(0.2f, 0.62f, 1f, 1f);
         public static readonly Color4 RIGHT_COLOUR = new Color4(1f, 0.25f, 0.3f, 1f);
 
@@ -41,6 +43,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly CircularContainer rightCursor;
         private readonly SticksCursorTrail leftTrail;
         private readonly SticksCursorTrail rightTrail;
+        private readonly SmoothPath leftRelaxDirectionLine;
+        private readonly SmoothPath rightRelaxDirectionLine;
         private readonly SticksJudgementDisplay judgementDisplay;
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
@@ -59,9 +63,11 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public bool ShowCursorTrails { get; set; }
 
+        public SticksChordLinkPresentation ChordLinkPresentation { get; set; } = SticksChordLinkPresentation.FullToCentre;
+
         /// <summary>
-        /// When active, physical magnitude and neutral crossings are ignored. Each stick retains
-        /// its latest direction and gestures are generated when that direction can play an object.
+        /// When active, each stick retains its latest direction supplied beyond the normal slider
+        /// tracking cutoff, and gestures are generated when that direction can play an object.
         /// </summary>
         public bool RelaxMode { get; set; }
 
@@ -127,6 +133,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             AddRangeInternal(new Drawable[]
             {
                 ring(GUIDE_RADIUS, Color4.White.Opacity(0.55f)),
+                leftRelaxDirectionLine = relaxDirectionLine(LEFT_COLOUR),
+                rightRelaxDirectionLine = relaxDirectionLine(RIGHT_COLOUR),
                 HitObjectContainer,
                 judgementDisplay = new SticksJudgementDisplay(),
                 leftTrail = new SticksCursorTrail("Cursors/blue"),
@@ -412,6 +420,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (replayInputProvider.Active)
                 (left, right) = replayInputProvider.Snapshot();
 
+            Vector2 displayedLeft = MapStickDistance(left, PhysicalStickDistanceAtGameEdge);
+            Vector2 displayedRight = MapStickDistance(right, PhysicalStickDistanceAtGameEdge);
+
             if (RelaxMode)
                 updateRelaxInput(left, right);
             else
@@ -424,15 +435,21 @@ namespace osu.Game.Rulesets.Sticks.UI
             }
 
             reportPhysicalStickInput(left, right);
-            updateCursor(leftCursor, StickSide.Left);
-            updateCursor(rightCursor, StickSide.Right);
+            updateCursor(leftCursor, displayedLeft, StickSide.Left);
+            updateCursor(rightCursor, displayedRight, StickSide.Right);
             updateTrails();
         }
 
         private void updateRelaxInput(Vector2 left, Vector2 right)
         {
-            relaxedLeftDirection = RememberRelaxDirection(relaxedLeftDirection, left);
-            relaxedRightDirection = RememberRelaxDirection(relaxedRightDirection, right);
+            Vector2 previousLeftDirection = relaxedLeftDirection;
+            Vector2 previousRightDirection = relaxedRightDirection;
+
+            relaxedLeftDirection = RememberRelaxDirection(relaxedLeftDirection, left, RechargeThreshold);
+            relaxedRightDirection = RememberRelaxDirection(relaxedRightDirection, right, RechargeThreshold);
+
+            if (relaxedLeftDirection != previousLeftDirection || relaxedRightDirection != previousRightDirection)
+                updateRelaxDirectionLines();
 
             input.UpdateRelaxDirection(StickSide.Left, relaxedLeftDirection);
             input.UpdateRelaxDirection(StickSide.Right, relaxedRightDirection);
@@ -441,8 +458,34 @@ namespace osu.Game.Rulesets.Sticks.UI
             tryTriggerRelaxGesture(StickSide.Right, relaxedRightDirection);
         }
 
-        internal static Vector2 RememberRelaxDirection(Vector2 previous, Vector2 current) =>
-            current.LengthSquared > 0 ? current.Normalized() : previous;
+        internal static Vector2 RememberRelaxDirection(Vector2 previous, Vector2 current, float minimumMagnitude) =>
+            current.Length > minimumMagnitude ? current.Normalized() : previous;
+
+        private void updateRelaxDirectionLines()
+        {
+            updateRelaxDirectionLine(leftRelaxDirectionLine, relaxedLeftDirection, StickSide.Left);
+            updateRelaxDirectionLine(rightRelaxDirectionLine, relaxedRightDirection, StickSide.Right);
+        }
+
+        private static void updateRelaxDirectionLine(SmoothPath line, Vector2 direction, StickSide side)
+        {
+            if (direction.LengthSquared == 0)
+            {
+                line.Alpha = 0;
+                return;
+            }
+
+            Vector2 centre = new Vector2(SIZE / 2);
+            line.Vertices = new[]
+            {
+                centre,
+                RelaxDirectionEndpoint(direction, side),
+            };
+            line.Alpha = 0.85f;
+        }
+
+        internal static Vector2 RelaxDirectionEndpoint(Vector2 direction, StickSide side) =>
+            new Vector2(SIZE / 2) + direction * (RadiusFor(side) * RELAX_DIRECTION_LENGTH_FRACTION);
 
         private void tryTriggerRelaxGesture(StickSide side, Vector2 direction)
         {
@@ -535,9 +578,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             return returnedToNeutral || crossedFlickThreshold;
         }
 
-        private void updateCursor(CircularContainer drawable, StickSide side)
+        private void updateCursor(CircularContainer drawable, Vector2 value, StickSide side)
         {
-            Vector2 value = StickVector(side);
             drawable.Position = new Vector2(SIZE / 2) + value * RadiusFor(side);
             drawable.Alpha = 0.35f + Math.Clamp(value.Length, 0, 1) * 0.65f;
         }
@@ -587,6 +629,16 @@ namespace osu.Game.Rulesets.Sticks.UI
                 Alpha = 0,
                 AlwaysPresent = true,
             },
+        };
+
+        private static SmoothPath relaxDirectionLine(Color4 colour) => new SmoothPath
+        {
+            AutoSizeAxes = Axes.None,
+            Size = new Vector2(SIZE),
+            PathRadius = 3.5f,
+            Colour = colour,
+            Alpha = 0,
+            Depth = 10,
         };
 
         private static CircularContainer cursor(Color4 colour) => new CircularContainer

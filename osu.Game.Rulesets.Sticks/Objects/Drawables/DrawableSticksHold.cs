@@ -24,6 +24,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     public partial class DrawableSticksHold : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable, ISticksTrackingSource
     {
+        private const float minimum_rail_length = 40;
+        private const float maximum_rail_length = 130;
+        private const float rail_edge_padding = 6;
+
         private readonly SticksArcMarker headMarker;
         private readonly SmoothPath durationRail;
         private readonly Circle durationCursor;
@@ -37,6 +41,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private StickSide displayedSide;
         private float displayedAngle = float.NaN;
         private double displayedDuration = double.NaN;
+        private float railBoundaryRadialOffset;
+        private float displayedRailBoundaryRadialOffset = float.NaN;
         private SticksPlayfield playfield = null!;
         private DrawableSticksHoldHead drawableHead = null!;
         private bool headJudged;
@@ -194,6 +200,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             }
 
             float targetOffset = playfield.VisualRadialOffsetFor(this, HitObject);
+            float boundaryOffset = playfield.RadialNoteApproach
+                ? (HitObject.Side == StickSide.Left ? playfield.RadialApproachDistance : -playfield.RadialApproachDistance)
+                : targetOffset;
+
+            if (!float.IsNaN(displayedAngle) && displayedSide != HitObject.Side)
+                railBoundaryRadialOffset = 0;
+
+            railBoundaryRadialOffset = HitObject.Side == StickSide.Left
+                ? Math.Max(railBoundaryRadialOffset, boundaryOffset)
+                : Math.Min(railBoundaryRadialOffset, boundaryOffset);
 
             if (playfield.RadialNoteApproach || !visualRadialOffsetInitialised)
             {
@@ -210,12 +226,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool sideChanged = !float.IsNaN(displayedAngle) && displayedSide != HitObject.Side;
             if (!sideChanged
                 && Math.Abs(displayedAngle - HitObject.Angle) < 0.001f
-                && Math.Abs(displayedDuration - HitObject.Duration) < 0.001)
+                && Math.Abs(displayedDuration - HitObject.Duration) < 0.001
+                && Math.Abs(displayedRailBoundaryRadialOffset - railBoundaryRadialOffset) < 0.001f)
                 return;
 
             float laneRadius = SticksPlayfield.RadiusFor(HitObject.Side);
-            float railLength = (float)Math.Clamp(HitObject.Duration * 0.06, 40, 130);
-            float farRadius = laneRadius + (HitObject.Side == StickSide.Left ? railLength : -railLength);
+            float farRadius = RailEndRadiusFor(HitObject.Side, HitObject.Angle, HitObject.Duration, railBoundaryRadialOffset);
             railStart = SticksPlayfield.PointAt(HitObject.Angle, laneRadius);
             railEnd = SticksPlayfield.PointAt(HitObject.Angle, farRadius);
 
@@ -234,6 +250,31 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             displayedSide = HitObject.Side;
             displayedAngle = HitObject.Angle;
             displayedDuration = HitObject.Duration;
+            displayedRailBoundaryRadialOffset = railBoundaryRadialOffset;
+        }
+
+        /// <summary>
+        /// Returns the local radial endpoint for a hold rail. The containing visual is translated
+        /// by <paramref name="visualRadialOffset"/>, so that offset is included when limiting the
+        /// endpoint to the square playfield boundary.
+        /// </summary>
+        internal static float RailEndRadiusFor(StickSide side, float angle, double duration, float visualRadialOffset = 0)
+        {
+            float laneRadius = SticksPlayfield.RadiusFor(side);
+            float desiredLength = (float)Math.Clamp(duration * 0.06, minimum_rail_length, maximum_rail_length);
+            float radians = angle * MathF.PI / 180;
+            float largestDirectionComponent = Math.Max(Math.Abs(MathF.Cos(radians)), Math.Abs(MathF.Sin(radians)));
+            float outerBoundaryRadius = (SticksPlayfield.SIZE / 2 - rail_edge_padding) / Math.Max(0.001f, largestDirectionComponent);
+            float effectiveLaneRadius = laneRadius + visualRadialOffset;
+
+            if (side == StickSide.Left)
+            {
+                float availableLength = Math.Max(0, outerBoundaryRadius - effectiveLaneRadius);
+                return laneRadius + Math.Min(desiredLength, availableLength);
+            }
+
+            float inwardAvailableLength = Math.Max(0, effectiveLaneRadius - rail_edge_padding);
+            return laneRadius - Math.Min(desiredLength, inwardAvailableLength);
         }
 
         private SticksArcMarker createHeadMarker() => new SticksArcMarker(HitObject.Side, colourFor(HitObject.Side), true)
@@ -267,6 +308,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     linkedSide,
                     HitObject.SyncedNoteAngle);
             }
+
+            if (playfield != null)
+                syncedNoteLink.Presentation = playfield.ChordLinkPresentation;
         }
 
         private void updateSyncedNoteLink(double now, double headGrowth)

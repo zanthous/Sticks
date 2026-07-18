@@ -32,8 +32,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         /// </summary>
         public const double MAX_GENERATED_SLIDER_ANGULAR_VELOCITY = 120;
 
-        // Base conversion readability on the ruleset's default player AR 5. Faster ARs have
-        // a shorter approach, while unusually slow player overrides may exceed this window.
+        // Conversion overlap checks use a fixed, conservative visibility window. The player's
+        // persistent AR preference is not available when conversion plans are built.
         public const double VISIBILITY_PREEMPT = 850;
 
         // This is a physical readability threshold, not a hit-window duration. Standard-style

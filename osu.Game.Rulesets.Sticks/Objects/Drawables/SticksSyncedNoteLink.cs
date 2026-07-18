@@ -4,6 +4,7 @@ using System;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Lines;
+using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -19,11 +20,29 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public const float INITIAL_ALPHA = 0.45f;
         public const float FINAL_ALPHA = 0.8f;
         public const float SHARED_ANGLE_TOLERANCE = 0.5f;
+        public const float SHORT_LENGTH_FRACTION = 0.25f;
 
         private const float dash_length = 12;
         private const float dash_gap = 4;
 
         public bool UsesAlternatingDashes { get; private set; }
+
+        internal int DrawableSegmentCount => InternalChildren.Count;
+
+        private SticksChordLinkPresentation presentation = SticksChordLinkPresentation.FullToCentre;
+
+        public SticksChordLinkPresentation Presentation
+        {
+            get => presentation;
+            set
+            {
+                if (presentation == value)
+                    return;
+
+                presentation = value;
+                rebuildGeometry();
+            }
+        }
 
         private StickSide? displayedFirstSide;
         private float displayedFirstAngle = float.NaN;
@@ -55,12 +74,29 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 && Math.Abs(displayedSecondAngle - secondAngle) < 0.001f)
                 return;
 
-            ClearInternal();
             displayedFirstSide = firstSide;
             displayedFirstAngle = firstAngle;
             displayedSecondSide = secondSide;
             displayedSecondAngle = secondAngle;
+            rebuildGeometry();
+        }
+
+        private void rebuildGeometry()
+        {
+            ClearInternal();
+
+            if (!displayedFirstSide.HasValue || !displayedSecondSide.HasValue)
+                return;
+
+            StickSide firstSide = displayedFirstSide.Value;
+            StickSide secondSide = displayedSecondSide.Value;
+            float firstAngle = displayedFirstAngle;
+            float secondAngle = displayedSecondAngle;
+
             UsesAlternatingDashes = IsSharedAngle(firstAngle, secondAngle);
+
+            if (Presentation == SticksChordLinkPresentation.Hidden)
+                return;
 
             Vector2 first = SticksPlayfield.PointAt(firstAngle, SticksPlayfield.RadiusFor(firstSide));
             Vector2 second = SticksPlayfield.PointAt(secondAngle, SticksPlayfield.RadiusFor(secondSide));
@@ -71,13 +107,19 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Vector2 outerEndpoint = SticksPlayfield.PointAt(
                     firstAngle,
                     Math.Max(SticksPlayfield.RadiusFor(firstSide), SticksPlayfield.RadiusFor(secondSide)));
-                addAlternatingDashes(centre, outerEndpoint);
+                Vector2 innerEndpoint = EndpointTowardCentre(outerEndpoint, centre, Presentation);
+                addAlternatingDashes(outerEndpoint, innerEndpoint);
                 return;
             }
 
-            AddInternal(path(first, centre, ColourFor(firstSide)));
-            AddInternal(path(second, centre, ColourFor(secondSide)));
+            AddInternal(path(first, EndpointTowardCentre(first, centre, Presentation), ColourFor(firstSide)));
+            AddInternal(path(second, EndpointTowardCentre(second, centre, Presentation), ColourFor(secondSide)));
         }
+
+        internal static Vector2 EndpointTowardCentre(Vector2 start, Vector2 centre, SticksChordLinkPresentation presentation) =>
+            presentation == SticksChordLinkPresentation.Short
+                ? Vector2.Lerp(start, centre, SHORT_LENGTH_FRACTION)
+                : centre;
 
         private void addAlternatingDashes(Vector2 start, Vector2 end)
         {

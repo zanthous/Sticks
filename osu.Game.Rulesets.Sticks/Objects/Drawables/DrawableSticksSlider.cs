@@ -329,6 +329,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     linkedSide,
                     HitObject.SyncedNoteAngle);
             }
+
+            if (playfield != null)
+                syncedNoteLink.Presentation = playfield.ChordLinkPresentation;
         }
 
         private void updateSyncedNoteLink(double now, double headGrowth)

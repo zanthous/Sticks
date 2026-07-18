@@ -118,7 +118,11 @@ namespace osu.Game.Rulesets.Sticks
 
         public override IEnumerable<Mod> GetModsFor(ModType type) => type switch
         {
-            ModType.Automation => new Mod[] { new SticksModAutoplay() },
+            ModType.Automation => new Mod[]
+            {
+                new SticksModAutoplay(),
+                new SticksModRelax(),
+            },
             ModType.DifficultyReduction => new Mod[]
             {
                 new SticksModEasy(),

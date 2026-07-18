@@ -12,7 +12,9 @@ namespace osu.Game.Rulesets.Sticks.UI
 {
     public partial class SticksHitObjectContainer : HitObjectContainer
     {
-        private const float stack_spacing = 12;
+        // The widest stacked slider treatment is 18 units across. Leave a small gutter so two
+        // neighbouring layers remain visually distinct rather than sharing their white edge.
+        private const float stack_spacing = 20;
         private const int maximum_stack_offset = 5;
 
         private readonly List<(DrawableHitObject Drawable, SticksHitObject HitObject)> visibleHeads = new List<(DrawableHitObject, SticksHitObject)>();

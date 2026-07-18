@@ -56,6 +56,21 @@ namespace osu.Game.Rulesets.Sticks
         private void load()
         {
             var config = (SticksRulesetConfigManager)Config;
+            var stackedNotePresentation = config.GetBindable<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation);
+            var radialApproachDistance = new SettingsItemV2(new FormSliderBar<float>
+            {
+                Caption = "Radial approach distance",
+                Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachDistance),
+                KeyboardStep = 1,
+                LabelFormat = value => $"{value:0}",
+            });
+            var radialApproachSpeed = new SettingsItemV2(new FormSliderBar<float>
+            {
+                Caption = "Radial approach speed",
+                Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachSpeed),
+                KeyboardStep = 0.05f,
+                LabelFormat = value => $"{value:0.00}x",
+            });
 
             Children = new Drawable[]
             {
@@ -77,22 +92,10 @@ namespace osu.Game.Rulesets.Sticks
                 new SettingsItemV2(new FormEnumDropdown<SticksStackedNotePresentation>
                 {
                     Caption = "Stacked note presentation",
-                    Current = config.GetBindable<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation),
+                    Current = stackedNotePresentation,
                 }),
-                new SettingsItemV2(new FormSliderBar<float>
-                {
-                    Caption = "Radial approach distance",
-                    Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachDistance),
-                    KeyboardStep = 1,
-                    LabelFormat = value => $"{value:0}",
-                }),
-                new SettingsItemV2(new FormSliderBar<float>
-                {
-                    Caption = "Radial approach speed",
-                    Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachSpeed),
-                    KeyboardStep = 0.05f,
-                    LabelFormat = value => $"{value:0.00}x",
-                }),
+                radialApproachDistance,
+                radialApproachSpeed,
                 new SettingsButtonV2
                 {
                     Text = "Create blank Sticks difficulty",
@@ -115,6 +118,13 @@ namespace osu.Game.Rulesets.Sticks
                     Action = exportSelectedDifficulty,
                 },
             };
+
+            stackedNotePresentation.BindValueChanged(presentation =>
+            {
+                bool showRadialApproachControls = presentation.NewValue == SticksStackedNotePresentation.RadialApproach;
+                radialApproachDistance.CanBeShown.Value = showRadialApproachControls;
+                radialApproachSpeed.CanBeShown.Value = showRadialApproachControls;
+            }, true);
         }
 
         private void openEditor(bool retainConvertedObjects)

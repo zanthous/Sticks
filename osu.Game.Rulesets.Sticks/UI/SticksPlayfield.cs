@@ -52,10 +52,18 @@ namespace osu.Game.Rulesets.Sticks.UI
         private float rightY;
         private Vector2 lastReportedPhysicalLeft;
         private Vector2 lastReportedPhysicalRight;
+        private Vector2 relaxedLeftDirection;
+        private Vector2 relaxedRightDirection;
 
         public event Action<bool> PhysicalStickInputChanged;
 
         public bool ShowCursorTrails { get; set; }
+
+        /// <summary>
+        /// When active, physical magnitude and neutral crossings are ignored. Each stick retains
+        /// its latest direction and gestures are generated when that direction can play an object.
+        /// </summary>
+        public bool RelaxMode { get; set; }
 
         /// <summary>
         /// The physical stick magnitude represented as full distance for gameplay, gesture detection,
@@ -404,15 +412,102 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (replayInputProvider.Active)
                 (left, right) = replayInputProvider.Snapshot();
 
-            // Replay positions are deliberately kept separate from the physical axis fields.
-            // In editor test play autoplay can be detached at runtime; physical input must take
-            // over immediately rather than inheriting the replay's final held position.
-            input.Update(StickSide.Left, left, MapStickDistance(left, PhysicalStickDistanceAtGameEdge), Time.Current);
-            input.Update(StickSide.Right, right, MapStickDistance(right, PhysicalStickDistanceAtGameEdge), Time.Current);
+            if (RelaxMode)
+                updateRelaxInput(left, right);
+            else
+            {
+                // Replay positions are deliberately kept separate from the physical axis fields.
+                // In editor test play autoplay can be detached at runtime; physical input must take
+                // over immediately rather than inheriting the replay's final held position.
+                input.Update(StickSide.Left, left, MapStickDistance(left, PhysicalStickDistanceAtGameEdge), Time.Current);
+                input.Update(StickSide.Right, right, MapStickDistance(right, PhysicalStickDistanceAtGameEdge), Time.Current);
+            }
+
             reportPhysicalStickInput(left, right);
             updateCursor(leftCursor, StickSide.Left);
             updateCursor(rightCursor, StickSide.Right);
             updateTrails();
+        }
+
+        private void updateRelaxInput(Vector2 left, Vector2 right)
+        {
+            relaxedLeftDirection = RememberRelaxDirection(relaxedLeftDirection, left);
+            relaxedRightDirection = RememberRelaxDirection(relaxedRightDirection, right);
+
+            input.UpdateRelaxDirection(StickSide.Left, relaxedLeftDirection);
+            input.UpdateRelaxDirection(StickSide.Right, relaxedRightDirection);
+
+            tryTriggerRelaxGesture(StickSide.Left, relaxedLeftDirection);
+            tryTriggerRelaxGesture(StickSide.Right, relaxedRightDirection);
+        }
+
+        internal static Vector2 RememberRelaxDirection(Vector2 previous, Vector2 current) =>
+            current.LengthSquared > 0 ? current.Normalized() : previous;
+
+        private void tryTriggerRelaxGesture(StickSide side, Vector2 direction)
+        {
+            if (direction.LengthSquared == 0)
+                return;
+
+            double time = Time.Current;
+            float angle = SticksHitObject.NormaliseAngle(MathF.Atan2(direction.Y, direction.X) * 180 / MathF.PI);
+            var candidate = new SticksInputTracker.FlickEvent(0, time, angle);
+            DrawableHitObject headTarget = findPreferredHeadTarget(side, candidate);
+
+            if (headTarget != null)
+            {
+                if (time >= headHitObjectFor(headTarget).StartTime)
+                    input.TriggerRelaxFlick(side, time);
+
+                return;
+            }
+
+            // A missed duration head must not lock Relax out of the normal partial-credit path.
+            // Generate a new tracking gesture once the remembered direction reaches the active
+            // path, while leaving all tick and tail checks to the ordinary drawable logic.
+            if (hasEligibleRelaxTrackingTarget(side, time, angle))
+                input.TriggerRelaxFlick(side, time);
+        }
+
+        private bool hasEligibleRelaxTrackingTarget(StickSide side, double time, float angle)
+        {
+            foreach (DrawableHitObject drawable in HitObjectContainer.AliveObjects)
+            {
+                SticksHitObject hitObject;
+                float targetAngle;
+                bool headCanNoLongerBeHit;
+
+                switch (drawable)
+                {
+                    case DrawableSticksSlider slider when !slider.TrackingAuthorised
+                                                                && time >= slider.HitObject.StartTime
+                                                                && time <= slider.HitObject.EndTime:
+                        hitObject = slider.HitObject;
+                        targetAngle = slider.HitObject.AngleAt(time);
+                        headCanNoLongerBeHit = slider.HeadJudged
+                                               || !HeadTimingResultFor(hitObject, time - hitObject.StartTime).IsHit();
+                        break;
+
+                    case DrawableSticksHold hold when !hold.TrackingAuthorised
+                                                            && time >= hold.HitObject.StartTime
+                                                            && time <= hold.HitObject.EndTime:
+                        hitObject = hold.HitObject;
+                        targetAngle = hold.HitObject.Angle;
+                        headCanNoLongerBeHit = hold.HeadJudged
+                                               || !HeadTimingResultFor(hitObject, time - hitObject.StartTime).IsHit();
+                        break;
+
+                    default:
+                        continue;
+                }
+
+                if (hitObject.Side == side
+                    && headCanNoLongerBeHit
+                    && Math.Abs(SticksHitObject.DeltaAngle(angle, targetAngle)) <= hitObject.LenientHalfAngle)
+                    return true;
+            }
+
+            return false;
         }
 
         private void reportPhysicalStickInput(Vector2 left, Vector2 right)
@@ -420,7 +515,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (left == lastReportedPhysicalLeft && right == lastReportedPhysicalRight)
                 return;
 
-            bool important = crossesGestureBoundary(lastReportedPhysicalLeft, left)
+            bool important = RelaxMode
+                             || crossesGestureBoundary(lastReportedPhysicalLeft, left)
                              || crossesGestureBoundary(lastReportedPhysicalRight, right);
             lastReportedPhysicalLeft = left;
             lastReportedPhysicalRight = right;
@@ -515,6 +611,14 @@ namespace osu.Game.Rulesets.Sticks.UI
                 RelativeSizeAxes = Axes.Both,
                 Colour = colour,
             },
+        };
+
+        private static SticksHitObject headHitObjectFor(DrawableHitObject drawable) => drawable switch
+        {
+            DrawableSticksFlick flick => flick.HitObject,
+            DrawableSticksSlider slider => slider.HitObject,
+            DrawableSticksHold hold => hold.HitObject,
+            _ => null,
         };
     }
 }

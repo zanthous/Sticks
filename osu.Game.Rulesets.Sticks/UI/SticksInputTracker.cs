@@ -62,6 +62,38 @@ namespace osu.Game.Rulesets.Sticks.UI
         public void Update(StickSide side, Vector2 value, double time) => Update(side, value, value, time);
 
         /// <summary>
+        /// Updates the direction used by Relax while deliberately ignoring physical magnitude.
+        /// A remembered direction is represented at full gameplay radius so duration objects keep
+        /// using their normal angular tracking rules.
+        /// </summary>
+        internal void UpdateRelaxDirection(StickSide side, Vector2 direction)
+        {
+            TrackedStick stick = tracked(side);
+            Vector2 value = direction.LengthSquared > 0 ? direction.Normalized() : Vector2.Zero;
+            stick.PhysicalVector = value;
+            stick.Vector = value;
+            stick.PreviousGameplayMagnitude = value.Length;
+            stick.NeutralReady = false;
+        }
+
+        /// <summary>
+        /// Creates a Relax gesture at the currently remembered direction without requiring a
+        /// neutral crossing. The normal per-gesture consumption path still decides which object
+        /// receives it.
+        /// </summary>
+        internal bool TriggerRelaxFlick(StickSide side, double time)
+        {
+            TrackedStick stick = tracked(side);
+            if (stick.Vector.LengthSquared == 0)
+                return false;
+
+            float angle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Vector.Y, stick.Vector.X) * 180 / MathF.PI);
+            stick.Sequence++;
+            stick.LastFlick = new FlickEvent(stick.Sequence, time, angle);
+            return true;
+        }
+
+        /// <summary>
         /// Updates a stick using its physical controller position for neutral charging and its
         /// mapped gameplay position for edge crossing. The recharge boundary remains a physical
         /// stick distance even when a difficulty setting remaps the playfield edge.

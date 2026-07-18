@@ -80,7 +80,8 @@ namespace osu.Game.Rulesets.Sticks.Configuration
 
     public enum SticksStackedNotePresentation
     {
-        None,
+        [Description("Show stacked")]
+        ShowStacked,
 
         [Description("Radial spacing")]
         RadialSpacing,

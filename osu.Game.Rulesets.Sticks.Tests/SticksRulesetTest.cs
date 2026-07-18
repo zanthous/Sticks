@@ -51,7 +51,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(new SticksRuleset().Description, Is.EqualTo("Sticks"));
                 Assert.That(new SticksRuleset().ShortName, Is.EqualTo("sticks"));
                 Assert.That(new SticksRuleset().GetModsFor(ModType.Conversion).Single(), Is.TypeOf<SticksModDifficultyAdjust>());
-                Assert.That(new SticksRuleset().GetModsFor(ModType.Automation).Single(), Is.TypeOf<SticksModAutoplay>());
+                Mod[] automationMods = new SticksRuleset().GetModsFor(ModType.Automation).ToArray();
+                Assert.That(automationMods, Has.Exactly(1).TypeOf<SticksModAutoplay>());
+                Assert.That(automationMods, Has.Exactly(1).TypeOf<SticksModRelax>());
                 Assert.That(new SticksRuleset().CreateConfig(null), Is.TypeOf<SticksRulesetConfigManager>());
                 Assert.That(new SticksRuleset().CreateSettings(), Is.TypeOf<SticksSettingsSubsection>());
                 Assert.That(new SticksRuleset().CreateHitObjectComposer(), Is.TypeOf<SticksHitObjectComposer>());
@@ -532,6 +534,36 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestRelaxRemembersDirectionAndGeneratesFreshGesturesWithoutNeutral()
+        {
+            Vector2 direction = SticksPlayfield.RememberRelaxDirection(Vector2.Zero, new Vector2(0.25f, 0.25f));
+            direction = SticksPlayfield.RememberRelaxDirection(direction, Vector2.Zero);
+            var input = new SticksInputTracker();
+            input.UpdateRelaxDirection(StickSide.Left, direction);
+
+            Assert.That(input.TriggerRelaxFlick(StickSide.Left, 1000), Is.True);
+            SticksInputTracker.FlickEvent first = input.LastFlickFor(StickSide.Left);
+            Assert.That(input.TryConsumeFlick(StickSide.Left, first.Sequence), Is.True);
+
+            // Relax deliberately does not require the physical stick to return to neutral before
+            // the next object. The player's only input is the last supplied direction.
+            Assert.That(input.TriggerRelaxFlick(StickSide.Left, 1100), Is.True);
+            SticksInputTracker.FlickEvent second = input.LastFlickFor(StickSide.Left);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(direction.Length, Is.EqualTo(1).Within(0.0001));
+                Assert.That(input.VectorFor(StickSide.Left).X, Is.EqualTo(direction.X).Within(0.0001));
+                Assert.That(input.VectorFor(StickSide.Left).Y, Is.EqualTo(direction.Y).Within(0.0001));
+                Assert.That(input.IsBeyondRechargeBoundary(StickSide.Left), Is.True);
+                Assert.That(first.Angle, Is.EqualTo(45).Within(0.0001));
+                Assert.That(second.Angle, Is.EqualTo(45).Within(0.0001));
+                Assert.That(second.Sequence, Is.EqualTo(first.Sequence + 1));
+                Assert.That(input.TryConsumeFlick(StickSide.Left, second.Sequence), Is.True);
+            });
+        }
+
+        [Test]
         public void TestStackedNotePresentationSettings()
         {
             var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
@@ -557,7 +589,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(hitObjectContainer.RadialStackedNoteSpacing, Is.False);
             });
 
-            playfield.StackedNotePresentation = SticksStackedNotePresentation.None;
+            playfield.StackedNotePresentation = SticksStackedNotePresentation.ShowStacked;
             Assert.Multiple(() =>
             {
                 Assert.That(playfield.RadialNoteApproach, Is.False);

@@ -50,8 +50,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             if (marker.Side != HitObject.Side || marker.Direction != HitObject.DirectionAfter)
                 marker.SetLaneAndDirection(HitObject.Side, HitObject.DirectionAfter, colourFor(HitObject.Side));
+            marker.Presentation = playfield.NotePresentation;
+            marker.TargetCircleScale = playfield.NoteCircleScale;
             marker.Angle = HitObject.Angle;
             marker.Span = HitObject.PrimaryHitAngle;
+            marker.ApproachCircleEnabled = false;
             marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
         }
 

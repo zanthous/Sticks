@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Game.Rulesets.Sticks", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Game.Rulesets.Sticks.Tests", "osu.Game.Rulesets.Sticks.Tests\osu.Game.Rulesets.Sticks.Tests.csproj", "{55C0939C-E301-4B73-9C7C-4A1BC321AF40}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "osu.Game.Rulesets.Sticks.DifficultyTestbed", "osu.Game.Rulesets.Sticks.DifficultyTestbed\osu.Game.Rulesets.Sticks.DifficultyTestbed.csproj", "{6600AE48-10C2-46CE-BDC2-69BFD177F6D4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,5 +22,9 @@ Global
 		{55C0939C-E301-4B73-9C7C-4A1BC321AF40}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{55C0939C-E301-4B73-9C7C-4A1BC321AF40}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{55C0939C-E301-4B73-9C7C-4A1BC321AF40}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6600AE48-10C2-46CE-BDC2-69BFD177F6D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6600AE48-10C2-46CE-BDC2-69BFD177F6D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6600AE48-10C2-46CE-BDC2-69BFD177F6D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6600AE48-10C2-46CE-BDC2-69BFD177F6D4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

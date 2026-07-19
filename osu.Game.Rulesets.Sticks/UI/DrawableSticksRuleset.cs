@@ -35,6 +35,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             new Bindable<SticksChordLinkPresentation>(SticksChordLinkPresentation.FullToCentre);
         private readonly Bindable<SticksStackedNotePresentation> stackedNotePresentation =
             new Bindable<SticksStackedNotePresentation>(SticksStackedNotePresentation.RadialSpacing);
+        private readonly Bindable<SticksNotePresentation> notePresentation =
+            new Bindable<SticksNotePresentation>(SticksNotePresentation.BracketMarkers);
+        private readonly BindableFloat noteCircleScale = new BindableFloat(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE);
         private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
         private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
@@ -61,6 +64,12 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.StackedNotePresentation, stackedNotePresentation);
             stackedNotePresentation.BindValueChanged(presentation =>
                 ((SticksPlayfield)Playfield).StackedNotePresentation = presentation.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.NotePresentation, notePresentation);
+            notePresentation.BindValueChanged(presentation =>
+                ((SticksPlayfield)Playfield).NotePresentation = presentation.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.NoteCircleScale, noteCircleScale);
+            noteCircleScale.BindValueChanged(scale =>
+                ((SticksPlayfield)Playfield).NoteCircleScale = scale.NewValue, true);
             Config.BindWith(SticksRulesetSetting.RadialApproachDistance, radialApproachDistance);
             radialApproachDistance.BindValueChanged(distance =>
                 ((SticksPlayfield)Playfield).RadialApproachDistance = distance.NewValue, true);

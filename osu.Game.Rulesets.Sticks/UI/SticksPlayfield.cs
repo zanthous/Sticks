@@ -35,6 +35,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float INNER_RADIUS = GUIDE_RADIUS - LANE_OFFSET;
         public const float DEFAULT_RADIAL_APPROACH_DISTANCE = 30;
         public const float DEFAULT_RADIAL_APPROACH_SPEED = 1;
+        public const float DEFAULT_NOTE_CIRCLE_SCALE = 1;
+        public const float MIN_NOTE_CIRCLE_SCALE = 1;
+        public const float MAX_NOTE_CIRCLE_SCALE = 2;
         public const float RELAX_DIRECTION_LENGTH_FRACTION = 0.25f;
         public static readonly Color4 LEFT_COLOUR = new Color4(0.2f, 0.62f, 1f, 1f);
         public static readonly Color4 RIGHT_COLOUR = new Color4(1f, 0.25f, 0.3f, 1f);
@@ -49,6 +52,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
         private SticksStackedNotePresentation stackedNotePresentation = SticksStackedNotePresentation.RadialSpacing;
+        private float noteCircleScale = DEFAULT_NOTE_CIRCLE_SCALE;
         private bool trailsWereVisible;
         private float leftX;
         private float leftY;
@@ -64,6 +68,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         public bool ShowCursorTrails { get; set; }
 
         public SticksChordLinkPresentation ChordLinkPresentation { get; set; } = SticksChordLinkPresentation.FullToCentre;
+
+        public SticksNotePresentation NotePresentation { get; set; } = SticksNotePresentation.BracketMarkers;
+
+        public float NoteCircleScale
+        {
+            get => noteCircleScale;
+            set => noteCircleScale = Math.Clamp(value, MIN_NOTE_CIRCLE_SCALE, MAX_NOTE_CIRCLE_SCALE);
+        }
 
         /// <summary>
         /// When active, each stick retains its latest direction supplied beyond the normal slider

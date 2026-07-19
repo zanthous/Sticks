@@ -174,8 +174,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
             double approachProgress = Math.Clamp((now - (HitObject.StartTime - HitObject.ApproachDuration)) / Math.Max(1, HitObject.ApproachDuration), 0, 1);
             double headGrowth = SticksHitObject.ApproachGrowthProgress(approachProgress);
+            bool useApproachCircles = playfield.NotePresentation == Configuration.SticksNotePresentation.ApproachCircles;
             updateSyncedNoteLink(now, headGrowth);
-            headMarker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + 0.8 * headGrowth);
+            headMarker.Presentation = playfield.NotePresentation;
+            headMarker.TargetCircleScale = playfield.NoteCircleScale;
+            headMarker.Span = SticksArcMarker.SpanForApproach(HitObject.PrimaryHitAngle, playfield.NotePresentation, headGrowth);
+            headMarker.ApproachCircleEnabled = useApproachCircles;
+            headMarker.ApproachProgress = (float)approachProgress;
+            headMarker.ApproachAlpha = useApproachCircles && !headJudged
+                ? 0.9f * (float)(1 - Math.Clamp((now - HitObject.StartTime) / 50, 0, 1))
+                : 0;
 
             double progress = Math.Clamp((now - HitObject.StartTime) / Math.Max(1, HitObject.Duration), 0, 1);
             durationRail.Alpha = now < HitObject.EndTime ? 0.38f : 0;

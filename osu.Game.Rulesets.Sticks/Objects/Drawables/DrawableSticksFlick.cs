@@ -68,6 +68,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 marker.SetLane(HitObject.Side, colourFor(HitObject.Side));
                 observedSequence = playfield.FlickSequence(HitObject.Side);
             }
+            marker.Presentation = playfield.NotePresentation;
+            marker.TargetCircleScale = playfield.NoteCircleScale;
             marker.Angle = HitObject.Angle;
 
             double approachStart = HitObject.StartTime - HitObject.ApproachDuration;
@@ -87,7 +89,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             double approach = Math.Clamp((Time.Current - approachStart) / HitObject.ApproachDuration, 0, 1);
             double growth = SticksHitObject.ApproachGrowthProgress(approach);
-            marker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + growth * 0.8);
+            bool useApproachCircles = marker.Presentation == Configuration.SticksNotePresentation.ApproachCircles;
+
+            // Approach timing is communicated by its independent circle. The target and
+            // angular range therefore appear at their final size rather than repeating the bracket
+            // presentation's grow-in animation.
+            marker.Span = SticksArcMarker.SpanForApproach(HitObject.PrimaryHitAngle, marker.Presentation, growth);
+            marker.ApproachCircleEnabled = useApproachCircles;
+            marker.ApproachProgress = (float)approach;
+            marker.ApproachAlpha = useApproachCircles && !Judged
+                ? 0.9f * (float)(1 - Math.Clamp((Time.Current - HitObject.StartTime) / 50, 0, 1))
+                : 0;
 
             ensureSyncedNoteLink();
             if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
@@ -211,5 +223,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private static Color4 colourFor(StickSide side) => side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
             : SticksPlayfield.RIGHT_COLOUR;
+
     }
 }

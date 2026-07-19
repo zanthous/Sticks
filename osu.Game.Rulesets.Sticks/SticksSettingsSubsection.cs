@@ -89,6 +89,18 @@ namespace osu.Game.Rulesets.Sticks
                     LabelFormat = value =>
                         $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
                 }),
+                new SettingsItemV2(new FormEnumDropdown<SticksNotePresentation>
+                {
+                    Caption = "Note presentation",
+                    Current = config.GetBindable<SticksNotePresentation>(SticksRulesetSetting.NotePresentation),
+                }),
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = "Note circle size",
+                    Current = config.GetBindable<float>(SticksRulesetSetting.NoteCircleScale),
+                    KeyboardStep = 0.1f,
+                    LabelFormat = value => $"{value:0.0}x",
+                }),
                 new SettingsItemV2(new FormEnumDropdown<SticksChordLinkPresentation>
                 {
                     Caption = "Synced-note links",

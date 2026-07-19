@@ -107,8 +107,28 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(repeatedWidePattern, Is.GreaterThan(clustered));
 
                 // The repeated pattern travels 180 degrees on every transition. The scattered
-                // pattern has less raw travel on average, but requires substantially more reading.
+                // pattern has less raw travel on average, but still requires somewhat more reading.
                 Assert.That(scattered, Is.GreaterThan(repeatedWidePattern));
+                Assert.That(scattered - repeatedWidePattern, Is.LessThan(0.75),
+                    "A predictable 180-degree pattern should only receive a modest reading discount.");
+            });
+        }
+
+        [Test]
+        public void TestSpatialSearchKeepsLargeJumpCostBeforeBroadRegionBonus()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(1, 0.5, 2), Is.GreaterThan(1),
+                    "A predictable two-region 180-degree pattern must retain its large-jump cost.");
+                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(0, 1, 8), Is.EqualTo(1),
+                    "Region coverage alone must not matter without an angular jump.");
+                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(0.5, 0.5, 3), Is.GreaterThan(1));
+                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(0.5, 0.5, 6),
+                    Is.GreaterThan(SticksDifficultyModel.SpatialSearchMultiplier(0.5, 0.5, 3)));
+                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(1, 1, 8),
+                    Is.EqualTo(SticksDifficultyModel.SpatialSearchMultiplier(1, 1, 6)),
+                    "The search term should saturate once the pattern already covers most of the circle.");
             });
         }
 

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.StateChanges;
@@ -588,6 +589,203 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestApproachCirclePresentationUsesFilledTargetAndSeparateTimingCircle()
+        {
+            var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+            var marker = new SticksArcMarker(StickSide.Left, SticksPlayfield.LEFT_COLOUR, true);
+            var leadingCap = (Drawable)typeof(SticksArcMarker).GetField("leadingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var trailingCap = (Drawable)typeof(SticksArcMarker).GetField("trailingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var centerTick = (Drawable)typeof(SticksArcMarker).GetField("centerTick", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var hitCircle = (Drawable)typeof(SticksArcMarker).GetField("hitCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var hitCircleBody = (Drawable)typeof(SticksArcMarker).GetField("hitCircleBody", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var hitCircleRing = (CircularContainer)typeof(SticksArcMarker).GetField("hitCircleRing", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var approachCircle = (Drawable)typeof(SticksArcMarker).GetField("approachCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(config.Get<SticksNotePresentation>(SticksRulesetSetting.NotePresentation), Is.EqualTo(SticksNotePresentation.BracketMarkers));
+                Assert.That(marker.Presentation, Is.EqualTo(SticksNotePresentation.BracketMarkers));
+                Assert.That(leadingCap.Alpha, Is.EqualTo(1));
+                Assert.That(trailingCap.Alpha, Is.EqualTo(1));
+                Assert.That(centerTick.Alpha, Is.EqualTo(1));
+                Assert.That(hitCircle.Alpha, Is.Zero);
+                Assert.That(approachCircle.Alpha, Is.Zero);
+            });
+
+            config.SetValue(SticksRulesetSetting.NotePresentation, SticksNotePresentation.ApproachCircles);
+            marker.Presentation = config.Get<SticksNotePresentation>(SticksRulesetSetting.NotePresentation);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(hitCircle.Alpha, Is.EqualTo(1));
+                Assert.That(approachCircle.Alpha, Is.Zero,
+                    "A circular tracking target must not create its own approach animation.");
+            });
+
+            marker.ApproachCircleEnabled = true;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(marker.Presentation, Is.EqualTo(SticksNotePresentation.ApproachCircles));
+                Assert.That(leadingCap.Alpha, Is.Zero);
+                Assert.That(trailingCap.Alpha, Is.Zero);
+                Assert.That(centerTick.Alpha, Is.Zero);
+                Assert.That(hitCircle.Alpha, Is.EqualTo(1));
+                Assert.That(hitCircleBody.Alpha, Is.EqualTo(1));
+                Assert.That(hitCircleRing.Alpha, Is.EqualTo(1));
+                Assert.That(hitCircleRing.BorderColour.TopLeft.SRGB, Is.EqualTo(Color4.White));
+                Assert.That(approachCircle.Alpha, Is.EqualTo(0.9f));
+                Assert.That(SticksArcMarker.HIT_CIRCLE_DIAMETER, Is.EqualTo(SticksSliderHeadMarker.APPROACH_TARGET_DIAMETER));
+                Assert.That(approachCircle.Width,
+                    Is.EqualTo(SticksArcMarker.HIT_CIRCLE_DIAMETER * SticksArcMarker.APPROACH_CIRCLE_INITIAL_SCALE).Within(0.001));
+                Assert.That(SticksArcMarker.SpanForApproach(20, SticksNotePresentation.ApproachCircles, 0), Is.EqualTo(20));
+                Assert.That(SticksArcMarker.SpanForApproach(20, SticksNotePresentation.BracketMarkers, 0), Is.EqualTo(4));
+            });
+
+            marker.ApproachProgress = 0.5f;
+            Assert.That(approachCircle.Width,
+                Is.EqualTo(SticksArcMarker.HIT_CIRCLE_DIAMETER * 2.5f).Within(0.001));
+
+            marker.ApproachProgress = 1;
+            Assert.That(approachCircle.Width, Is.EqualTo(SticksArcMarker.HIT_CIRCLE_DIAMETER).Within(0.001));
+
+            marker.ApproachAlpha = 0;
+            Assert.That(approachCircle.Alpha, Is.Zero);
+        }
+
+        [Test]
+        public void TestApproachCircleModeUpdatesHoldTargetAndPreservesSliderTarget()
+        {
+            var holdHead = new SticksArcMarker(StickSide.Left, SticksPlayfield.LEFT_COLOUR, true);
+            var holdLeadingCap = (Drawable)typeof(SticksArcMarker).GetField("leadingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(holdHead)!;
+            var holdTrailingCap = (Drawable)typeof(SticksArcMarker).GetField("trailingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(holdHead)!;
+            var holdCenterTick = (Drawable)typeof(SticksArcMarker).GetField("centerTick", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(holdHead)!;
+            var holdHitCircle = (Drawable)typeof(SticksArcMarker).GetField("hitCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(holdHead)!;
+            var holdApproachCircle = (Drawable)typeof(SticksArcMarker).GetField("approachCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(holdHead)!;
+
+            holdHead.Presentation = SticksNotePresentation.ApproachCircles;
+            holdHead.ApproachCircleEnabled = true;
+
+            var sliderHead = new SticksSliderHeadMarker(StickSide.Right, 1, SticksPlayfield.RIGHT_COLOUR, true);
+            var sliderLeadingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("leadingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+            var sliderTrailingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("trailingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+            var sliderColourPlate = (Drawable)typeof(SticksSliderHeadMarker).GetField("colourPlate", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+            var sliderDirectionArrow = (Drawable)typeof(SticksSliderHeadMarker).GetField("directionArrow", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+            var sliderApproachCircle = (Drawable)typeof(SticksSliderHeadMarker).GetField("approachCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+
+            sliderHead.Presentation = SticksNotePresentation.ApproachCircles;
+            sliderHead.ApproachCircleEnabled = true;
+            sliderHead.ApproachProgress = 0.5f;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(holdHead.Presentation, Is.EqualTo(SticksNotePresentation.ApproachCircles));
+                Assert.That(holdLeadingCap.Alpha, Is.Zero);
+                Assert.That(holdTrailingCap.Alpha, Is.Zero);
+                Assert.That(holdCenterTick.Alpha, Is.Zero);
+                Assert.That(holdHitCircle.Alpha, Is.EqualTo(1));
+                Assert.That(holdApproachCircle.Alpha, Is.EqualTo(0.9f));
+
+                Assert.That(sliderHead.Presentation, Is.EqualTo(SticksNotePresentation.ApproachCircles));
+                Assert.That(sliderLeadingCap.Alpha, Is.Zero);
+                Assert.That(sliderTrailingCap.Alpha, Is.Zero);
+                Assert.That(sliderColourPlate.Alpha, Is.EqualTo(1));
+                Assert.That(sliderDirectionArrow.Alpha, Is.EqualTo(1));
+                Assert.That(sliderApproachCircle.Alpha, Is.EqualTo(0.9f));
+                Assert.That(sliderApproachCircle.Width,
+                    Is.EqualTo(SticksSliderHeadMarker.APPROACH_TARGET_DIAMETER * 2.5f).Within(0.001));
+            });
+        }
+
+        [Test]
+        public void TestApproachCirclePresentationRemovesCapsFromSliderCheckpoints()
+        {
+            var sliderHead = new SticksSliderHeadMarker(StickSide.Left, 1, SticksPlayfield.LEFT_COLOUR);
+            var reversal = new SticksSliderHeadMarker(StickSide.Right, -1, SticksPlayfield.RIGHT_COLOUR, reversalStyle: true);
+
+            sliderHead.Presentation = SticksNotePresentation.ApproachCircles;
+            reversal.Presentation = SticksNotePresentation.ApproachCircles;
+
+            var sliderLeadingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("leadingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+            var sliderTrailingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("trailingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+            var reversalLeadingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("leadingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal)!;
+            var reversalTrailingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("trailingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal)!;
+            var sliderColourPlate = (Drawable)typeof(SticksSliderHeadMarker).GetField("colourPlate", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sliderHead)!;
+            var reversalDirectionArrow = (Drawable)typeof(SticksSliderHeadMarker).GetField("directionArrow", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(sliderLeadingCap.Alpha, Is.Zero);
+                Assert.That(sliderTrailingCap.Alpha, Is.Zero);
+                Assert.That(reversalLeadingCap.Alpha, Is.Zero);
+                Assert.That(reversalTrailingCap.Alpha, Is.Zero);
+                Assert.That(reversal.ApproachCircleEnabled, Is.False,
+                    "Slider checkpoints are timed by the path preview and must not add an approach circle.");
+                Assert.That(sliderColourPlate.Alpha, Is.EqualTo(1), "The slider's central identity must remain visible.");
+                Assert.That(reversalDirectionArrow.Alpha, Is.EqualTo(1), "The reversal direction must remain visible.");
+            });
+
+            sliderHead.Presentation = SticksNotePresentation.BracketMarkers;
+            reversal.Presentation = SticksNotePresentation.BracketMarkers;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(sliderLeadingCap.Alpha, Is.EqualTo(1));
+                Assert.That(sliderTrailingCap.Alpha, Is.EqualTo(1));
+                Assert.That(reversalLeadingCap.Alpha, Is.EqualTo(1));
+                Assert.That(reversalTrailingCap.Alpha, Is.Zero);
+            });
+        }
+
+        [Test]
+        public void TestNoteCircleScaleResizesTargetsSymbolsAndApproachCircles()
+        {
+            var flick = new SticksArcMarker(StickSide.Left, SticksPlayfield.LEFT_COLOUR)
+            {
+                Presentation = SticksNotePresentation.ApproachCircles,
+                ApproachCircleEnabled = true,
+                ApproachProgress = 0.5f,
+                TargetCircleScale = 1.5f,
+            };
+            var flickTarget = (Drawable)typeof(SticksArcMarker).GetField("hitCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(flick)!;
+            var flickApproach = (Drawable)typeof(SticksArcMarker).GetField("approachCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(flick)!;
+
+            var reversal = new SticksSliderHeadMarker(StickSide.Right, -1, SticksPlayfield.RIGHT_COLOUR, reversalStyle: true)
+            {
+                Presentation = SticksNotePresentation.ApproachCircles,
+                ApproachProgress = 0.5f,
+                TargetCircleScale = 1.5f,
+            };
+            var reversalTarget = (Drawable)typeof(SticksSliderHeadMarker).GetField("colourPlate", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal)!;
+            var reversalSymbol = (Drawable)typeof(SticksSliderHeadMarker).GetField("directionArrow", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal)!;
+            var reversalApproach = (Drawable)typeof(SticksSliderHeadMarker).GetField("approachCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(flickTarget.Width, Is.EqualTo(SticksArcMarker.HIT_CIRCLE_DIAMETER * 1.5f).Within(0.001));
+                Assert.That(flickApproach.Width, Is.EqualTo(SticksArcMarker.HIT_CIRCLE_DIAMETER * 1.5f * 2.5f).Within(0.001));
+                Assert.That(reversalTarget.Width, Is.EqualTo(SticksSliderHeadMarker.APPROACH_TARGET_DIAMETER * 1.5f).Within(0.001));
+                Assert.That(reversalSymbol.Width, Is.EqualTo(SticksSliderHeadMarker.DIRECTION_SYMBOL_DIAMETER * 1.5f).Within(0.001));
+                Assert.That(reversalApproach.Alpha, Is.Zero, "Resizing must not add an approach circle to a reversal.");
+            });
+
+            flick.TargetCircleScale = 10;
+            flick.ApproachProgress = 1;
+            reversal.TargetCircleScale = 10;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(flick.TargetCircleScale, Is.EqualTo(SticksPlayfield.MAX_NOTE_CIRCLE_SCALE));
+                Assert.That(flickTarget.Width, Is.EqualTo(SticksArcMarker.HIT_CIRCLE_DIAMETER * SticksPlayfield.MAX_NOTE_CIRCLE_SCALE).Within(0.001));
+                Assert.That(flickApproach.Width, Is.EqualTo(flickTarget.Width).Within(0.001),
+                    "The approach circle must finish at the resized target.");
+                Assert.That(reversal.TargetCircleScale, Is.EqualTo(SticksPlayfield.MAX_NOTE_CIRCLE_SCALE));
+                Assert.That(reversalSymbol.Width,
+                    Is.EqualTo(SticksSliderHeadMarker.DIRECTION_SYMBOL_DIAMETER * SticksPlayfield.MAX_NOTE_CIRCLE_SCALE).Within(0.001));
+            });
+        }
+
+        [Test]
         public void TestStackedNotePresentationSettings()
         {
             var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
@@ -600,6 +798,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
                 Assert.That(config.Get<SticksChordLinkPresentation>(SticksRulesetSetting.ChordLinkPresentation),
                     Is.EqualTo(SticksChordLinkPresentation.FullToCentre));
+                Assert.That(config.Get<float>(SticksRulesetSetting.NoteCircleScale), Is.EqualTo(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachDistance), Is.EqualTo(30));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachSpeed), Is.EqualTo(1));
                 Assert.That(playfield.RadialNoteApproach, Is.False);

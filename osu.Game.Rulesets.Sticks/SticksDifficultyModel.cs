@@ -38,6 +38,11 @@ namespace osu.Game.Rulesets.Sticks
         private const double control_harmonic_scale = 5;
         private const double coordination_harmonic_scale = 5;
 
+        // Large angular jumps remain demanding even when they repeat between two predictable
+        // regions. Broadly scattered patterns add a smaller visual-search demand on top.
+        private const double large_jump_search_scale = 3.3;
+        private const double broad_region_search_scale = 2.5;
+
         /// <summary>
         /// Calculates difficulty for hit objects already ordered by start time.
         /// </summary>
@@ -363,6 +368,7 @@ namespace osu.Game.Rulesets.Sticks
                 ? Math.Clamp(Math.Pow(125 / Math.Max(50, deltaTime), 0.75), 0.2, 3)
                 : 0.5;
 
+            double jumpDemand = 0;
             double novelty = 0;
 
             if (previous.HasValue)
@@ -370,7 +376,8 @@ namespace osu.Game.Rulesets.Sticks
                 foreach (SticksHitObject current in group)
                 {
                     float signedStep = nearestSignedStep(previous.Value.Angles, current.Angle);
-                    double objectNovelty = Math.Pow(Math.Abs(signedStep) / 180, 0.7);
+                    double objectJumpDemand = Math.Pow(Math.Abs(signedStep) / 180, 0.7);
+                    double objectNovelty = objectJumpDemand;
 
                     if (twoBack.HasValue && twoBack.Value.Angles.Any(angle =>
                             Math.Abs(SticksHitObject.DeltaAngle(angle, current.Angle)) <= 15))
@@ -385,9 +392,11 @@ namespace osu.Game.Rulesets.Sticks
                             objectNovelty *= 0.75;
                     }
 
+                    jumpDemand += objectJumpDemand;
                     novelty += objectNovelty;
                 }
 
+                jumpDemand /= group.Count;
                 novelty /= group.Count;
             }
 
@@ -412,7 +421,10 @@ namespace osu.Game.Rulesets.Sticks
             }
 
             double chordBonus = group.Count > 1 ? 0.12 : 0;
-            double impulse = (0.3 + novelty * 0.95 + regionComplexity + objectTypeBonus + chordBonus) * density;
+            double spatialSearchMultiplier = SpatialSearchMultiplier(jumpDemand, novelty, distinctRegions);
+            double impulse = (0.3 + novelty * 0.95 + regionComplexity + objectTypeBonus + chordBonus)
+                             * density
+                             * spatialSearchMultiplier;
 
             bool followsActiveSliderArc = group.Any(current => activeTracking.Any(active =>
                 active.Object is SticksSlider activeSlider
@@ -423,6 +435,17 @@ namespace osu.Game.Rulesets.Sticks
                 impulse *= 0.85;
 
             return impulse;
+        }
+
+        internal static double SpatialSearchMultiplier(double jumpDemand, double novelty, int distinctRegions)
+        {
+            jumpDemand = Math.Clamp(jumpDemand, 0, 1);
+            novelty = Math.Clamp(novelty, 0, jumpDemand);
+            double regionDiversity = Math.Clamp((distinctRegions - 2) / 4.0, 0, 1);
+            double broadSearch = novelty * regionDiversity * regionDiversity;
+            return 1
+                   + large_jump_search_scale * jumpDemand
+                   + broad_region_search_scale * broadSearch;
         }
 
         private static double calculateCoordinationImpulse(IReadOnlyList<SticksHitObject> group, double timestamp,

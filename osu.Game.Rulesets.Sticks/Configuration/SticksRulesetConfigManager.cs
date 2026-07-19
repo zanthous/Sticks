@@ -28,6 +28,12 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 0.01f);
             SetDefault(SticksRulesetSetting.ChordLinkPresentation, SticksChordLinkPresentation.FullToCentre);
             SetDefault(SticksRulesetSetting.StackedNotePresentation, SticksStackedNotePresentation.RadialSpacing);
+            SetDefault(SticksRulesetSetting.NotePresentation, SticksNotePresentation.BracketMarkers);
+            SetDefault(SticksRulesetSetting.NoteCircleScale,
+                SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE,
+                SticksPlayfield.MIN_NOTE_CIRCLE_SCALE,
+                SticksPlayfield.MAX_NOTE_CIRCLE_SCALE,
+                0.1f);
             SetDefault(SticksRulesetSetting.RadialApproachDistance,
                 SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE,
                 0f,
@@ -62,6 +68,16 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks stacked-note presentation",
                 value: presentation.GetDescription()
             )),
+            new TrackedSetting<SticksNotePresentation>(SticksRulesetSetting.NotePresentation, presentation => new SettingDescription(
+                rawValue: presentation,
+                name: "Sticks note presentation",
+                value: presentation.GetDescription()
+            )),
+            new TrackedSetting<float>(SticksRulesetSetting.NoteCircleScale, scale => new SettingDescription(
+                rawValue: scale,
+                name: "Sticks note circle size",
+                value: $"{scale:0.0}x"
+            )),
             new TrackedSetting<float>(SticksRulesetSetting.RadialApproachDistance, distance => new SettingDescription(
                 rawValue: distance,
                 name: "Sticks radial approach distance",
@@ -81,6 +97,8 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         FlickActivationThreshold,
         ChordLinkPresentation,
         StackedNotePresentation,
+        NotePresentation,
+        NoteCircleScale,
         RadialApproachDistance,
         RadialApproachSpeed,
     }
@@ -107,5 +125,14 @@ namespace osu.Game.Rulesets.Sticks.Configuration
 
         [Description("Radial approach")]
         RadialApproach,
+    }
+
+    public enum SticksNotePresentation
+    {
+        [Description("Bracket markers")]
+        BracketMarkers,
+
+        [Description("Approach circles")]
+        ApproachCircles,
     }
 }

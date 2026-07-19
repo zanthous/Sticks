@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "granat-extra",
+      "sourceHash": "66b66837050b745b9c97c42fd2cbed8683db410c85a332a4e30c3b0939235e63",
+      "metadata": {
+        "artist": "Drop",
+        "title": "Granat",
+        "creator": "Left",
+        "difficulty": "Extra"
+      },
+      "conversion": "procedural",
+      "targetStars": null,
+      "comments": [
+        "This jump-heavy difficulty was substantially underrated at roughly 3.6 stars.",
+        "Its large jumps, broad angle diversity, and constant visual search create high reading strain; it felt much closer to 5 stars.",
+        "Predictable 180-degree patterns should be only slightly easier than this kind of diverse jump pattern, not treated as a separate low-difficulty category."
+      ],
+      "traits": [
+        "large angular jumps",
+        "broad angle diversity",
+        "high reading strain",
+        "frequent visual search"
+      ],
+      "milestones": [
+        {
+          "date": "2026-07-18",
+          "label": "broad-region search prototype",
+          "calculatorVersion": 202607160,
+          "beforeStars": 3.546,
+          "afterStars": 5.097,
+          "comment": "Added substantial reading strain for fast jumps spread across the circle after this map exposed the model's underweighting."
+        },
+        {
+          "date": "2026-07-18",
+          "label": "balanced predictable large jumps",
+          "calculatorVersion": 202607180,
+          "beforeStars": 5.097,
+          "afterStars": 4.913,
+          "comment": "Kept most of the cost on predictable 180-degree jumps and reduced broad regional diversity to a smaller additional premium."
+        }
+      ]
+    }
+  ]
+}

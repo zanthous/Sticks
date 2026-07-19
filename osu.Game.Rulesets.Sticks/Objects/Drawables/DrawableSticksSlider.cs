@@ -186,8 +186,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool cueActive = now >= HitObject.StartTime - cueDuration && now < HitObject.StartTime;
             double cueProgress = Math.Clamp((now - (HitObject.StartTime - cueDuration)) / Math.Max(1, cueDuration), 0, 1);
             double headGrowth = SticksHitObject.ApproachGrowthProgress(cueProgress);
+            bool useApproachCircles = playfield.NotePresentation == Configuration.SticksNotePresentation.ApproachCircles;
             updateSyncedNoteLink(now, headGrowth);
-            headMarker.Span = HitObject.PrimaryHitAngle * (float)(0.2 + 0.8 * headGrowth);
+            headMarker.Presentation = playfield.NotePresentation;
+            headMarker.TargetCircleScale = playfield.NoteCircleScale;
+            headMarker.Span = SticksArcMarker.SpanForApproach(HitObject.PrimaryHitAngle, playfield.NotePresentation, headGrowth);
+            headMarker.ApproachCircleEnabled = useApproachCircles;
+            headMarker.ApproachProgress = (float)cueProgress;
+            headMarker.ApproachAlpha = useApproachCircles && !headJudged
+                ? 0.9f * (float)(1 - Math.Clamp((now - HitObject.StartTime) / 50, 0, 1))
+                : 0;
             (double remainingStart, double remainingEnd) = HitObject.RemainingPathRangeAt(now);
             int segmentIndex = active ? HitObject.SegmentIndexAt(now) : 0;
             setVisibleRange(path, HitObject.SegmentStartAngleAt(segmentIndex), HitObject.SegmentArcAngleAt(segmentIndex), remainingStart, remainingEnd);
@@ -199,6 +207,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             updateHeadCue(now, cueActive);
 
             trackingMarker.Angle = HitObject.AngleAt(now);
+            trackingMarker.Presentation = playfield.NotePresentation;
+            trackingMarker.TargetCircleScale = playfield.NoteCircleScale;
             trackingMarker.Alpha = active ? 1 : 0;
 
             updateHeadJudgement(now);

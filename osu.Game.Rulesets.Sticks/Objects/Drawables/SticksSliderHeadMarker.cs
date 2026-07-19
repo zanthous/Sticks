@@ -9,6 +9,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Utils;
+using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -24,15 +25,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         private const float stroke_radius = 2.5f;
         private const float cap_half_length = 7;
+        internal const float APPROACH_TARGET_DIAMETER = 22;
+        internal const float DIRECTION_SYMBOL_DIAMETER = 18;
+        internal const float APPROACH_CIRCLE_INITIAL_SCALE = 4;
         private StickSide side;
         private int direction;
         private readonly SmoothPath widthArc;
         private readonly CircularProgress animatedWidthArc;
         private readonly SmoothPath leadingCap;
         private readonly SmoothPath trailingCap;
+        private readonly CircularContainer approachCircle;
         private readonly Circle colourPlate;
         private readonly SpriteIcon directionArrow;
         private readonly bool reversalStyle;
+        private SticksNotePresentation presentation;
+        private bool approachCircleEnabled;
+        private float approachProgress;
+        private float approachAlpha = 0.9f;
+        private float targetCircleScale = SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE;
         private float span;
         private float radialOffset;
         private float targetRadialOffset;
@@ -86,6 +96,74 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public StickSide Side => side;
 
+        public float TargetCircleScale
+        {
+            get => targetCircleScale;
+            set
+            {
+                value = Math.Clamp(value, SticksPlayfield.MIN_NOTE_CIRCLE_SCALE, SticksPlayfield.MAX_NOTE_CIRCLE_SCALE);
+                if (Math.Abs(targetCircleScale - value) < 0.001f)
+                    return;
+
+                targetCircleScale = value;
+                updateTargetSizes();
+            }
+        }
+
+        public SticksNotePresentation Presentation
+        {
+            get => presentation;
+            set
+            {
+                if (presentation == value)
+                    return;
+
+                presentation = value;
+                updateCapVisibility();
+            }
+        }
+
+        public bool ApproachCircleEnabled
+        {
+            get => approachCircleEnabled;
+            set
+            {
+                if (approachCircleEnabled == value)
+                    return;
+
+                approachCircleEnabled = value;
+                updateApproachCircleVisibility();
+            }
+        }
+
+        public float ApproachProgress
+        {
+            get => approachProgress;
+            set
+            {
+                value = Math.Clamp(value, 0, 1);
+                if (Math.Abs(approachProgress - value) < 0.001f)
+                    return;
+
+                approachProgress = value;
+                updateApproachCircleSize();
+            }
+        }
+
+        public float ApproachAlpha
+        {
+            get => approachAlpha;
+            set
+            {
+                value = Math.Clamp(value, 0, 0.9f);
+                if (Math.Abs(approachAlpha - value) < 0.001f)
+                    return;
+
+                approachAlpha = value;
+                updateApproachCircleVisibility();
+            }
+        }
+
         public SticksSliderHeadMarker(StickSide side, int direction, Color4 colour, bool animatedSpan = false, bool reversalStyle = false)
         {
             this.side = side;
@@ -107,12 +185,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 animatedSpan ? animatedWidthArc : widthArc,
                 leadingCap = createCap(colour),
                 trailingCap = createCap(colour),
+                approachCircle = createApproachCircle(colour),
                 colourPlate = new Circle
                 {
                     Anchor = Anchor.TopLeft,
                     Origin = Anchor.Centre,
                     Position = centrePosition,
-                    Size = new Vector2(22),
+                    Size = new Vector2(APPROACH_TARGET_DIAMETER),
                     Colour = colour,
                 },
                 directionArrow = new SpriteIcon
@@ -120,7 +199,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     Anchor = Anchor.TopLeft,
                     Origin = Anchor.Centre,
                     Position = centrePosition,
-                    Size = new Vector2(18),
+                    Size = new Vector2(DIRECTION_SYMBOL_DIAMETER),
                     Icon = FontAwesome.Solid.AngleDoubleRight,
                     Colour = Color4.White,
                     Rotation = this.direction * 90,
@@ -155,6 +234,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             leadingCap.Colour = colour;
             trailingCap.Colour = colour;
+            approachCircle.BorderColour = colour;
             colourPlate.Colour = colour;
             directionArrow.Rotation = direction * 90;
             updateGeometry();
@@ -183,20 +263,42 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (reversalStyle)
             {
                 positionCap(leadingCap, radius, outsideAngle);
-                leadingCap.Alpha = 1;
-                trailingCap.Alpha = 0;
             }
             else
             {
                 positionCap(leadingCap, radius, -span / 2);
                 positionCap(trailingCap, radius, span / 2);
-                leadingCap.Alpha = 1;
-                trailingCap.Alpha = 1;
             }
 
+            updateCapVisibility();
+
             Vector2 centrePosition = SticksPlayfield.PointAt(0, radius);
+            approachCircle.Position = centrePosition;
             colourPlate.Position = centrePosition;
             directionArrow.Position = centrePosition;
+        }
+
+        private void updateApproachCircleVisibility() =>
+            approachCircle.Alpha = approachCircleEnabled ? approachAlpha : 0;
+
+        private void updateTargetSizes()
+        {
+            colourPlate.Size = new Vector2(APPROACH_TARGET_DIAMETER * targetCircleScale);
+            directionArrow.Size = new Vector2(DIRECTION_SYMBOL_DIAMETER * targetCircleScale);
+            updateApproachCircleSize();
+        }
+
+        private void updateApproachCircleSize()
+        {
+            float scale = (float)Interpolation.Lerp(APPROACH_CIRCLE_INITIAL_SCALE, 1, approachProgress);
+            approachCircle.Size = new Vector2(APPROACH_TARGET_DIAMETER * targetCircleScale * scale);
+        }
+
+        private void updateCapVisibility()
+        {
+            bool showCaps = presentation != SticksNotePresentation.ApproachCircles;
+            leadingCap.Alpha = showCaps ? 1 : 0;
+            trailingCap.Alpha = showCaps && !reversalStyle ? 1 : 0;
         }
 
         private static SmoothPath createArc(Color4 colour, float alpha) => new SmoothPath
@@ -251,6 +353,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             {
                 new Vector2(stroke_radius, stroke_radius),
                 new Vector2(stroke_radius + cap_half_length * 2, stroke_radius),
+            },
+        };
+
+        private static CircularContainer createApproachCircle(Color4 colour) => new CircularContainer
+        {
+            Anchor = Anchor.TopLeft,
+            Origin = Anchor.Centre,
+            Size = new Vector2(APPROACH_TARGET_DIAMETER * APPROACH_CIRCLE_INITIAL_SCALE),
+            Masking = true,
+            BorderThickness = 2.5f,
+            BorderColour = colour,
+            Alpha = 0,
+            Depth = 1,
+            Child = new Box
+            {
+                RelativeSizeAxes = Axes.Both,
+                Alpha = 0,
+                AlwaysPresent = true,
             },
         };
 

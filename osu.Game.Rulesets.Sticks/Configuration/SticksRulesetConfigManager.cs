@@ -134,5 +134,8 @@ namespace osu.Game.Rulesets.Sticks.Configuration
 
         [Description("Approach circles")]
         ApproachCircles,
+
+        [Description("Filling arcs")]
+        FillingArcs,
     }
 }

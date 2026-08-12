@@ -28,10 +28,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         internal const float APPROACH_TARGET_DIAMETER = 22;
         internal const float DIRECTION_SYMBOL_DIAMETER = 18;
         internal const float APPROACH_CIRCLE_INITIAL_SCALE = 4;
+        private static readonly Color4 box_empty_colour = new Color4(0.035f, 0.035f, 0.045f, 1);
         private StickSide side;
         private int direction;
         private readonly SmoothPath widthArc;
         private readonly CircularProgress animatedWidthArc;
+        private readonly CircularProgress boxInteriorArc;
+        private readonly CircularProgress boxFillArc;
         private readonly SmoothPath leadingCap;
         private readonly SmoothPath trailingCap;
         private readonly CircularContainer approachCircle;
@@ -120,6 +123,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
                 presentation = value;
                 updateCapVisibility();
+                updateApproachCircleVisibility();
+                updateGeometry();
             }
         }
 
@@ -147,6 +152,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
                 approachProgress = value;
                 updateApproachCircleSize();
+                updateBoxArcs();
             }
         }
 
@@ -179,10 +185,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             widthArc = animatedSpan ? null : createArc(colour, 0.72f);
             animatedWidthArc = animatedSpan ? createAnimatedArc(side, colour, 0.72f) : null;
+            boxInteriorArc = animatedSpan ? createAnimatedArc(side, box_empty_colour, 0, SticksArcMarker.BOX_FILL_HALF_THICKNESS) : null;
+            boxFillArc = animatedSpan ? createAnimatedArc(side, colour, 0, SticksArcMarker.BOX_FILL_HALF_THICKNESS) : null;
+
+            AddInternal(animatedSpan ? (Drawable)animatedWidthArc : widthArc);
+            if (boxInteriorArc != null)
+            {
+                AddInternal(boxInteriorArc);
+                AddInternal(boxFillArc);
+            }
 
             AddRangeInternal(new Drawable[]
             {
-                animatedSpan ? animatedWidthArc : widthArc,
                 leadingCap = createCap(colour),
                 trailingCap = createCap(colour),
                 approachCircle = createApproachCircle(colour),
@@ -231,6 +245,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 widthArc.Colour = colour;
             if (animatedWidthArc != null)
                 animatedWidthArc.Colour = colour;
+            if (boxFillArc != null)
+                boxFillArc.Colour = colour;
 
             leadingCap.Colour = colour;
             trailingCap.Colour = colour;
@@ -246,19 +262,21 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             float outsideAngle = -direction * span / 2;
             float arcStart = reversalStyle ? Math.Min(0, outsideAngle) : -span / 2;
             float arcEnd = reversalStyle ? Math.Max(0, outsideAngle) : span / 2;
+            float outerHalfThickness = presentation == SticksNotePresentation.FillingArcs
+                ? SticksArcMarker.BOX_OUTLINE_HALF_THICKNESS
+                : stroke_radius;
 
             if (animatedWidthArc != null)
             {
-                float outerRadius = radius + stroke_radius;
-                animatedWidthArc.Size = new Vector2(outerRadius * 2);
-                animatedWidthArc.InnerRadius = 2 * stroke_radius / outerRadius;
-                animatedWidthArc.Progress = (arcEnd - arcStart) / 360;
-                animatedWidthArc.Rotation = 90 + arcStart;
+                setArcRange(animatedWidthArc, radius, outerHalfThickness, arcStart, arcEnd - arcStart);
             }
             else
             {
+                widthArc.PathRadius = outerHalfThickness;
                 widthArc.Vertices = arcVertices(radius, arcStart, arcEnd);
             }
+
+            updateBoxArcs(radius, arcStart, arcEnd);
 
             if (reversalStyle)
             {
@@ -279,7 +297,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         }
 
         private void updateApproachCircleVisibility() =>
-            approachCircle.Alpha = approachCircleEnabled ? approachAlpha : 0;
+            approachCircle.Alpha = presentation == SticksNotePresentation.ApproachCircles && approachCircleEnabled ? approachAlpha : 0;
 
         private void updateTargetSizes()
         {
@@ -296,9 +314,49 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateCapVisibility()
         {
-            bool showCaps = presentation != SticksNotePresentation.ApproachCircles;
+            bool showBox = presentation == SticksNotePresentation.FillingArcs;
+            bool showCaps = presentation != SticksNotePresentation.ApproachCircles && !showBox;
             leadingCap.Alpha = showCaps ? 1 : 0;
             trailingCap.Alpha = showCaps && !reversalStyle ? 1 : 0;
+
+            if (widthArc != null)
+                widthArc.Alpha = showBox ? 1 : 0.72f;
+            if (animatedWidthArc != null)
+                animatedWidthArc.Alpha = showBox ? 1 : 0.72f;
+            if (boxInteriorArc != null)
+            {
+                boxInteriorArc.Alpha = showBox ? 1 : 0;
+                boxFillArc.Alpha = showBox ? 1 : 0;
+            }
+        }
+
+        private void updateBoxArcs()
+        {
+            float outsideAngle = -direction * span / 2;
+            float arcStart = reversalStyle ? Math.Min(0, outsideAngle) : -span / 2;
+            float arcEnd = reversalStyle ? Math.Max(0, outsideAngle) : span / 2;
+            updateBoxArcs(SticksPlayfield.RadiusFor(side) + radialOffset, arcStart, arcEnd);
+        }
+
+        private void updateBoxArcs(float radius, float arcStart, float arcEnd)
+        {
+            if (boxInteriorArc == null)
+                return;
+
+            setArcRange(boxInteriorArc, radius, SticksArcMarker.BOX_FILL_HALF_THICKNESS, arcStart, arcEnd - arcStart);
+            float progress = SticksArcMarker.FillProgressFor(approachProgress);
+            float filledStart = arcStart * progress;
+            float filledEnd = arcEnd * progress;
+            setArcRange(boxFillArc, radius, SticksArcMarker.BOX_FILL_HALF_THICKNESS, filledStart, filledEnd - filledStart);
+        }
+
+        private static void setArcRange(CircularProgress drawable, float radius, float halfThickness, float startAngle, float length)
+        {
+            float outerRadius = radius + halfThickness;
+            drawable.Size = new Vector2(outerRadius * 2);
+            drawable.InnerRadius = 2 * halfThickness / outerRadius;
+            drawable.Rotation = 90 + startAngle;
+            drawable.Progress = length / 360;
         }
 
         private static SmoothPath createArc(Color4 colour, float alpha) => new SmoothPath
@@ -310,17 +368,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Alpha = alpha,
         };
 
-        private static CircularProgress createAnimatedArc(StickSide side, Color4 colour, float alpha)
+        private static CircularProgress createAnimatedArc(StickSide side, Color4 colour, float alpha, float halfThickness = stroke_radius)
         {
             float radius = SticksPlayfield.RadiusFor(side);
-            float outerRadius = radius + stroke_radius;
+            float outerRadius = radius + halfThickness;
             return new CircularProgress
             {
                 Anchor = Anchor.TopLeft,
                 Origin = Anchor.Centre,
                 Position = new Vector2(SticksPlayfield.SIZE / 2),
                 Size = new Vector2(outerRadius * 2),
-                InnerRadius = 2 * stroke_radius / outerRadius,
+                InnerRadius = 2 * halfThickness / outerRadius,
                 RoundedCaps = true,
                 Colour = colour,
                 Alpha = alpha,

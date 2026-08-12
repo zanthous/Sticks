@@ -8,6 +8,7 @@ using NUnit.Framework;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
+using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.StateChanges;
 using osu.Framework.Timing;
@@ -694,6 +695,142 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(sliderApproachCircle.Alpha, Is.EqualTo(0.9f));
                 Assert.That(sliderApproachCircle.Width,
                     Is.EqualTo(SticksSliderHeadMarker.APPROACH_TARGET_DIAMETER * 2.5f).Within(0.001));
+            });
+        }
+
+        [Test]
+        public void TestFillingArcUsesOpaqueRoundedContainerAndMatchingCenterOutFill()
+        {
+            var marker = new SticksArcMarker(StickSide.Left, SticksPlayfield.LEFT_COLOUR, true)
+            {
+                Presentation = SticksNotePresentation.FillingArcs,
+                Span = 20,
+                ApproachCircleEnabled = true,
+            };
+            var containerArc = (CircularProgress)typeof(SticksArcMarker).GetField("animatedArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var interiorArc = (CircularProgress)typeof(SticksArcMarker).GetField("boxInteriorArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var fillArc = (CircularProgress)typeof(SticksArcMarker).GetField("boxFillArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var leadingCap = (Drawable)typeof(SticksArcMarker).GetField("leadingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var trailingCap = (Drawable)typeof(SticksArcMarker).GetField("trailingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var centerTick = (Drawable)typeof(SticksArcMarker).GetField("centerTick", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var hitCircle = (Drawable)typeof(SticksArcMarker).GetField("hitCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+            var approachCircle = (Drawable)typeof(SticksArcMarker).GetField("approachCircle", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(marker)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksArcMarker.SpanForApproach(20, SticksNotePresentation.FillingArcs, 0), Is.EqualTo(20));
+                Assert.That(containerArc.Progress, Is.EqualTo(20f / 360).Within(0.0001));
+                Assert.That(containerArc.Alpha, Is.EqualTo(1));
+                Assert.That(containerArc.Width,
+                    Is.EqualTo((SticksPlayfield.OUTER_RADIUS + SticksArcMarker.BOX_OUTLINE_HALF_THICKNESS) * 2).Within(0.001));
+                Assert.That(containerArc.Colour.TopLeft.SRGB, Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
+                Assert.That(interiorArc.Alpha, Is.EqualTo(1));
+                Assert.That(interiorArc.Progress, Is.EqualTo(containerArc.Progress).Within(0.0001));
+                Assert.That(interiorArc.Width,
+                    Is.EqualTo((SticksPlayfield.OUTER_RADIUS + SticksArcMarker.BOX_FILL_HALF_THICKNESS) * 2).Within(0.001));
+                Assert.That(leadingCap.Alpha, Is.Zero);
+                Assert.That(trailingCap.Alpha, Is.Zero);
+                Assert.That(centerTick.Alpha, Is.EqualTo(1), "The white center timing line remains above the container fill.");
+                Assert.That(hitCircle.Alpha, Is.Zero);
+                Assert.That(approachCircle.Alpha, Is.Zero, "Filling arcs must not also display an approach circle.");
+                Assert.That(fillArc.Alpha, Is.EqualTo(1));
+                Assert.That(fillArc.Progress, Is.Zero);
+                Assert.That(fillArc.Colour.TopLeft.SRGB, Is.EqualTo(SticksPlayfield.LEFT_COLOUR),
+                    "The timing fill must use the stick's matching colour rather than white.");
+            });
+
+            marker.ApproachProgress = 0.5f;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksArcMarker.FillProgressFor(0.5f), Is.EqualTo(0.125f).Within(0.0001));
+                Assert.That(fillArc.Progress, Is.EqualTo(20f * 0.125f / 360).Within(0.0001));
+                Assert.That(fillArc.Rotation, Is.EqualTo(90 - 20f * 0.125f / 2).Within(0.0001));
+            });
+
+            marker.ApproachProgress = 1;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(fillArc.Progress, Is.EqualTo(containerArc.Progress).Within(0.0001));
+                Assert.That(fillArc.Rotation, Is.EqualTo(containerArc.Rotation).Within(0.0001));
+            });
+
+            var trackingTarget = new SticksArcMarker(StickSide.Left, SticksPlayfield.LEFT_COLOUR)
+            {
+                Presentation = SticksNotePresentation.FillingArcs,
+                Span = 20,
+            };
+            var trackingArc = (SmoothPath)typeof(SticksArcMarker).GetField("arc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(trackingTarget)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(trackingArc.PathRadius, Is.EqualTo(SticksArcMarker.BOX_OUTLINE_HALF_THICKNESS));
+                Assert.That(trackingArc.Alpha, Is.EqualTo(1));
+                Assert.That(typeof(SticksArcMarker).GetField("boxInteriorArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(trackingTarget), Is.Null,
+                    "An active slider target is already filled and must not allocate progress layers.");
+            });
+        }
+
+        [Test]
+        public void TestFillingArcSliderHeadPreservesDirectionBadgeAndUsesFilledCheckpoints()
+        {
+            var head = new SticksSliderHeadMarker(StickSide.Right, 1, SticksPlayfield.RIGHT_COLOUR, true)
+            {
+                Presentation = SticksNotePresentation.FillingArcs,
+                Span = 20,
+            };
+            var containerArc = (CircularProgress)typeof(SticksSliderHeadMarker).GetField("animatedWidthArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(head)!;
+            var interiorArc = (CircularProgress)typeof(SticksSliderHeadMarker).GetField("boxInteriorArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(head)!;
+            var fillArc = (CircularProgress)typeof(SticksSliderHeadMarker).GetField("boxFillArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(head)!;
+            var leadingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("leadingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(head)!;
+            var trailingCap = (Drawable)typeof(SticksSliderHeadMarker).GetField("trailingCap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(head)!;
+            var colourPlate = (Drawable)typeof(SticksSliderHeadMarker).GetField("colourPlate", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(head)!;
+            var directionArrow = (Drawable)typeof(SticksSliderHeadMarker).GetField("directionArrow", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(head)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(containerArc.Alpha, Is.EqualTo(1));
+                Assert.That(interiorArc.Alpha, Is.EqualTo(1));
+                Assert.That(leadingCap.Alpha, Is.Zero);
+                Assert.That(trailingCap.Alpha, Is.Zero);
+                Assert.That(colourPlate.Alpha, Is.EqualTo(1));
+                Assert.That(directionArrow.Alpha, Is.EqualTo(1));
+                Assert.That(fillArc.Alpha, Is.EqualTo(1));
+                Assert.That(fillArc.Progress, Is.Zero);
+                Assert.That(fillArc.Colour.TopLeft.SRGB, Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
+            });
+
+            head.ApproachProgress = 1;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(fillArc.Progress, Is.EqualTo(containerArc.Progress).Within(0.0001));
+                Assert.That(fillArc.Rotation, Is.EqualTo(containerArc.Rotation).Within(0.0001));
+            });
+
+            var reversal = new SticksSliderHeadMarker(StickSide.Right, -1, SticksPlayfield.RIGHT_COLOUR, reversalStyle: true)
+            {
+                Presentation = SticksNotePresentation.FillingArcs,
+            };
+            var continuation = new SticksSliderHeadMarker(StickSide.Right, 1, SticksPlayfield.RIGHT_COLOUR)
+            {
+                Presentation = SticksNotePresentation.FillingArcs,
+            };
+
+            var reversalArc = (SmoothPath)typeof(SticksSliderHeadMarker).GetField("widthArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal)!;
+            var continuationArc = (SmoothPath)typeof(SticksSliderHeadMarker).GetField("widthArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(continuation)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(reversalArc.PathRadius, Is.EqualTo(SticksArcMarker.BOX_OUTLINE_HALF_THICKNESS));
+                Assert.That(continuationArc.PathRadius, Is.EqualTo(SticksArcMarker.BOX_OUTLINE_HALF_THICKNESS));
+                Assert.That(reversalArc.Alpha, Is.EqualTo(1));
+                Assert.That(continuationArc.Alpha, Is.EqualTo(1));
+                Assert.That(typeof(SticksSliderHeadMarker).GetField("boxInteriorArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(reversal), Is.Null,
+                    "Reversals are already filled and must not allocate progress layers.");
+                Assert.That(typeof(SticksSliderHeadMarker).GetField("boxInteriorArc", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(continuation), Is.Null,
+                    "Continuations are already filled and must not allocate progress layers.");
             });
         }
 

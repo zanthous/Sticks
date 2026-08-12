@@ -91,9 +91,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double growth = SticksHitObject.ApproachGrowthProgress(approach);
             bool useApproachCircles = marker.Presentation == Configuration.SticksNotePresentation.ApproachCircles;
 
-            // Approach timing is communicated by its independent circle. The target and
-            // angular range therefore appear at their final size rather than repeating the bracket
-            // presentation's grow-in animation.
+            // Presentations with an independent timing cue keep the target at its final angular
+            // width: approach circles contract externally, while filling arcs fill internally.
             marker.Span = SticksArcMarker.SpanForApproach(HitObject.PrimaryHitAngle, marker.Presentation, growth);
             marker.ApproachCircleEnabled = useApproachCircles;
             marker.ApproachProgress = (float)approach;
@@ -210,7 +209,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             UpdateState(State.Value, true);
         }
 
-        protected override void UpdateInitialTransforms() => this.FadeInFromZero(Math.Min(120, HitObject.ApproachDuration / 3));
+        protected override void UpdateInitialTransforms() => this.Show();
 
         protected override void UpdateHitStateTransforms(ArmedState state)
         {

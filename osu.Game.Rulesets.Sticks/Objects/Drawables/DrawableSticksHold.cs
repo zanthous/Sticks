@@ -29,6 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private const float rail_edge_padding = 6;
 
         private readonly SticksArcMarker headMarker;
+        private readonly SticksRadialTimelinePath radialPath;
         private readonly SmoothPath durationRail;
         private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
@@ -130,6 +131,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 },
             });
 
+            AddInternal(radialPath = new SticksRadialTimelinePath(colourFor(hitObject.Side))
+            {
+                Alpha = 0,
+                Depth = 4,
+            });
+
             AddInternal(holdingSample = new PausableSkinnableSound
             {
                 Looping = true,
@@ -165,8 +172,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             base.Update();
 
             updateVisualRadialOffset();
+            bool useCenterOut = playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut;
             float radians = HitObject.Angle * MathF.PI / 180;
-            approachVisuals.Position = new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * visualRadialOffset;
+            approachVisuals.Position = useCenterOut
+                ? Vector2.Zero
+                : new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * visualRadialOffset;
             refreshGeometry();
 
             double now = Time.Current;
@@ -185,10 +195,20 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 ? 0.9f * (float)(1 - Math.Clamp((now - HitObject.StartTime) / 50, 0, 1))
                 : 0;
 
+            if (useCenterOut)
+            {
+                float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
+                headMarker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
+            }
+
             double progress = Math.Clamp((now - HitObject.StartTime) / Math.Max(1, HitObject.Duration), 0, 1);
-            durationRail.Alpha = now < HitObject.EndTime ? 0.38f : 0;
-            durationCursor.Alpha = active ? 0.9f : 0;
+            durationRail.Alpha = !useCenterOut && now < HitObject.EndTime ? 0.38f : 0;
+            durationCursor.Alpha = !useCenterOut && active ? 0.9f : 0;
             durationCursor.Position = Vector2.Lerp(railEnd, railStart, (float)progress);
+
+            radialPath.Alpha = useCenterOut && now < HitObject.EndTime ? 1 : 0;
+            if (useCenterOut)
+                radialPath.SetHoldGeometry(HitObject, now);
 
             updateHeadJudgement(now);
             headMarker.Alpha = HeadMarkerAlphaAt(now, HitObject.EndTime);
@@ -326,7 +346,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             ensureSyncedNoteLink();
 
             if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
+                syncedNoteLink.Alpha = playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut
+                    ? 0
+                    : SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
         }
 
         private void updateHeadJudgement(double now)

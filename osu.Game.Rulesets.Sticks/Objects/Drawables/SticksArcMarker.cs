@@ -261,6 +261,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updatePresentation()
         {
+            Blending = BlendingParameters.Inherit;
+
             bool showApproachTarget = presentation == SticksNotePresentation.ApproachCircles;
             bool showBox = presentation == SticksNotePresentation.FillingArcs;
             bool showBrackets = !showApproachTarget && !showBox;
@@ -304,7 +306,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             (float)SticksHitObject.ApproachGrowthProgress(linearProgress);
 
         internal static float SpanForApproach(float finalSpan, SticksNotePresentation presentation, double growth) =>
-            finalSpan * (presentation is SticksNotePresentation.ApproachCircles or SticksNotePresentation.FillingArcs
+            finalSpan * (presentation is SticksNotePresentation.ApproachCircles or SticksNotePresentation.FillingArcs or SticksNotePresentation.CenterOut
                 ? 1
                 : (float)(0.2 + growth * 0.8));
 
@@ -338,7 +340,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             float outerRadius = radius + halfThickness;
             drawable.Size = new Vector2(outerRadius * 2);
-            drawable.InnerRadius = 2 * halfThickness / outerRadius;
+            drawable.InnerRadius = Math.Min(1, 2 * halfThickness / Math.Max(0.001f, outerRadius));
             drawable.Rotation = 90 + startAngle;
             drawable.Progress = length / 360;
         }

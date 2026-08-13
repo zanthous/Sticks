@@ -37,6 +37,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly CircularProgress boxFillArc;
         private readonly SmoothPath leadingCap;
         private readonly SmoothPath trailingCap;
+        private readonly SmoothPath centerTick;
         private readonly CircularContainer approachCircle;
         private readonly Circle colourPlate;
         private readonly SpriteIcon directionArrow;
@@ -199,6 +200,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             {
                 leadingCap = createCap(colour),
                 trailingCap = createCap(colour),
+                centerTick = createCap(Color4.White, cap_half_length * 0.65f),
                 approachCircle = createApproachCircle(colour),
                 colourPlate = new Circle
                 {
@@ -288,6 +290,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 positionCap(trailingCap, radius, span / 2);
             }
 
+            positionCap(centerTick, radius, 0);
+
             updateCapVisibility();
 
             Vector2 centrePosition = SticksPlayfield.PointAt(0, radius);
@@ -314,10 +318,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateCapVisibility()
         {
+            Blending = BlendingParameters.Inherit;
+
             bool showBox = presentation == SticksNotePresentation.FillingArcs;
+            bool showPlainCenterOutHead = presentation == SticksNotePresentation.CenterOut;
             bool showCaps = presentation != SticksNotePresentation.ApproachCircles && !showBox;
             leadingCap.Alpha = showCaps ? 1 : 0;
             trailingCap.Alpha = showCaps && !reversalStyle ? 1 : 0;
+            centerTick.Alpha = showPlainCenterOutHead ? 1 : 0;
+            colourPlate.Alpha = showPlainCenterOutHead ? 0 : 1;
+            directionArrow.Alpha = showPlainCenterOutHead ? 0 : 1;
 
             if (widthArc != null)
                 widthArc.Alpha = showBox ? 1 : 0.72f;
@@ -354,7 +364,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             float outerRadius = radius + halfThickness;
             drawable.Size = new Vector2(outerRadius * 2);
-            drawable.InnerRadius = 2 * halfThickness / outerRadius;
+            drawable.InnerRadius = Math.Min(1, 2 * halfThickness / Math.Max(0.001f, outerRadius));
             drawable.Rotation = 90 + startAngle;
             drawable.Progress = length / 360;
         }
@@ -399,18 +409,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             return vertices;
         }
 
-        private static SmoothPath createCap(Color4 colour) => new SmoothPath
+        private static SmoothPath createCap(Color4 colour, float halfLength = cap_half_length) => new SmoothPath
         {
             Anchor = Anchor.TopLeft,
             Origin = Anchor.Centre,
             AutoSizeAxes = Axes.None,
-            Size = new Vector2(cap_half_length * 2 + stroke_radius * 2, stroke_radius * 2),
+            Size = new Vector2(halfLength * 2 + stroke_radius * 2, stroke_radius * 2),
             PathRadius = stroke_radius,
             Colour = colour,
             Vertices = new[]
             {
                 new Vector2(stroke_radius, stroke_radius),
-                new Vector2(stroke_radius + cap_half_length * 2, stroke_radius),
+                new Vector2(stroke_radius + halfLength * 2, stroke_radius),
             },
         };
 

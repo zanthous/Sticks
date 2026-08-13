@@ -50,6 +50,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Angle = hitObject.Angle,
                 Span = hitObject.PrimaryHitAngle * 0.2f,
             });
+
         }
 
         [BackgroundDependencyLoader]
@@ -73,7 +74,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.Angle = HitObject.Angle;
 
             double approachStart = HitObject.StartTime - HitObject.ApproachDuration;
-            if (playfield.RadialNoteApproach)
+            bool useCenterOut = marker.Presentation == Configuration.SticksNotePresentation.CenterOut;
+
+            if (useCenterOut)
+            {
+                float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
+                marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
+            }
+            else if (playfield.RadialNoteApproach)
             {
                 marker.SetRadialOffset(playfield.VisualRadialOffsetFor(this, HitObject), true);
             }
@@ -102,7 +110,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             ensureSyncedNoteLink();
             if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtGrowth(growth);
+                syncedNoteLink.Alpha = useCenterOut ? 0 : SticksSyncedNoteLink.AlphaAtGrowth(growth);
 
             long sequence = playfield.FlickSequence(HitObject.Side);
             if (Judged)

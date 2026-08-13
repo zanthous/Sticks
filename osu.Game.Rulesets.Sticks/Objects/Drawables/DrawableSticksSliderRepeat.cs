@@ -56,6 +56,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.Span = HitObject.PrimaryHitAngle;
             marker.ApproachCircleEnabled = false;
             marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
+
+            if (playfield.CenterOutPresentation)
+                marker.Alpha = 0;
         }
 
         protected override double InitialLifetimeOffset => HitObject.PreemptDuration;

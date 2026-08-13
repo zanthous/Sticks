@@ -151,11 +151,11 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             if (x is DrawableHitObject xObject && y is DrawableHitObject yObject)
             {
-                bool xIsSlider = xObject.HitObject is SticksSlider;
-                bool yIsSlider = yObject.HitObject is SticksSlider;
+                bool xIsDurationBody = xObject.HitObject is SticksSlider or SticksHold;
+                bool yIsDurationBody = yObject.HitObject is SticksSlider or SticksHold;
 
-                if (xIsSlider != yIsSlider)
-                    return xIsSlider ? -1 : 1;
+                if (xIsDurationBody != yIsDurationBody)
+                    return xIsDurationBody ? -1 : 1;
             }
 
             return base.Compare(x, y);

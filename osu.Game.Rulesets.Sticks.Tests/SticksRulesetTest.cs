@@ -699,6 +699,21 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestCenterOutTimingAndCursorThresholds()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.CenterOutProgressAt(-200, 1000, 1200), Is.Zero);
+                Assert.That(SticksPlayfield.CenterOutProgressAt(400, 1000, 1200), Is.EqualTo(0.5f).Within(0.0001));
+                Assert.That(SticksPlayfield.CenterOutProgressAt(1000, 1000, 1200), Is.EqualTo(1));
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, true), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, false), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, true), Is.True);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.9f, false), Is.True);
+            });
+        }
+
+        [Test]
         public void TestFillingArcUsesOpaqueRoundedContainerAndMatchingCenterOutFill()
         {
             var marker = new SticksArcMarker(StickSide.Left, SticksPlayfield.LEFT_COLOUR, true)
@@ -938,6 +953,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(config.Get<float>(SticksRulesetSetting.NoteCircleScale), Is.EqualTo(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachDistance), Is.EqualTo(30));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachSpeed), Is.EqualTo(1));
+                Assert.That(config.Get<bool>(SticksRulesetSetting.HideInactiveCursors), Is.False);
+                Assert.That(playfield.HideInactiveCursors, Is.False);
                 Assert.That(playfield.RadialNoteApproach, Is.False);
                 Assert.That(playfield.StackedNotePresentation, Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
                 Assert.That(hitObjectContainer.RadialStackedNoteSpacing, Is.True);
@@ -1586,12 +1603,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var container = new TestSticksHitObjectContainer();
             var slider = new DrawableSticksSlider(new SticksSlider { StartTime = 1000, Duration = 1000 });
+            var hold = new DrawableSticksHold(new SticksHold { StartTime = 1000, Duration = 1000 });
             var flick = new DrawableSticksFlick(new SticksFlick { StartTime = 1500 });
 
             Assert.Multiple(() =>
             {
                 Assert.That(container.CompareForTest(flick, slider), Is.GreaterThan(0));
                 Assert.That(container.CompareForTest(slider, flick), Is.LessThan(0));
+                Assert.That(container.CompareForTest(flick, hold), Is.GreaterThan(0));
+                Assert.That(container.CompareForTest(hold, flick), Is.LessThan(0));
             });
         }
 

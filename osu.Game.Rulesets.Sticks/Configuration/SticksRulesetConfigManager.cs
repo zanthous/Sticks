@@ -29,6 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             SetDefault(SticksRulesetSetting.ChordLinkPresentation, SticksChordLinkPresentation.FullToCentre);
             SetDefault(SticksRulesetSetting.StackedNotePresentation, SticksStackedNotePresentation.RadialSpacing);
             SetDefault(SticksRulesetSetting.NotePresentation, SticksNotePresentation.BracketMarkers);
+            SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
             SetDefault(SticksRulesetSetting.NoteCircleScale,
                 SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE,
                 SticksPlayfield.MIN_NOTE_CIRCLE_SCALE,
@@ -73,6 +74,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks note presentation",
                 value: presentation.GetDescription()
             )),
+            new TrackedSetting<bool>(SticksRulesetSetting.HideInactiveCursors, hidden => new SettingDescription(
+                rawValue: hidden,
+                name: "Sticks hide inactive cursors",
+                value: hidden ? "enabled" : "disabled"
+            )),
             new TrackedSetting<float>(SticksRulesetSetting.NoteCircleScale, scale => new SettingDescription(
                 rawValue: scale,
                 name: "Sticks note circle size",
@@ -101,6 +107,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         NoteCircleScale,
         RadialApproachDistance,
         RadialApproachSpeed,
+        HideInactiveCursors,
     }
 
     public enum SticksChordLinkPresentation
@@ -137,5 +144,8 @@ namespace osu.Game.Rulesets.Sticks.Configuration
 
         [Description("Filling arcs")]
         FillingArcs,
+
+        [Description("Center-out")]
+        CenterOut,
     }
 }

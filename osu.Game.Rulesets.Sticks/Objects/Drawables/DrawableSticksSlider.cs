@@ -37,6 +37,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly CircularProgress directionPreview;
         private readonly SticksArcMarker trackingMarker;
         private readonly SticksSliderHeadMarker headMarker;
+        private readonly SticksRadialTimelinePath radialPath;
         private readonly Container nestedHitObjectContainer;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
         private SticksSyncedNoteLink syncedNoteLink;
@@ -146,6 +147,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             AddInternal(path = createArc(hitObject, path_half_thickness, 1, 5));
 
+            AddInternal(radialPath = new SticksRadialTimelinePath(colourFor(hitObject.Side))
+            {
+                Alpha = 0,
+                Depth = 4,
+            });
+
             AddInternal(headMarker = new SticksSliderHeadMarker(hitObject.Side, hitObject.InitialDirection, colourFor(hitObject.Side), true)
             {
                 Angle = hitObject.Angle,
@@ -187,6 +194,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             double cueProgress = Math.Clamp((now - (HitObject.StartTime - cueDuration)) / Math.Max(1, cueDuration), 0, 1);
             double headGrowth = SticksHitObject.ApproachGrowthProgress(cueProgress);
             bool useApproachCircles = playfield.NotePresentation == Configuration.SticksNotePresentation.ApproachCircles;
+            bool useCenterOut = playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut;
             updateSyncedNoteLink(now, headGrowth);
             headMarker.Presentation = playfield.NotePresentation;
             headMarker.TargetCircleScale = playfield.NoteCircleScale;
@@ -196,22 +204,50 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             headMarker.ApproachAlpha = useApproachCircles && !headJudged
                 ? 0.9f * (float)(1 - Math.Clamp((now - HitObject.StartTime) / 50, 0, 1))
                 : 0;
-            (double remainingStart, double remainingEnd) = HitObject.RemainingPathRangeAt(now);
-            int segmentIndex = active ? HitObject.SegmentIndexAt(now) : 0;
-            setVisibleRange(path, HitObject.SegmentStartAngleAt(segmentIndex), HitObject.SegmentArcAngleAt(segmentIndex), remainingStart, remainingEnd);
-            path.Alpha = active ? 1 : 0;
-            updateReversalPathPreview(now, active);
-            updateDirectionPreview(now, cueActive, active);
-            updateReversalOutline(now, cueActive, active, segmentIndex, remainingStart, remainingEnd);
+
+            if (useCenterOut)
+            {
+                float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
+                headMarker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
+            }
+
+            if (useCenterOut)
+            {
+                hideFixedLanePaths();
+                radialPath.Alpha = now < HitObject.EndTime ? 1 : 0;
+                radialPath.SetSliderGeometry(HitObject, now);
+            }
+            else
+            {
+                radialPath.Alpha = 0;
+
+                (double remainingStart, double remainingEnd) = HitObject.RemainingPathRangeAt(now);
+                int segmentIndex = active ? HitObject.SegmentIndexAt(now) : 0;
+                setVisibleRange(path, HitObject.SegmentStartAngleAt(segmentIndex), HitObject.SegmentArcAngleAt(segmentIndex), remainingStart, remainingEnd);
+                path.Alpha = active ? 1 : 0;
+                updateReversalPathPreview(now, active);
+                updateDirectionPreview(now, cueActive, active);
+                updateReversalOutline(now, cueActive, active, segmentIndex, remainingStart, remainingEnd);
+            }
 
             updateHeadCue(now, cueActive);
 
             trackingMarker.Angle = HitObject.AngleAt(now);
             trackingMarker.Presentation = playfield.NotePresentation;
             trackingMarker.TargetCircleScale = playfield.NoteCircleScale;
-            trackingMarker.Alpha = active ? 1 : 0;
+            trackingMarker.Alpha = !useCenterOut && active ? 1 : 0;
 
             updateHeadJudgement(now);
+        }
+
+        private void hideFixedLanePaths()
+        {
+            path.Alpha = 0;
+            reversalPathPreview.Alpha = 0;
+            reversalPathPreviewOutline.Alpha = 0;
+            reversalOutline.Alpha = 0;
+            reversalPreviewOutline.Alpha = 0;
+            directionPreview.Alpha = 0;
         }
 
         private void refreshEditorGeometry()
@@ -349,7 +385,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             ensureSyncedNoteLink();
 
             if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
+                syncedNoteLink.Alpha = playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut
+                    ? 0
+                    : SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
         }
 
         private void updateDirectionPreview(double now, bool cueActive, bool active)

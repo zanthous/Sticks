@@ -39,6 +39,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float MIN_NOTE_CIRCLE_SCALE = 1;
         public const float MAX_NOTE_CIRCLE_SCALE = 2;
         public const float RELAX_DIRECTION_LENGTH_FRACTION = 0.25f;
+        public const float CENTER_OUT_CURSOR_HELD_THRESHOLD = 0.9f;
+        public const float CENTER_OUT_CURSOR_MOVING_THRESHOLD = 0.2f;
+        private const double center_out_cursor_motion_grace = 40;
         public static readonly Color4 LEFT_COLOUR = new Color4(0.2f, 0.62f, 1f, 1f);
         public static readonly Color4 RIGHT_COLOUR = new Color4(1f, 0.25f, 0.3f, 1f);
 
@@ -53,7 +56,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksReplayInputProvider replayInputProvider;
         private SticksStackedNotePresentation stackedNotePresentation = SticksStackedNotePresentation.RadialSpacing;
         private float noteCircleScale = DEFAULT_NOTE_CIRCLE_SCALE;
-        private bool trailsWereVisible;
+        private bool leftTrailWasVisible;
+        private bool rightTrailWasVisible;
+        private SticksNotePresentation notePresentation = SticksNotePresentation.BracketMarkers;
         private float leftX;
         private float leftY;
         private float rightX;
@@ -62,6 +67,10 @@ namespace osu.Game.Rulesets.Sticks.UI
         private Vector2 lastReportedPhysicalRight;
         private Vector2 relaxedLeftDirection;
         private Vector2 relaxedRightDirection;
+        private float previousDisplayedLeftMagnitude;
+        private float previousDisplayedRightMagnitude;
+        private double leftCursorOutwardUntil = double.NegativeInfinity;
+        private double rightCursorOutwardUntil = double.NegativeInfinity;
 
         public event Action<bool> PhysicalStickInputChanged;
 
@@ -69,7 +78,26 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public SticksChordLinkPresentation ChordLinkPresentation { get; set; } = SticksChordLinkPresentation.FullToCentre;
 
-        public SticksNotePresentation NotePresentation { get; set; } = SticksNotePresentation.BracketMarkers;
+        public SticksNotePresentation NotePresentation
+        {
+            get => notePresentation;
+            set
+            {
+                if (notePresentation == value)
+                    return;
+
+                notePresentation = value;
+                updateRadialPresentationMode();
+            }
+        }
+
+        public bool CenterOutPresentation => notePresentation == SticksNotePresentation.CenterOut;
+
+        /// <summary>
+        /// In center-out presentation, hides cursors except while held near the judgement ring
+        /// or actively moving outward beyond the inner dead zone.
+        /// </summary>
+        public bool HideInactiveCursors { get; set; }
 
         public float NoteCircleScale
         {
@@ -352,9 +380,9 @@ namespace osu.Game.Rulesets.Sticks.UI
                 RadialApproachSpeed)
             : 0;
 
-        public float VisualRadialOffsetFor(DrawableHitObject drawable, SticksHitObject hitObject) => RadialNoteApproach
-            ? RadialApproachOffsetFor(hitObject)
-            : HeadStackOffsetFor(drawable);
+        public float VisualRadialOffsetFor(DrawableHitObject drawable, SticksHitObject hitObject) => CenterOutPresentation
+            ? 0
+            : RadialNoteApproach ? RadialApproachOffsetFor(hitObject) : HeadStackOffsetFor(drawable);
 
         internal static float RadialApproachOffsetAt(
             StickSide side,
@@ -380,8 +408,18 @@ namespace osu.Game.Rulesets.Sticks.UI
         private void updateRadialPresentationMode()
         {
             ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing =
-                stackedNotePresentation == SticksStackedNotePresentation.RadialSpacing;
+                !CenterOutPresentation && stackedNotePresentation == SticksStackedNotePresentation.RadialSpacing;
         }
+
+        /// <summary>
+        /// Maps an object's hit time to the shared center-out judgement circle.
+        /// </summary>
+        internal static float CenterOutProgressAt(double time, double hitTime, double approachDuration) =>
+            (float)Math.Clamp((time - (hitTime - approachDuration)) / Math.Max(1, approachDuration), 0, 1);
+
+        internal static bool CenterOutCursorVisible(float mappedMagnitude, bool movingOutward) =>
+            mappedMagnitude >= CENTER_OUT_CURSOR_HELD_THRESHOLD
+            || mappedMagnitude > CENTER_OUT_CURSOR_MOVING_THRESHOLD && movingOutward;
 
         public static float RadiusFor(StickSide side) => side == StickSide.Left ? OUTER_RADIUS : INNER_RADIUS;
 
@@ -447,9 +485,19 @@ namespace osu.Game.Rulesets.Sticks.UI
             }
 
             reportPhysicalStickInput(left, right);
-            updateCursor(leftCursor, displayedLeft, StickSide.Left);
-            updateCursor(rightCursor, displayedRight, StickSide.Right);
-            updateTrails();
+            bool leftCursorVisible = updateCursor(
+                leftCursor,
+                displayedLeft,
+                StickSide.Left,
+                ref previousDisplayedLeftMagnitude,
+                ref leftCursorOutwardUntil);
+            bool rightCursorVisible = updateCursor(
+                rightCursor,
+                displayedRight,
+                StickSide.Right,
+                ref previousDisplayedRightMagnitude,
+                ref rightCursorOutwardUntil);
+            updateTrails(leftCursorVisible, rightCursorVisible);
         }
 
         private void updateRelaxInput(Vector2 left, Vector2 right)
@@ -590,40 +638,69 @@ namespace osu.Game.Rulesets.Sticks.UI
             return returnedToNeutral || crossedFlickThreshold;
         }
 
-        private void updateCursor(CircularContainer drawable, Vector2 value, StickSide side)
+        private bool updateCursor(
+            CircularContainer drawable,
+            Vector2 value,
+            StickSide side,
+            ref float previousMagnitude,
+            ref double outwardUntil)
         {
-            drawable.Position = new Vector2(SIZE / 2) + value * RadiusFor(side);
-            drawable.Alpha = 0.35f + Math.Clamp(value.Length, 0, 1) * 0.65f;
+            float magnitude = Math.Clamp(value.Length, 0, 1);
+
+            if (!CenterOutPresentation || !HideInactiveCursors)
+            {
+                float radius = CenterOutPresentation ? GUIDE_RADIUS : RadiusFor(side);
+                drawable.Position = new Vector2(SIZE / 2) + value * radius;
+                drawable.Alpha = 0.35f + magnitude * 0.65f;
+                previousMagnitude = magnitude;
+                outwardUntil = double.NegativeInfinity;
+                return true;
+            }
+
+            const float movement_epsilon = 0.0001f;
+            float movement = magnitude - previousMagnitude;
+
+            if (movement > movement_epsilon)
+                outwardUntil = Time.Current + center_out_cursor_motion_grace;
+            else if (movement < -movement_epsilon)
+                outwardUntil = double.NegativeInfinity;
+
+            previousMagnitude = magnitude;
+            bool visible = CenterOutCursorVisible(magnitude, Time.Current <= outwardUntil);
+            drawable.Position = new Vector2(SIZE / 2) + value * GUIDE_RADIUS;
+            drawable.Alpha = visible ? 1 : 0;
+            return visible;
         }
 
-        private void updateTrails()
+        private void updateTrails(bool leftCursorVisible, bool rightCursorVisible)
         {
-            if (!ShowCursorTrails)
-            {
-                leftTrail.Alpha = 0;
-                rightTrail.Alpha = 0;
+            updateTrail(leftTrail, leftCursor, ShowCursorTrails && leftCursorVisible, ref leftTrailWasVisible);
+            updateTrail(rightTrail, rightCursor, ShowCursorTrails && rightCursorVisible, ref rightTrailWasVisible);
+        }
 
-                if (trailsWereVisible)
+        private static void updateTrail(SticksCursorTrail trail, Drawable cursorDrawable, bool visible, ref bool wasVisible)
+        {
+            if (!visible)
+            {
+                trail.Alpha = 0;
+
+                if (wasVisible)
                 {
-                    leftTrail.Reset();
-                    rightTrail.Reset();
-                    trailsWereVisible = false;
+                    trail.Reset();
+                    wasVisible = false;
                 }
 
                 return;
             }
 
-            if (!trailsWereVisible)
+            if (!wasVisible)
             {
-                leftTrail.Reset();
-                rightTrail.Reset();
-                trailsWereVisible = true;
+                trail.Reset();
+                wasVisible = true;
             }
 
-            leftTrail.Alpha = 0.65f;
-            rightTrail.Alpha = 0.65f;
-            leftTrail.AddPosition(leftCursor.ScreenSpaceDrawQuad.Centre);
-            rightTrail.AddPosition(rightCursor.ScreenSpaceDrawQuad.Centre);
+            trail.Alpha = 0.65f;
+            trail.AddPosition(cursorDrawable.ScreenSpaceDrawQuad.Centre);
         }
 
         private static CircularContainer ring(float radius, Color4 colour) => new CircularContainer

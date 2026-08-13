@@ -37,6 +37,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             new Bindable<SticksStackedNotePresentation>(SticksStackedNotePresentation.RadialSpacing);
         private readonly Bindable<SticksNotePresentation> notePresentation =
             new Bindable<SticksNotePresentation>(SticksNotePresentation.BracketMarkers);
+        private readonly BindableBool hideInactiveCursors = new BindableBool();
         private readonly BindableFloat noteCircleScale = new BindableFloat(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE);
         private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
         private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
@@ -67,6 +68,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.NotePresentation, notePresentation);
             notePresentation.BindValueChanged(presentation =>
                 ((SticksPlayfield)Playfield).NotePresentation = presentation.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.HideInactiveCursors, hideInactiveCursors);
+            hideInactiveCursors.BindValueChanged(hidden =>
+                ((SticksPlayfield)Playfield).HideInactiveCursors = hidden.NewValue, true);
             Config.BindWith(SticksRulesetSetting.NoteCircleScale, noteCircleScale);
             noteCircleScale.BindValueChanged(scale =>
                 ((SticksPlayfield)Playfield).NoteCircleScale = scale.NewValue, true);

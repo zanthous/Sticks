@@ -272,10 +272,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             hitCircle.Alpha = showApproachTarget ? 1 : 0;
             approachCircle.Alpha = showApproachTarget && approachCircleEnabled ? approachAlpha : 0;
 
+            bool fullyOpaqueArc = showBox || presentation == SticksNotePresentation.CenterOut;
             if (arc != null)
-                arc.Alpha = showBox ? 1 : 0.72f;
+                arc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
             if (animatedArc != null)
-                animatedArc.Alpha = showBox ? 1 : 0.72f;
+                animatedArc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
             if (boxInteriorArc != null)
             {
                 boxInteriorArc.Alpha = showBox ? 1 : 0;

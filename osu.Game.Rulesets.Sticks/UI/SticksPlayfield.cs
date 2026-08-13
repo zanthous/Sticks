@@ -9,6 +9,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Shaders;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
 using osu.Game.Beatmaps;
@@ -51,6 +52,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksCursorTrail rightTrail;
         private readonly SmoothPath leftRelaxDirectionLine;
         private readonly SmoothPath rightRelaxDirectionLine;
+        private readonly Container radialPathLayer;
+        private readonly SticksRibbonBuffer radialPathBuffer;
+        private readonly SticksContactBurstLayer contactBurstLayer;
         private readonly SticksJudgementDisplay judgementDisplay;
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
@@ -98,6 +102,11 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// or actively moving outward beyond the inner dead zone.
         /// </summary>
         public bool HideInactiveCursors { get; set; }
+
+        /// <summary>
+        /// Shows restrained contact feedback while center-out objects are successfully played.
+        /// </summary>
+        public bool SliderTrackingSparks { get; set; }
 
         public float NoteCircleScale
         {
@@ -175,13 +184,54 @@ namespace osu.Game.Rulesets.Sticks.UI
                 ring(GUIDE_RADIUS, Color4.White.Opacity(0.55f)),
                 leftRelaxDirectionLine = relaxDirectionLine(LEFT_COLOUR),
                 rightRelaxDirectionLine = relaxDirectionLine(RIGHT_COLOUR),
+                radialPathBuffer = new SticksRibbonBuffer()
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Depth = 5,
+                    // Max-blended ribbon colours require zero RGB in transparent pixels.
+                    // Color4.Transparent is transparent white, which wins a component-wise
+                    // maximum and washes every isolated ribbon fill to white.
+                    BackgroundColour = new Color4(0, 0, 0, 0),
+                    Child = radialPathLayer = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                    },
+                },
+                // Note markers deliberately live outside the max-blended ribbon buffer. They
+                // therefore replace slider colour normally and remain fully opaque when the two
+                // overlap, while ribbon/ribbon intersections can still mix to purple below.
                 HitObjectContainer,
+                contactBurstLayer = new SticksContactBurstLayer(),
                 judgementDisplay = new SticksJudgementDisplay(),
                 leftTrail = new SticksCursorTrail("Cursors/blue"),
                 rightTrail = new SticksCursorTrail("Cursors/red"),
                 leftCursor = cursor(LEFT_COLOUR),
                 rightCursor = cursor(RIGHT_COLOUR),
             });
+        }
+
+        internal void AddRadialPath(SticksRadialTimelinePath path) => radialPathLayer.Add(path);
+
+        internal void RemoveRadialPath(SticksRadialTimelinePath path)
+        {
+            // Hit object disposal may be initiated by the host's shutdown thread. Defer the
+            // child mutation; if the playfield is also shutting down, its normal disposal owns it.
+            Scheduler.Add(() =>
+            {
+                if (path.Parent == radialPathLayer)
+                    radialPathLayer.Remove(path, true);
+            });
+        }
+
+        internal void TriggerContactBurst(StickSide side, float angle, bool completion = false)
+        {
+            if (!CenterOutPresentation || !SliderTrackingSparks)
+                return;
+
+            contactBurstLayer.Trigger(
+                angle,
+                side == StickSide.Left ? LEFT_COLOUR : RIGHT_COLOUR,
+                completion);
         }
 
         [BackgroundDependencyLoader]
@@ -231,13 +281,24 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private void onNewResult(DrawableHitObject judgedObject, JudgementResult result)
         {
+            if (judgedObject is DrawableSticksFlick flick && result.Type.IsHit())
+                TriggerContactBurst(flick.HitObject.Side, flick.HitObject.Angle);
+            else if (judgedObject is DrawableSticksSliderTail tail && result.Type == HitResult.SliderTailHit)
+                TriggerContactBurst(tail.HitObject.Side, tail.HitObject.Angle, completion: true);
+            else if (judgedObject is DrawableSticksHoldTail holdTail && result.Type == HitResult.SliderTailHit)
+                TriggerContactBurst(holdTail.HitObject.Side, holdTail.HitObject.Angle, completion: true);
+
             if (!DisplayJudgements.Value)
                 return;
 
             judgementDisplay.Process(result);
         }
 
-        private void onRevertResult(JudgementResult result) => judgementDisplay.Revert(result);
+        private void onRevertResult(JudgementResult result)
+        {
+            contactBurstLayer.ClearBursts();
+            judgementDisplay.Revert(result);
+        }
 
         public Vector2 StickVector(StickSide side) => input.VectorFor(side);
 
@@ -761,5 +822,23 @@ namespace osu.Game.Rulesets.Sticks.UI
             DrawableSticksHold hold => hold.HitObject,
             _ => null,
         };
+
+        private partial class SticksRibbonBuffer : BufferedContainer, ITexturedShaderDrawable
+        {
+            private IShader compositeShader = null!;
+
+            IShader ITexturedShaderDrawable.TextureShader => compositeShader;
+
+            public SticksRibbonBuffer()
+                : base(cachedFrameBuffer: false)
+            {
+            }
+
+            [BackgroundDependencyLoader]
+            private void load(ShaderManager shaders)
+            {
+                compositeShader = shaders.Load(VertexShaderDescriptor.TEXTURE_2, "SticksRibbonComposite");
+            }
+        }
     }
 }

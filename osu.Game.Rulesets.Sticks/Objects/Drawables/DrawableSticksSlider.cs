@@ -38,6 +38,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SticksArcMarker trackingMarker;
         private readonly SticksSliderHeadMarker headMarker;
         private readonly SticksRadialTimelinePath radialPath;
+        private readonly SticksSliderContactEffect sliderContactEffect;
         private readonly Container nestedHitObjectContainer;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
         private SticksSyncedNoteLink syncedNoteLink;
@@ -50,6 +51,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private double previousEditorTime = double.NaN;
         private float visualRadialOffset;
         private bool visualRadialOffsetInitialised;
+        private bool radialPathRegistered;
 
         [Resolved(CanBeNull = true)]
         private Editor editor { get; set; }
@@ -153,6 +155,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Depth = 4,
             });
 
+            AddInternal(sliderContactEffect = new SticksSliderContactEffect(
+                colourFor(hitObject.Side),
+                hitObject.StartTime * 0.00031 + hitObject.Angle * 0.017)
+            {
+                Alpha = 0,
+                Depth = -25,
+            });
+
             AddInternal(headMarker = new SticksSliderHeadMarker(hitObject.Side, hitObject.InitialDirection, colourFor(hitObject.Side), true)
             {
                 Angle = hitObject.Angle,
@@ -177,6 +187,26 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             playfield = sticksPlayfield;
             trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
+        }
+
+        protected override void LoadComplete()
+        {
+            base.LoadComplete();
+
+            RemoveInternal(radialPath, false);
+            playfield.AddRadialPath(radialPath);
+            radialPathRegistered = true;
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing && radialPathRegistered)
+            {
+                playfield.RemoveRadialPath(radialPath);
+                radialPathRegistered = false;
+            }
+
+            base.Dispose(isDisposing);
         }
 
         protected override void Update()
@@ -238,6 +268,33 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             trackingMarker.Alpha = !useCenterOut && active ? 1 : 0;
 
             updateHeadJudgement(now);
+
+            bool tracking = active && TrackingAuthorised && isStickInRange(now);
+
+            if (useCenterOut)
+                radialPath.SetTrackingState(tracking, HitObject.BeatPulseAt(now));
+
+            bool showSparks = useCenterOut && playfield.SliderTrackingSparks && tracking;
+            float trackingAngle = HitObject.AngleAt(Math.Clamp(now, HitObject.StartTime, HitObject.EndTime));
+
+            sliderContactEffect.SetState(
+                showSparks,
+                now,
+                trackingAngle,
+                HitObject.PrimaryHitAngle,
+                colourFor(HitObject.Side));
+        }
+
+        private bool isStickInRange(double now)
+        {
+            Vector2 stick = playfield.StickVector(HitObject.Side);
+
+            if (stick.LengthSquared <= 0 || !playfield.IsStickBeyondRechargeBoundary(HitObject.Side))
+                return false;
+
+            float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
+            float targetAngle = HitObject.AngleAt(Math.Clamp(now, HitObject.StartTime, HitObject.EndTime));
+            return Math.Abs(SticksHitObject.DeltaAngle(actualAngle, targetAngle)) <= HitObject.LenientHalfAngle;
         }
 
         private void hideFixedLanePaths()

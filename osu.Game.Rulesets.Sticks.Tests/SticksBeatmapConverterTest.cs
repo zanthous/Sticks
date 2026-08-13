@@ -126,6 +126,79 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestProceduralConversionWidensAllHitAnglesByFiveDegrees()
+        {
+            var source = new Beatmap<HitObject>();
+            source.Difficulty.CircleSize = SticksHitObject.HARD_CIRCLE_SIZE;
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestDurationHitObject { StartTime = 3000, Duration = 1000, Position = new Vector2(256, 384) });
+            source.HitObjects.Add(new TestHoldDurationHitObject { StartTime = 6000, Duration = 1000, Position = new Vector2(0, 192) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            foreach (SticksHitObject hitObject in converted)
+                hitObject.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+            SticksHitObject[] allObjects = recursivelyEnumerate(converted).ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Exactly(1).TypeOf<SticksFlick>());
+                Assert.That(converted, Has.Exactly(1).TypeOf<SticksSlider>());
+                Assert.That(converted, Has.Exactly(1).TypeOf<SticksHold>());
+                Assert.That(allObjects, Has.All.Matches<SticksHitObject>(hitObject =>
+                    hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 20));
+            });
+
+            // Applying defaults is common during gameplay/editor reloads and must not accumulate.
+            foreach (SticksHitObject hitObject in converted)
+                hitObject.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+            Assert.That(recursivelyEnumerate(converted), Has.All.Matches<SticksHitObject>(hitObject =>
+                hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 20));
+        }
+
+        [Test]
+        public void TestAuthoredObjectsDoNotReceiveProceduralHitAngleAdjustment()
+        {
+            var source = new Beatmap<HitObject>();
+            source.Difficulty.CircleSize = SticksHitObject.HARD_CIRCLE_SIZE;
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
+            {
+                StartTime = 1000,
+                Side = StickSide.Left,
+                Angle = 0,
+            }));
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksSlider
+            {
+                StartTime = 3000,
+                Duration = 1000,
+                Side = StickSide.Right,
+                Angle = 90,
+                ArcAngle = 90,
+            }));
+            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksHold
+            {
+                StartTime = 6000,
+                Duration = 1000,
+                Side = StickSide.Left,
+                Angle = 180,
+            }));
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            foreach (SticksHitObject hitObject in converted)
+                hitObject.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+            Assert.That(recursivelyEnumerate(converted), Has.All.Matches<SticksHitObject>(hitObject =>
+                hitObject.PrimaryHitAngle == 15 && hitObject.SecondaryHitAngle == 15));
+        }
+
+        [Test]
         public void TestAuthoredObjectsRoundTripThroughLegacyProxyMarkers()
         {
             SticksHitObject[] authored =
@@ -1376,6 +1449,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 get => Position.Y;
                 set => Position = new Vector2(X, value);
+            }
+        }
+
+        private static IEnumerable<SticksHitObject> recursivelyEnumerate(IEnumerable<SticksHitObject> hitObjects)
+        {
+            foreach (SticksHitObject hitObject in hitObjects)
+            {
+                yield return hitObject;
+
+                foreach (SticksHitObject nested in recursivelyEnumerate(hitObject.NestedHitObjects.OfType<SticksHitObject>()))
+                    yield return nested;
             }
         }
 

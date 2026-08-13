@@ -954,6 +954,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachDistance), Is.EqualTo(30));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachSpeed), Is.EqualTo(1));
                 Assert.That(config.Get<bool>(SticksRulesetSetting.HideInactiveCursors), Is.False);
+                Assert.That(config.Get<bool>(SticksRulesetSetting.SliderTrackingSparks), Is.False);
                 Assert.That(playfield.HideInactiveCursors, Is.False);
                 Assert.That(playfield.RadialNoteApproach, Is.False);
                 Assert.That(playfield.StackedNotePresentation, Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
@@ -1447,6 +1448,18 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
 
             Assert.That(() => new DrawableSticksSlider(slider), Throws.Nothing);
+        }
+
+        [Test]
+        public void TestSliderContactEffectCanActivateFromZeroAlpha()
+        {
+            var effect = new SticksSliderContactEffect(Color4.White, 0)
+            {
+                Alpha = 0,
+            };
+
+            Assert.That(effect.AlwaysPresent, Is.True,
+                "The contact effect must continue updating while initially invisible so its activation smoothing can begin.");
         }
 
         [Test]

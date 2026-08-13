@@ -30,6 +30,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private readonly SticksArcMarker headMarker;
         private readonly SticksRadialTimelinePath radialPath;
+        private readonly SticksSliderContactEffect holdContactEffect;
         private readonly SmoothPath durationRail;
         private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
@@ -52,6 +53,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private double previousEditorTime = double.NaN;
         private float visualRadialOffset;
         private bool visualRadialOffsetInitialised;
+        private bool radialPathRegistered;
 
         [Resolved(CanBeNull = true)]
         private Editor editor { get; set; }
@@ -137,6 +139,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Depth = 4,
             });
 
+            AddInternal(holdContactEffect = new SticksSliderContactEffect(
+                colourFor(hitObject.Side),
+                hitObject.StartTime * 0.00031 + hitObject.Angle * 0.017)
+            {
+                Alpha = 0,
+                Depth = -25,
+            });
+
             AddInternal(holdingSample = new PausableSkinnableSound
             {
                 Looping = true,
@@ -158,6 +168,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.LoadComplete();
 
+            RemoveInternal(radialPath, false);
+            playfield.AddRadialPath(radialPath);
+            radialPathRegistered = true;
+
             // Native judgement results rewind automatically in the editor, but the hold's
             // parallel gesture/audio state is custom and must follow the head result explicitly.
             OnRevertResult += (drawable, _) =>
@@ -165,6 +179,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 if (drawable is DrawableSticksHoldHead)
                     ResetEditorPreviewState(playfield.FlickSequence(HitObject.Side));
             };
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            if (isDisposing && radialPathRegistered)
+            {
+                playfield.RemoveRadialPath(radialPath);
+                radialPathRegistered = false;
+            }
+
+            base.Dispose(isDisposing);
         }
 
         protected override void Update()
@@ -216,6 +241,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             // Like a standard slider, tracking can resume after the head or any intermediate
             // checkpoint was missed. Only checkpoints crossed while away are lost.
             bool currentlyTracking = active && TrackingAuthorised && isStickInRange();
+
+            if (useCenterOut)
+                radialPath.SetTrackingState(currentlyTracking, HitObject.BeatPulseAt(now));
+
+            holdContactEffect.SetState(
+                useCenterOut && playfield.SliderTrackingSparks && currentlyTracking,
+                now,
+                HitObject.Angle,
+                HitObject.PrimaryHitAngle,
+                colourFor(HitObject.Side));
+
             updateHoldingSample(currentlyTracking && !Judged);
         }
 

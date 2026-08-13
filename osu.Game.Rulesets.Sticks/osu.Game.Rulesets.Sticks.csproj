@@ -25,5 +25,6 @@
     <EmbeddedResource Include="..\cursors\*.png"
                       Link="Resources\Textures\Cursors\%(Filename)%(Extension)"
                       LogicalName="$(RootNamespace).Resources.Textures.Cursors.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Resources\Shaders\*.fs" />
   </ItemGroup>
 </Project>

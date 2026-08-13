@@ -6,14 +6,17 @@ using NUnit.Framework;
 using osu.Framework.Input.StateChanges;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Database;
 using osu.Game.Replays;
 using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Replays;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.Sticks.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
+using osu.Game.Scoring;
 using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Tests
@@ -72,6 +75,83 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             processor.RevertResult(timing);
             Assert.That(processor.Combo.Value, Is.Zero);
+        }
+
+        [Test]
+        public void TestMaximumStatisticsPreserveEqualAngleWeightWithoutExtraCombo()
+        {
+            Beatmap<SticksHitObject> beatmap = createBeatmap(
+                new SticksFlick { StartTime = 1000, Side = StickSide.Left, Angle = 0 },
+                new SticksFlick { StartTime = 1250, Side = StickSide.Right, Angle = 180 });
+            var processor = new SticksScoreProcessor(new SticksRuleset());
+
+            processor.ApplyBeatmap(beatmap);
+            applyPerfectResultsChronologically(processor, beatmap);
+
+            var score = new ScoreInfo();
+            processor.PopulateScore(score);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(processor.MaximumStatistics.GetValueOrDefault(HitResult.Great), Is.EqualTo(2),
+                    "The two timing components should retain their native maximum result.");
+                Assert.That(processor.MaximumStatistics.GetValueOrDefault(HitResult.SmallTickHit), Is.EqualTo(2),
+                    "Angle components should use the accuracy-affecting, combo-neutral maximum-statistics carrier.");
+                Assert.That(processor.GetBaseScoreForResult(HitResult.SmallTickHit), Is.EqualTo(processor.GetBaseScoreForResult(HitResult.Great)),
+                    "The carrier must reconstruct an angle component with the same accuracy weight as timing.");
+                Assert.That(score.GetMaximumAchievableCombo(), Is.EqualTo(2),
+                    "Angle components must not double the maximum combo reported by lazer.");
+                Assert.That(processor.MaximumCombo, Is.EqualTo(2));
+                Assert.That(processor.Accuracy.Value, Is.EqualTo(1));
+                Assert.That(StandardisedScoreMigrationTools.ComputeAccuracy(score, processor), Is.EqualTo(1),
+                    "Persisted perfect Sticks statistics must reconstruct as 100% accuracy.");
+            });
+        }
+
+        [Test]
+        public void TestPerfectChronologicalPlayWithOverlappingDurationObjectsScoresOneMillion()
+        {
+            Beatmap<SticksHitObject> beatmap = createBeatmap(
+                new SticksSlider
+                {
+                    StartTime = 1000,
+                    Duration = 2000,
+                    Side = StickSide.Left,
+                    Angle = 315,
+                    ArcAngle = 120,
+                },
+                new SticksFlick
+                {
+                    StartTime = 1250,
+                    Side = StickSide.Right,
+                    Angle = 90,
+                },
+                new SticksHold
+                {
+                    StartTime = 1600,
+                    Duration = 800,
+                    Side = StickSide.Right,
+                    Angle = 210,
+                },
+                new SticksFlick
+                {
+                    StartTime = 2350,
+                    Side = StickSide.Left,
+                    Angle = 30,
+                });
+            var processor = new SticksScoreProcessor(new SticksRuleset());
+
+            processor.ApplyBeatmap(beatmap);
+            applyPerfectResultsChronologically(processor, beatmap);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(processor.TotalScore.Value, Is.EqualTo(1_000_000),
+                    "A real perfect play must use the same chronological judgement order as maximum-score simulation.");
+                Assert.That(processor.MaximumTotalScore, Is.EqualTo(1_000_000));
+                Assert.That(processor.Accuracy.Value, Is.EqualTo(1));
+                Assert.That(processor.HighestCombo.Value, Is.EqualTo(processor.MaximumCombo));
+            });
         }
 
         [Test]
@@ -345,6 +425,43 @@ namespace osu.Game.Rulesets.Sticks.Tests
             processor.ApplyResult(result(hitObject, timing));
             processor.ApplyResult(result((SticksAngleComponent)hitObject.NestedHitObjects.Single(), angle));
             return processor;
+        }
+
+        private static Beatmap<SticksHitObject> createBeatmap(params SticksHitObject[] hitObjects)
+        {
+            var ruleset = new SticksRuleset();
+            var difficulty = new BeatmapDifficulty
+            {
+                CircleSize = 4,
+                OverallDifficulty = 5,
+                ApproachRate = 8,
+                SliderTickRate = 1,
+            };
+            var beatmap = new Beatmap<SticksHitObject>
+            {
+                BeatmapInfo = new BeatmapInfo(ruleset.RulesetInfo, difficulty),
+            };
+            beatmap.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            beatmap.HitObjects.AddRange(hitObjects);
+
+            foreach (SticksHitObject hitObject in hitObjects)
+                hitObject.ApplyDefaults(beatmap.ControlPointInfo, difficulty);
+
+            return beatmap;
+        }
+
+        private static void applyPerfectResultsChronologically(SticksScoreProcessor processor, IBeatmap beatmap)
+        {
+            foreach (HitObject hitObject in beatmap.HitObjects.SelectMany(enumerateRecursively).OrderBy(hitObject => hitObject.GetEndTime()))
+                processor.ApplyResult(new JudgementResult(hitObject, hitObject.Judgement) { Type = hitObject.Judgement.MaxResult });
+        }
+
+        private static IEnumerable<HitObject> enumerateRecursively(HitObject hitObject)
+        {
+            foreach (HitObject nested in hitObject.NestedHitObjects.SelectMany(enumerateRecursively))
+                yield return nested;
+
+            yield return hitObject;
         }
 
         private static SticksFlick createFlick(double startTime, StickSide side, float angle)

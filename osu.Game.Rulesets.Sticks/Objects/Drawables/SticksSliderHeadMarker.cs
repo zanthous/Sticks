@@ -329,10 +329,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             colourPlate.Alpha = showPlainCenterOutHead ? 0 : 1;
             directionArrow.Alpha = showPlainCenterOutHead ? 0 : 1;
 
+            bool fullyOpaqueArc = showBox || showPlainCenterOutHead;
             if (widthArc != null)
-                widthArc.Alpha = showBox ? 1 : 0.72f;
+                widthArc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
             if (animatedWidthArc != null)
-                animatedWidthArc.Alpha = showBox ? 1 : 0.72f;
+                animatedWidthArc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
             if (boxInteriorArc != null)
             {
                 boxInteriorArc.Alpha = showBox ? 1 : 0;

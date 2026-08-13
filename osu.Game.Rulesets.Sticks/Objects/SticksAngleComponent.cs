@@ -1,6 +1,7 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using Newtonsoft.Json;
+using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Scoring;
 
@@ -20,6 +21,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
         /// </summary>
         [JsonIgnore]
         public float? HitError { get; set; }
+
+        public override Judgement CreateJudgement() => new SticksAngleJudgement();
 
         protected override HitWindows CreateHitWindows() => HitWindows.Empty;
     }

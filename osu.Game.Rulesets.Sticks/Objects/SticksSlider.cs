@@ -99,6 +99,24 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public double TickInterval { get; private set; }
 
+        internal float BeatPulseAt(double time)
+        {
+            if (controlPointInfo == null)
+                return 0;
+
+            TimingControlPoint timingPoint = controlPointInfo.TimingPointAt(time);
+            double beatLength = timingPoint.BeatLength;
+
+            if (!double.IsFinite(beatLength) || beatLength <= 0)
+                return 0;
+
+            double phase = (time - timingPoint.Time) / beatLength;
+            phase -= Math.Floor(phase);
+
+            // Peak on each beat, smoothly falling and rising between adjacent beats.
+            return 0.5f + 0.5f * (float)Math.Cos(phase * Math.PI * 2);
+        }
+
         public float SegmentArcAngleAt(int index)
         {
             index = Math.Clamp(index, 0, SegmentCount - 1);
@@ -319,6 +337,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 StartTime = StartTime,
                 Side = Side,
                 Angle = Angle,
+                DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
             });
 
             if (double.IsFinite(TickInterval) && TickInterval > 0)
@@ -346,6 +365,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                             SliderStartTime = StartTime,
                             Side = Side,
                             Angle = AngleAt(tickTime),
+                            DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                             Samples = new[] { tickSample },
                         });
                     }
@@ -366,6 +386,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                     DirectionAfter = Math.Sign(SegmentArcAngleAt(reversalIndex + 1)),
                     Side = Side,
                     Angle = AngleAt(reversalTime),
+                    DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                     Samples = samplesAtNode(reversalIndex + 1),
                 });
             }
@@ -393,6 +414,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                         Direction = Math.Sign(segmentArc),
                         Side = Side,
                         Angle = AngleAt(extensionTime),
+                        DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                         Samples = new[] { new HitSampleInfo("slidertick") },
                     });
                 }
@@ -404,6 +426,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 SliderStartTime = StartTime,
                 Side = Side,
                 Angle = AngleAt(EndTime),
+                DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                 Samples = samplesAtNode(SegmentCount),
             });
         }

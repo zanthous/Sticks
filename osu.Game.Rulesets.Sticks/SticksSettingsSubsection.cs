@@ -57,6 +57,7 @@ namespace osu.Game.Rulesets.Sticks
         {
             var config = (SticksRulesetConfigManager)Config;
             var stackedNotePresentation = config.GetBindable<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation);
+            var notePresentation = config.GetBindable<SticksNotePresentation>(SticksRulesetSetting.NotePresentation);
             var radialApproachDistance = new SettingsItemV2(new FormSliderBar<float>
             {
                 Caption = "Radial approach distance",
@@ -70,6 +71,12 @@ namespace osu.Game.Rulesets.Sticks
                 Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachSpeed),
                 KeyboardStep = 0.05f,
                 LabelFormat = value => $"{value:0.00}x",
+            });
+            var contactEffects = new SettingsItemV2(new FormCheckBox
+            {
+                Caption = "Contact effects",
+                HintText = "Show restrained contact feedback when hitting notes and tracking or completing sliders and holds in center-out mode.",
+                Current = config.GetBindable<bool>(SticksRulesetSetting.SliderTrackingSparks),
             });
 
             Children = new Drawable[]
@@ -92,7 +99,7 @@ namespace osu.Game.Rulesets.Sticks
                 new SettingsItemV2(new FormEnumDropdown<SticksNotePresentation>
                 {
                     Caption = "Note presentation",
-                    Current = config.GetBindable<SticksNotePresentation>(SticksRulesetSetting.NotePresentation),
+                    Current = notePresentation,
                 }),
                 new SettingsItemV2(new FormCheckBox
                 {
@@ -100,6 +107,7 @@ namespace osu.Game.Rulesets.Sticks
                     HintText = "In center-out mode, only show a cursor while held at least 90% outward or moving outward beyond 20%.",
                     Current = config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors),
                 }),
+                contactEffects,
                 new SettingsItemV2(new FormSliderBar<float>
                 {
                     Caption = "Note circle size",
@@ -148,6 +156,9 @@ namespace osu.Game.Rulesets.Sticks
                 radialApproachDistance.CanBeShown.Value = showRadialApproachControls;
                 radialApproachSpeed.CanBeShown.Value = showRadialApproachControls;
             }, true);
+
+            notePresentation.BindValueChanged(presentation =>
+                contactEffects.CanBeShown.Value = presentation.NewValue == SticksNotePresentation.CenterOut, true);
         }
 
         private void openEditor(bool retainConvertedObjects)

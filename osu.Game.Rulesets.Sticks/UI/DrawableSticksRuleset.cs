@@ -26,6 +26,7 @@ namespace osu.Game.Rulesets.Sticks.UI
     public partial class DrawableSticksRuleset : DrawableRuleset<SticksHitObject>, IKeyBindingHandler<GlobalAction>
     {
         private const float approach_rate_step = 0.5f;
+        private const float fine_approach_rate_step = 0.1f;
 
         protected new SticksRulesetConfigManager Config => (SticksRulesetConfigManager)base.Config;
 
@@ -38,6 +39,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly Bindable<SticksNotePresentation> notePresentation =
             new Bindable<SticksNotePresentation>(SticksNotePresentation.BracketMarkers);
         private readonly BindableBool hideInactiveCursors = new BindableBool();
+        private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly BindableFloat noteCircleScale = new BindableFloat(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE);
         private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
         private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
@@ -71,6 +73,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.HideInactiveCursors, hideInactiveCursors);
             hideInactiveCursors.BindValueChanged(hidden =>
                 ((SticksPlayfield)Playfield).HideInactiveCursors = hidden.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.SliderTrackingSparks, sliderTrackingSparks);
+            sliderTrackingSparks.BindValueChanged(enabled =>
+                ((SticksPlayfield)Playfield).SliderTrackingSparks = enabled.NewValue, true);
             Config.BindWith(SticksRulesetSetting.NoteCircleScale, noteCircleScale);
             noteCircleScale.BindValueChanged(scale =>
                 ((SticksPlayfield)Playfield).NoteCircleScale = scale.NewValue, true);
@@ -120,14 +125,16 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
         {
+            float step = e.CurrentState.Keyboard.ShiftPressed ? fine_approach_rate_step : approach_rate_step;
+
             switch (e.Action)
             {
                 case GlobalAction.IncreaseScrollSpeed:
-                    adjustApproachRate(approach_rate_step);
+                    adjustApproachRate(step);
                     return true;
 
                 case GlobalAction.DecreaseScrollSpeed:
-                    adjustApproachRate(-approach_rate_step);
+                    adjustApproachRate(-step);
                     return true;
 
                 default:

@@ -22,6 +22,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 StartTime = StartTime,
                 Side = Side,
                 Angle = Angle,
+                DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
             });
         }
     }

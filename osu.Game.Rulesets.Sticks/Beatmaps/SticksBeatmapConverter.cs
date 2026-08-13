@@ -32,6 +32,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         /// </summary>
         public const double MAX_GENERATED_SLIDER_ANGULAR_VELOCITY = 120;
 
+        /// <summary>
+        /// Procedurally converted maps receive wider grading bands than authored Sticks maps.
+        /// </summary>
+        public const float GENERATED_HIT_ANGLE_ADJUSTMENT = 5;
+
         // Conversion overlap checks use a fixed, conservative visibility window. The player's
         // persistent AR preference is not available when conversion plans are built.
         public const double VISIBILITY_PREEMPT = 850;
@@ -155,6 +160,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Duration = generatedHoldDuration,
                     Side = plan.Side,
                     Angle = plan.Angle,
+                    DefaultHitAngleAdjustment = GENERATED_HIT_ANGLE_ADJUSTMENT,
                     Samples = normalisedConversionSamples(),
                 };
                 yield break;
@@ -170,6 +176,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         Duration = duration.Duration,
                         Side = plan.Side,
                         Angle = plan.Angle,
+                        DefaultHitAngleAdjustment = GENERATED_HIT_ANGLE_ADJUSTMENT,
                         Samples = normalisedConversionSamples(),
                     };
                     yield break;
@@ -191,6 +198,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Side = plan.Side,
                     Angle = plan.Angle,
                     ArcAngle = removeReversals ? plan.ArcAngle * sourceSpanCount : plan.ArcAngle,
+                    DefaultHitAngleAdjustment = GENERATED_HIT_ANGLE_ADJUSTMENT,
                     Samples = normalisedConversionSamples(),
                 };
 
@@ -203,6 +211,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     StartTime = original.StartTime,
                     Side = plan.Side,
                     Angle = plan.Angle,
+                    DefaultHitAngleAdjustment = GENERATED_HIT_ANGLE_ADJUSTMENT,
                     Samples = normalisedConversionSamples(),
                 };
 
@@ -215,6 +224,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         StartTime = original.StartTime,
                         Side = partner.Side,
                         Angle = partner.Angle,
+                        DefaultHitAngleAdjustment = GENERATED_HIT_ANGLE_ADJUSTMENT,
                         Samples = normalisedConversionSamples(),
                     };
                 }

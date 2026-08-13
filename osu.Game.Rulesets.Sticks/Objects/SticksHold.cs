@@ -21,6 +21,22 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public double TickInterval { get; private set; }
 
+        internal float BeatPulseAt(double time)
+        {
+            if (controlPointInfo == null)
+                return 0;
+
+            TimingControlPoint timingPoint = controlPointInfo.TimingPointAt(time);
+            double beatLength = timingPoint.BeatLength;
+
+            if (!double.IsFinite(beatLength) || beatLength <= 0)
+                return 0;
+
+            double phase = (time - timingPoint.Time) / beatLength;
+            phase -= System.Math.Floor(phase);
+            return 0.5f + 0.5f * (float)System.Math.Cos(phase * System.Math.PI * 2);
+        }
+
         public double Duration
         {
             get => duration;
@@ -53,6 +69,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 StartTime = StartTime,
                 Side = Side,
                 Angle = Angle,
+                DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
             });
 
             if (double.IsFinite(TickInterval) && TickInterval > 0)
@@ -70,6 +87,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                         HoldStartTime = StartTime,
                         Side = Side,
                         Angle = Angle,
+                        DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                         Samples = new[] { tickSample },
                     });
                 }
@@ -81,6 +99,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 HoldStartTime = StartTime,
                 Side = Side,
                 Angle = Angle,
+                DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                 Samples = CreatePlayableSamples(),
             });
         }

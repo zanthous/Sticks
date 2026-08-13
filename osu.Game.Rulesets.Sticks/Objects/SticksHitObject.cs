@@ -44,6 +44,13 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public float SecondaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
 
+        /// <summary>
+        /// Non-serialized adjustment applied when deriving hit angles from circle size.
+        /// Procedural conversion uses this to remain more generous than authored Sticks maps.
+        /// </summary>
+        [JsonIgnore]
+        internal float DefaultHitAngleAdjustment { get; set; }
+
         public float PreciseHalfAngle => PrimaryHitAngle / 2;
 
         public float LenientHalfAngle => (PrimaryHitAngle + SecondaryHitAngle) / 2;
@@ -271,7 +278,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
         protected override void ApplyDefaultsToSelf(ControlPointInfo controlPointInfo, IBeatmapDifficultyInfo difficulty)
         {
             base.ApplyDefaultsToSelf(controlPointInfo, difficulty);
-            PrimaryHitAngle = SecondaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize);
+            PrimaryHitAngle = SecondaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize) + DefaultHitAngleAdjustment;
             ApproachDuration = ApproachDurationFor(difficulty.ApproachRate);
         }
 

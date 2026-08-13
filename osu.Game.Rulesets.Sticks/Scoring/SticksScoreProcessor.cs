@@ -1,6 +1,10 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
+using System.Collections.Generic;
+using System.Linq;
+using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
 using osuTK;
@@ -13,6 +17,15 @@ namespace osu.Game.Rulesets.Sticks.Scoring
             : base(ruleset)
         {
         }
+
+        protected override IEnumerable<HitObject> EnumerateHitObjects(IBeatmap beatmap) =>
+            base.EnumerateHitObjects(beatmap).OrderBy(hitObject => hitObject.GetEndTime());
+
+        protected override HitResult GetSimulatedHitResult(Judgement judgement) =>
+            judgement is SticksAngleJudgement ? HitResult.SmallTickHit : base.GetSimulatedHitResult(judgement);
+
+        public override int GetBaseScoreForResult(HitResult result) =>
+            result == HitResult.SmallTickHit ? 300 : base.GetBaseScoreForResult(result);
 
         protected override double GetComboScoreChange(JudgementResult result) => isAngleComponent(result)
             ? 0

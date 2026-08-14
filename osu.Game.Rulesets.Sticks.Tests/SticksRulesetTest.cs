@@ -439,7 +439,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(mod.PrimaryHitAngle.Value, Is.Null);
                 Assert.That(mod.SecondaryHitAngle.Value, Is.Null);
                 Assert.That(flick.PrimaryHitAngle, Is.EqualTo(35));
-                Assert.That(flick.SecondaryHitAngle, Is.EqualTo(35));
+                Assert.That(flick.SecondaryHitAngle, Is.EqualTo(17.5f));
             });
         }
 
@@ -479,9 +479,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(slider.PrimaryHitAngle, Is.EqualTo(25).Within(0.0001f));
-                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(25).Within(0.0001f));
+                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(12.5f).Within(0.0001f));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
-                    Math.Abs(nested.PrimaryHitAngle - 25) < 0.0001f && Math.Abs(nested.SecondaryHitAngle - 25) < 0.0001f));
+                    Math.Abs(nested.PrimaryHitAngle - 25) < 0.0001f && Math.Abs(nested.SecondaryHitAngle - 12.5f) < 0.0001f));
             });
         }
 

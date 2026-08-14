@@ -149,7 +149,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(converted, Has.Exactly(1).TypeOf<SticksSlider>());
                 Assert.That(converted, Has.Exactly(1).TypeOf<SticksHold>());
                 Assert.That(allObjects, Has.All.Matches<SticksHitObject>(hitObject =>
-                    hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 20));
+                    hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 10));
             });
 
             // Applying defaults is common during gameplay/editor reloads and must not accumulate.
@@ -157,7 +157,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 hitObject.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
 
             Assert.That(recursivelyEnumerate(converted), Has.All.Matches<SticksHitObject>(hitObject =>
-                hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 20));
+                hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 10));
         }
 
         [Test]
@@ -195,7 +195,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 hitObject.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
 
             Assert.That(recursivelyEnumerate(converted), Has.All.Matches<SticksHitObject>(hitObject =>
-                hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 20));
+                hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 10));
         }
 
         [Test]

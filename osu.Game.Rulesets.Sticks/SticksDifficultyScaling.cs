@@ -21,7 +21,8 @@ namespace osu.Game.Rulesets.Sticks
         public const double MAX_ANGULAR_STAR_DECREASE = 0.35;
         public const double STAR_RATING_CALIBRATION_EXPONENT = 1.376;
 
-        private static readonly double reference_angle = SticksHitObject.HitAngleForCircleSize(REFERENCE_CIRCLE_SIZE);
+        private static readonly double reference_primary_angle = SticksHitObject.HitAngleForCircleSize(REFERENCE_CIRCLE_SIZE);
+        private static readonly double reference_secondary_angle = reference_primary_angle / 2;
         private static readonly double reference_timing_window = greatWindowFor(REFERENCE_OVERALL_DIFFICULTY);
 
         /// <summary>
@@ -42,7 +43,7 @@ namespace osu.Game.Rulesets.Sticks
         public static double AngularPrecisionMultiplier(float circleSize)
         {
             float hitAngle = SticksHitObject.HitAngleForCircleSize(circleSize);
-            return AngularPrecisionMultiplier(hitAngle, hitAngle);
+            return AngularPrecisionMultiplier(hitAngle, hitAngle / 2);
         }
 
         /// <summary>
@@ -51,8 +52,9 @@ namespace osu.Game.Rulesets.Sticks
         /// </summary>
         public static double AngularPrecisionMultiplier(float primaryHitAngle, float secondaryHitAngle)
         {
-            double greatPrecision = reference_angle / Math.Max(1, primaryHitAngle);
-            double successfulHitPrecision = reference_angle * 2 / Math.Max(1, primaryHitAngle + secondaryHitAngle);
+            double greatPrecision = reference_primary_angle / Math.Max(1, primaryHitAngle);
+            double successfulHitPrecision = (reference_primary_angle + reference_secondary_angle)
+                                            / Math.Max(1, primaryHitAngle + secondaryHitAngle);
             return Math.Sqrt(greatPrecision * successfulHitPrecision);
         }
 

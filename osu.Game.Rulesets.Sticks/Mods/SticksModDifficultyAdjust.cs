@@ -45,7 +45,7 @@ namespace osu.Game.Rulesets.Sticks.Mods
             MinValue = 0,
             MaxValue = 90,
             Precision = 1,
-            ReadCurrentFromDifficulty = difficulty => SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize),
+            ReadCurrentFromDifficulty = difficulty => SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize) / 2,
         };
 
         [SettingSource("Disable reversals", "Convert repeated sliders into continuous one-way motion.", LAST_SETTING_ORDER + 3)]

@@ -42,7 +42,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public float PrimaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
 
-        public float SecondaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
+        public float SecondaryHitAngle { get; set; } = VISIBLE_ARC_SPAN / 2;
 
         public float PreciseHalfAngle => PrimaryHitAngle / 2;
 
@@ -271,7 +271,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
         protected override void ApplyDefaultsToSelf(ControlPointInfo controlPointInfo, IBeatmapDifficultyInfo difficulty)
         {
             base.ApplyDefaultsToSelf(controlPointInfo, difficulty);
-            PrimaryHitAngle = SecondaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize);
+            PrimaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize);
+            SecondaryHitAngle = PrimaryHitAngle / 2;
             ApproachDuration = ApproachDurationFor(difficulty.ApproachRate);
         }
 

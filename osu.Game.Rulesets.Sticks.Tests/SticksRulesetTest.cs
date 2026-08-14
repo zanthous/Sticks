@@ -259,7 +259,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 PrimaryHitAngle = { Value = 30 },
                 SecondaryHitAngle = { Value = 10 },
-                ShowCursorTrails = { Value = true },
                 UseEightyPercentStickTravel = { Value = true },
                 SpeedChange = { Value = 1.25 },
             };
@@ -286,7 +285,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(mod.IncompatibleMods, Does.Contain(typeof(ModAdaptiveSpeed)));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
                     nested.PrimaryHitAngle == 30 && nested.SecondaryHitAngle == 10));
-                Assert.That(((SticksPlayfield)drawableRuleset.Playfield).ShowCursorTrails, Is.True);
+                Assert.That(((SticksPlayfield)drawableRuleset.Playfield).ShowCursorTrails, Is.False);
                 Assert.That(((SticksPlayfield)drawableRuleset.Playfield).PhysicalStickDistanceAtGameEdge, Is.EqualTo(0.8f));
             });
 
@@ -380,29 +379,45 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestFlickTargetPrefersMatchingAngleBeforeTiming()
+        public void TestFlickTargetPrefersEarlierEligibleHead()
         {
-            var closerWrongAngle = new SticksPlayfield.FlickTarget(1000, 180, 20);
-            var intendedAngle = new SticksPlayfield.FlickTarget(1200, 0, 20);
+            var earlier = new SticksPlayfield.FlickTarget(1000, 0, 20);
+            var later = new SticksPlayfield.FlickTarget(1200, 5, 20);
 
             Assert.Multiple(() =>
             {
-                Assert.That(SticksPlayfield.IsBetterFlickTarget(intendedAngle, closerWrongAngle, 1050, 0), Is.True);
-                Assert.That(SticksPlayfield.IsBetterFlickTarget(closerWrongAngle, intendedAngle, 1050, 0), Is.False);
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(earlier, later, 1175, 5), Is.True);
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(later, earlier, 1175, 5), Is.False);
             });
         }
 
         [Test]
-        public void TestFlickTargetUsesClosestTimingWhenAnglesBothMatch()
+        public void TestSimultaneousFlickTargetUsesClosestAngle()
         {
-            var earlierNote = new SticksPlayfield.FlickTarget(1000, 0, 20);
-            var closerLaterNote = new SticksPlayfield.FlickTarget(1200, 10, 20);
+            var closerAngle = new SticksPlayfield.FlickTarget(1000, 5, 20);
+            var fartherAngle = new SticksPlayfield.FlickTarget(1000, 15, 20);
 
             Assert.Multiple(() =>
             {
-                Assert.That(SticksPlayfield.IsBetterFlickTarget(closerLaterNote, earlierNote, 1175, 5), Is.True);
-                Assert.That(SticksPlayfield.IsBetterFlickTarget(earlierNote, closerLaterNote, 1175, 5), Is.False);
-                Assert.That(SticksPlayfield.IsBetterFlickTarget(earlierNote, closerLaterNote, 1025, 5), Is.True, "Drawable update order must not override the closest note.");
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(closerAngle, fartherAngle, 1000, 0), Is.True);
+                Assert.That(SticksPlayfield.IsBetterFlickTarget(fartherAngle, closerAngle, 1000, 0), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestModernPerStickNoteLockBoundary()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.IsEarlierHeadBlocking(999.99, 1100, 1000), Is.True,
+                    "A later matching note must not be hit before the skipped note begins.");
+                Assert.That(SticksPlayfield.IsEarlierHeadBlocking(1000, 1100, 1000), Is.False,
+                    "At the skipped note's start, modern note lock allows the later note and force-misses the skipped one.");
+                Assert.That(SticksPlayfield.IsEarlierHeadBlocking(1050, 1100, 1000), Is.False);
+                Assert.That(SticksPlayfield.IsEarlierHeadBlocking(999.99, 1000, 1000), Is.False,
+                    "Simultaneous heads must not block each other.");
+                Assert.That(SticksPlayfield.IsEarlierHeadBlocking(999.99, 1000, 1100), Is.False,
+                    "Only a head preceding the selected target can block it.");
             });
         }
 
@@ -423,8 +438,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(mod.PrimaryHitAngle.Value, Is.Null);
                 Assert.That(mod.SecondaryHitAngle.Value, Is.Null);
-                Assert.That(flick.PrimaryHitAngle, Is.EqualTo(30));
-                Assert.That(flick.SecondaryHitAngle, Is.EqualTo(30));
+                Assert.That(flick.PrimaryHitAngle, Is.EqualTo(35));
+                Assert.That(flick.SecondaryHitAngle, Is.EqualTo(35));
             });
         }
 
@@ -433,11 +448,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Assert.Multiple(() =>
             {
-                Assert.That(SticksHitObject.HitAngleForCircleSize(0), Is.EqualTo(30));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(3), Is.EqualTo(30));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(4), Is.EqualTo(20).Within(0.0001f));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(5.4f), Is.EqualTo(15));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(10), Is.EqualTo(15));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(0), Is.EqualTo(35));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(3), Is.EqualTo(35));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(4), Is.EqualTo(25).Within(0.0001f));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(5.4f), Is.EqualTo(20));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(10), Is.EqualTo(20));
             });
 
             float previous = SticksHitObject.HitAngleForCircleSize(3);
@@ -463,10 +478,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(slider.PrimaryHitAngle, Is.EqualTo(20).Within(0.0001f));
-                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(20).Within(0.0001f));
+                Assert.That(slider.PrimaryHitAngle, Is.EqualTo(25).Within(0.0001f));
+                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(25).Within(0.0001f));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
-                    Math.Abs(nested.PrimaryHitAngle - 20) < 0.0001f && Math.Abs(nested.SecondaryHitAngle - 20) < 0.0001f));
+                    Math.Abs(nested.PrimaryHitAngle - 25) < 0.0001f && Math.Abs(nested.SecondaryHitAngle - 25) < 0.0001f));
             });
         }
 
@@ -489,7 +504,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(difficulty.OverallDifficulty, Is.EqualTo(4));
                 Assert.That(difficulty.DrainRate, Is.EqualTo(3));
                 Assert.That(difficulty.ApproachRate, Is.EqualTo(7));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize), Is.EqualTo(30));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize), Is.EqualTo(35));
             });
         }
 
@@ -955,6 +970,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachSpeed), Is.EqualTo(1));
                 Assert.That(config.Get<bool>(SticksRulesetSetting.HideInactiveCursors), Is.False);
                 Assert.That(config.Get<bool>(SticksRulesetSetting.SliderTrackingSparks), Is.False);
+                Assert.That(config.Get<bool>(SticksRulesetSetting.ShowCursorTrails), Is.False);
                 Assert.That(playfield.HideInactiveCursors, Is.False);
                 Assert.That(playfield.RadialNoteApproach, Is.False);
                 Assert.That(playfield.StackedNotePresentation, Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
@@ -1460,6 +1476,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(effect.AlwaysPresent, Is.True,
                 "The contact effect must continue updating while initially invisible so its activation smoothing can begin.");
+        }
+
+        [TestCase(15f)]
+        [TestCase(20f)]
+        [TestCase(35f)]
+        public void TestContactEffectsMatchHitArcWidth(float hitSpan)
+        {
+            Assert.That(SticksSliderContactEffect.ContactSpanFor(hitSpan), Is.EqualTo(hitSpan));
         }
 
         [Test]

@@ -319,9 +319,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     /// </summary>
     public partial class SticksSliderContactEffect : CompositeDrawable
     {
-        private const float minimum_span = 14;
-        private const float maximum_span = 20;
-
         private readonly CircularProgress halo;
         private readonly CircularProgress glow;
         private readonly CircularProgress core;
@@ -353,13 +350,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             targetActive = isActive;
 
-            float span = Math.Clamp(sliderSpan * 0.9f, minimum_span, maximum_span);
+            float span = ContactSpanFor(sliderSpan);
             setArcRange(halo, angle, span, 5.5f, 1);
             setArcRange(glow, angle, span * 0.72f, 2.75f, 0.5f);
             setArcRange(core, angle, span * 0.52f, 1, 0);
             applyColour(colour);
             particles.SetContinuousState(isActive, now, angle, span, colour);
         }
+
+        internal static float ContactSpanFor(float hitSpan) => Math.Clamp(hitSpan, 1, 360);
 
         protected override void Update()
         {
@@ -438,9 +437,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 AddInternal(effects[i] = new SticksContactBurstEffect(i));
         }
 
-        public void Trigger(float angle, Color4 colour, bool completion)
+        public void Trigger(float angle, float hitSpan, Color4 colour, bool completion)
         {
-            effects[nextEffect].Trigger(Time.Current, angle, colour, completion);
+            effects[nextEffect].Trigger(Time.Current, angle, hitSpan, colour, completion);
             nextEffect = (nextEffect + 1) % effects.Length;
         }
 
@@ -483,13 +482,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             });
         }
 
-        public void Trigger(double now, float angle, Color4 colour, bool completion)
+        public void Trigger(double now, float angle, float hitSpan, Color4 colour, bool completion)
         {
             active = true;
             startTime = now;
             duration = completion ? completion_duration : hit_duration;
 
-            float span = completion ? 19 : 16;
+            float span = SticksSliderContactEffect.ContactSpanFor(hitSpan);
             setArcRange(halo, angle, span, 4.5f, 2);
             setArcRange(glow, angle, span * 0.7f, 2.2f, 1);
             setArcRange(core, angle, span * 0.48f, 0.75f, 0);

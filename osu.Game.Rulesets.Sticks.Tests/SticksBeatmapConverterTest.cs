@@ -126,7 +126,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestProceduralConversionWidensAllHitAnglesByFiveDegrees()
+        public void TestProceduralConversionUsesSharedHitAngleCurve()
         {
             var source = new Beatmap<HitObject>();
             source.Difficulty.CircleSize = SticksHitObject.HARD_CIRCLE_SIZE;
@@ -161,7 +161,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestAuthoredObjectsDoNotReceiveProceduralHitAngleAdjustment()
+        public void TestAuthoredObjectsUseSharedHitAngleCurve()
         {
             var source = new Beatmap<HitObject>();
             source.Difficulty.CircleSize = SticksHitObject.HARD_CIRCLE_SIZE;
@@ -195,7 +195,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 hitObject.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
 
             Assert.That(recursivelyEnumerate(converted), Has.All.Matches<SticksHitObject>(hitObject =>
-                hitObject.PrimaryHitAngle == 15 && hitObject.SecondaryHitAngle == 15));
+                hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 20));
         }
 
         [Test]

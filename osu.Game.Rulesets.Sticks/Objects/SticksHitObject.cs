@@ -32,9 +32,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public const float DEFAULT_CIRCLE_SIZE = 4;
         public const float HARD_CIRCLE_SIZE = 5.4f;
 
-        public const float EASY_HIT_ANGLE = 30;
-        public const float DEFAULT_HIT_ANGLE = 20;
-        public const float HARD_HIT_ANGLE = 15;
+        public const float EASY_HIT_ANGLE = 35;
+        public const float DEFAULT_HIT_ANGLE = 25;
+        public const float HARD_HIT_ANGLE = 20;
 
         private static readonly double circle_size_curve_exponent =
             Math.Log((DEFAULT_HIT_ANGLE - HARD_HIT_ANGLE) / (EASY_HIT_ANGLE - HARD_HIT_ANGLE))
@@ -43,13 +43,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public float PrimaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
 
         public float SecondaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
-
-        /// <summary>
-        /// Non-serialized adjustment applied when deriving hit angles from circle size.
-        /// Procedural conversion uses this to remain more generous than authored Sticks maps.
-        /// </summary>
-        [JsonIgnore]
-        internal float DefaultHitAngleAdjustment { get; set; }
 
         public float PreciseHalfAngle => PrimaryHitAngle / 2;
 
@@ -198,8 +191,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         /// <summary>
         /// Computes the full width of both angular grading bands from circle size.
-        /// The curve reaches its 20 degree reference at CS 4 while easing out towards
-        /// the 15 degree lower bound, rather than changing abruptly near CS 5.4.
+        /// The curve reaches its 25 degree reference at CS 4 while easing out towards
+        /// the 20 degree lower bound, rather than changing abruptly near CS 5.4.
         /// </summary>
         public static float HitAngleForCircleSize(float circleSize)
         {
@@ -278,7 +271,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
         protected override void ApplyDefaultsToSelf(ControlPointInfo controlPointInfo, IBeatmapDifficultyInfo difficulty)
         {
             base.ApplyDefaultsToSelf(controlPointInfo, difficulty);
-            PrimaryHitAngle = SecondaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize) + DefaultHitAngleAdjustment;
+            PrimaryHitAngle = SecondaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize);
             ApproachDuration = ApproachDurationFor(difficulty.ApproachRate);
         }
 

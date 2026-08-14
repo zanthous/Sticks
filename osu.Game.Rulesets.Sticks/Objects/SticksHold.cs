@@ -69,7 +69,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 StartTime = StartTime,
                 Side = Side,
                 Angle = Angle,
-                DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
             });
 
             if (double.IsFinite(TickInterval) && TickInterval > 0)
@@ -87,7 +86,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
                         HoldStartTime = StartTime,
                         Side = Side,
                         Angle = Angle,
-                        DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                         Samples = new[] { tickSample },
                     });
                 }
@@ -99,7 +97,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 HoldStartTime = StartTime,
                 Side = Side,
                 Angle = Angle,
-                DefaultHitAngleAdjustment = DefaultHitAngleAdjustment,
                 Samples = CreatePlayableSamples(),
             });
         }

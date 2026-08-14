@@ -107,6 +107,12 @@ namespace osu.Game.Rulesets.Sticks
                     HintText = "In center-out mode, only show a cursor while held at least 90% outward or moving outward beyond 20%.",
                     Current = config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors),
                 }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Show cursor trails",
+                    HintText = "Show a short continuous trail behind both stick cursors.",
+                    Current = config.GetBindable<bool>(SticksRulesetSetting.ShowCursorTrails),
+                }),
                 contactEffects,
                 new SettingsItemV2(new FormSliderBar<float>
                 {

@@ -51,13 +51,10 @@ namespace osu.Game.Rulesets.Sticks.Mods
         [SettingSource("Disable reversals", "Convert repeated sliders into continuous one-way motion.", LAST_SETTING_ORDER + 3)]
         public BindableBool DisableReversals { get; } = new BindableBool();
 
-        [SettingSource("Show cursor trails", "Show a short trail behind both stick cursors.", LAST_SETTING_ORDER + 4)]
-        public BindableBool ShowCursorTrails { get; } = new BindableBool();
-
-        [SettingSource("80% stick travel", "Treat 80% physical stick distance as the edge of the playfield.", LAST_SETTING_ORDER + 5)]
+        [SettingSource("80% stick travel", "Treat 80% physical stick distance as the edge of the playfield.", LAST_SETTING_ORDER + 4)]
         public BindableBool UseEightyPercentStickTravel { get; } = new BindableBool();
 
-        [SettingSource("Speed", "Adjust gameplay and audio playback speed.", LAST_SETTING_ORDER + 6, SettingControlType = typeof(MultiplierSettingsSlider))]
+        [SettingSource("Speed", "Adjust gameplay and audio playback speed.", LAST_SETTING_ORDER + 5, SettingControlType = typeof(MultiplierSettingsSlider))]
         public BindableDouble SpeedChange { get; } = new BindableDouble(1)
         {
             MinValue = 0.5,
@@ -96,7 +93,6 @@ namespace osu.Game.Rulesets.Sticks.Mods
         {
             if (drawableRuleset.Playfield is SticksPlayfield playfield)
             {
-                playfield.ShowCursorTrails = ShowCursorTrails.Value;
                 playfield.PhysicalStickDistanceAtGameEdge = UseEightyPercentStickTravel.Value ? 0.8f : 1;
             }
         }

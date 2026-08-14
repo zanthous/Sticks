@@ -156,6 +156,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             angleComponent.ApplyMiss();
         }
 
+        internal void MarkHeadMiss()
+        {
+            if (!Judged)
+                applyMisses();
+        }
+
         private void ensureSyncedNoteLink()
         {
             if (HitObject.SyncedNoteSide is not StickSide linkedSide)

@@ -1,6 +1,7 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
@@ -223,13 +224,14 @@ namespace osu.Game.Rulesets.Sticks.UI
             });
         }
 
-        internal void TriggerContactBurst(StickSide side, float angle, bool completion = false)
+        internal void TriggerContactBurst(StickSide side, float angle, float hitSpan, bool completion = false)
         {
             if (!CenterOutPresentation || !SliderTrackingSparks)
                 return;
 
             contactBurstLayer.Trigger(
                 angle,
+                hitSpan,
                 side == StickSide.Left ? LEFT_COLOUR : RIGHT_COLOUR,
                 completion);
         }
@@ -282,11 +284,11 @@ namespace osu.Game.Rulesets.Sticks.UI
         private void onNewResult(DrawableHitObject judgedObject, JudgementResult result)
         {
             if (judgedObject is DrawableSticksFlick flick && result.Type.IsHit())
-                TriggerContactBurst(flick.HitObject.Side, flick.HitObject.Angle);
+                TriggerContactBurst(flick.HitObject.Side, flick.HitObject.Angle, flick.HitObject.PrimaryHitAngle);
             else if (judgedObject is DrawableSticksSliderTail tail && result.Type == HitResult.SliderTailHit)
-                TriggerContactBurst(tail.HitObject.Side, tail.HitObject.Angle, completion: true);
+                TriggerContactBurst(tail.HitObject.Side, tail.HitObject.Angle, tail.HitObject.PrimaryHitAngle, completion: true);
             else if (judgedObject is DrawableSticksHoldTail holdTail && result.Type == HitResult.SliderTailHit)
-                TriggerContactBurst(holdTail.HitObject.Side, holdTail.HitObject.Angle, completion: true);
+                TriggerContactBurst(holdTail.HitObject.Side, holdTail.HitObject.Angle, holdTail.HitObject.PrimaryHitAngle, completion: true);
 
             if (!DisplayJudgements.Value)
                 return;
@@ -325,11 +327,82 @@ namespace osu.Game.Rulesets.Sticks.UI
         public bool TryConsumeHeadFlick(DrawableHitObject requester, StickSide side, long sequence)
         {
             SticksInputTracker.FlickEvent flick = input.LastFlickFor(side);
+            DrawableHitObject target = findPreferredHeadTarget(side, flick);
 
-            if (flick.Sequence != sequence || findPreferredHeadTarget(side, flick) != requester)
+            if (flick.Sequence != sequence
+                || target != requester
+                || isBlockedByEarlierHead(side, headHitObjectFor(target), flick.Time))
                 return false;
 
-            return input.TryConsumeFlick(side, sequence);
+            if (!input.TryConsumeFlick(side, sequence))
+                return false;
+
+            // Match lazer's modern note lock result ordering: skipped notes resolve before the
+            // selected target. Duration parents remain alive because only their heads are missed.
+            missSkippedHeads(side, headHitObjectFor(target).StartTime);
+            return true;
+        }
+
+        private bool isBlockedByEarlierHead(StickSide side, SticksHitObject target, double flickTime)
+        {
+            DrawableHitObject latestPrecedingHead = null;
+
+            foreach (DrawableHitObject drawable in HitObjectContainer.AliveObjects)
+            {
+                SticksHitObject earlierHead = headHitObjectFor(drawable);
+
+                if (earlierHead != null
+                    && earlierHead.Side == side
+                    && earlierHead.StartTime < target.StartTime
+                    && (latestPrecedingHead == null
+                        || earlierHead.StartTime >= headHitObjectFor(latestPrecedingHead).StartTime))
+                    latestPrecedingHead = drawable;
+            }
+
+            return latestPrecedingHead != null
+                   && !headIsJudgedFor(latestPrecedingHead)
+                   && IsEarlierHeadBlocking(flickTime, target.StartTime, headHitObjectFor(latestPrecedingHead).StartTime);
+        }
+
+        /// <summary>
+        /// Modern osu!-style note lock: a skipped head blocks a later head only until the
+        /// skipped head's own start time. Once that time is reached the later head may be hit,
+        /// but the skipped head is immediately missed by <see cref="missSkippedHeads"/>.
+        /// </summary>
+        public static bool IsEarlierHeadBlocking(double flickTime, double targetStartTime, double earlierStartTime) =>
+            earlierStartTime < targetStartTime && flickTime < earlierStartTime;
+
+        private void missSkippedHeads(StickSide side, double targetStartTime)
+        {
+            var skipped = new List<DrawableHitObject>();
+
+            foreach (DrawableHitObject drawable in HitObjectContainer.AliveObjects)
+            {
+                SticksHitObject skippedHead = unjudgedHeadHitObjectFor(drawable);
+
+                if (skippedHead != null && skippedHead.Side == side && skippedHead.StartTime < targetStartTime)
+                    skipped.Add(drawable);
+            }
+
+            // Applying a miss emits results and may update the live-object collection. Iterate a
+            // stable snapshot rather than mutating the collection being enumerated.
+            foreach (DrawableHitObject drawable in skipped)
+            {
+                switch (drawable)
+                {
+                    case DrawableSticksFlick flick:
+                        flick.MarkHeadMiss();
+                        break;
+
+                    case DrawableSticksSlider slider:
+                        slider.MarkHeadMiss();
+                        break;
+
+                    case DrawableSticksHold hold:
+                        hold.MarkHeadMiss();
+                        break;
+                }
+            }
         }
 
         /// <summary>
@@ -404,24 +477,16 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public static bool IsBetterFlickTarget(FlickTarget candidate, FlickTarget current, double flickTime, float flickAngle)
         {
+            if (candidate.StartTime != current.StartTime)
+                return candidate.StartTime < current.StartTime;
+
             float candidateAngleError = Math.Abs(SticksHitObject.DeltaAngle(flickAngle, candidate.Angle));
             float currentAngleError = Math.Abs(SticksHitObject.DeltaAngle(flickAngle, current.Angle));
-            bool candidateAngleMatches = candidateAngleError <= candidate.LenientHalfAngle;
-            bool currentAngleMatches = currentAngleError <= current.LenientHalfAngle;
-
-            if (candidateAngleMatches != currentAngleMatches)
-                return candidateAngleMatches;
-
-            double candidateTimeError = Math.Abs(flickTime - candidate.StartTime);
-            double currentTimeError = Math.Abs(flickTime - current.StartTime);
-
-            if (candidateTimeError != currentTimeError)
-                return candidateTimeError < currentTimeError;
 
             if (candidateAngleError != currentAngleError)
                 return candidateAngleError < currentAngleError;
 
-            return candidate.StartTime < current.StartTime;
+            return Math.Abs(flickTime - candidate.StartTime) < Math.Abs(flickTime - current.StartTime);
         }
 
         public readonly record struct FlickTarget(double StartTime, float Angle, float LenientHalfAngle);
@@ -821,6 +886,22 @@ namespace osu.Game.Rulesets.Sticks.UI
             DrawableSticksSlider slider => slider.HitObject,
             DrawableSticksHold hold => hold.HitObject,
             _ => null,
+        };
+
+        private static SticksHitObject unjudgedHeadHitObjectFor(DrawableHitObject drawable) => drawable switch
+        {
+            DrawableSticksFlick flick when !flick.Judged => flick.HitObject,
+            DrawableSticksSlider slider when !slider.HeadJudged => slider.HitObject,
+            DrawableSticksHold hold when !hold.HeadJudged => hold.HitObject,
+            _ => null,
+        };
+
+        private static bool headIsJudgedFor(DrawableHitObject drawable) => drawable switch
+        {
+            DrawableSticksFlick flick => flick.Judged,
+            DrawableSticksSlider slider => slider.HeadJudged,
+            DrawableSticksHold hold => hold.HeadJudged,
+            _ => true,
         };
 
         private partial class SticksRibbonBuffer : BufferedContainer, ITexturedShaderDrawable

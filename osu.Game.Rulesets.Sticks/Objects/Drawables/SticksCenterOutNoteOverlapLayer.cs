@@ -13,13 +13,15 @@ using osuTK.Graphics;
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     /// <summary>
-    /// Draws the geometric intersection of simultaneous opposite-stick Center Out flicks.
+    /// Draws the geometric intersection of simultaneous opposite-stick Center Out note heads.
+    /// Flicks, slider heads, and hold heads all begin with the same gesture and therefore share
+    /// the same overlap treatment.
     /// This stays separate from the ribbon compositor so duration paths can never alter a note's
     /// base colour, and uses a bounded set of reusable drawables for dense converted maps.
     /// </summary>
     public partial class SticksCenterOutNoteOverlapLayer : CompositeDrawable
     {
-        private const int max_visible_flicks = 512;
+        private const int max_visible_heads = 512;
         private const int max_overlaps = 64;
         private const float marker_half_thickness = 2.5f;
         private const float tick_half_length = 7 * 0.65f;
@@ -27,7 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private static readonly Color4 overlap_colour = new Color4(0.722f, 0.278f, 1f, 1f); // #B847FF
 
         private readonly SticksPlayfield playfield;
-        private readonly DrawableSticksFlick[] visibleFlicks = new DrawableSticksFlick[max_visible_flicks];
+        private readonly SticksHitObject[] visibleHeads = new SticksHitObject[max_visible_heads];
         private readonly OverlapVisual[] overlaps = new OverlapVisual[max_overlaps];
 
         public SticksCenterOutNoteOverlapLayer(SticksPlayfield playfield)
@@ -48,21 +50,32 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             if (playfield.CenterOutPresentation)
             {
-                int flickCount = 0;
+                int headCount = 0;
 
                 foreach (DrawableHitObject drawable in playfield.HitObjectContainer.AliveEntries.Values)
                 {
-                    if (drawable is DrawableSticksFlick flick && !flick.Judged && flickCount < visibleFlicks.Length)
-                        visibleFlicks[flickCount++] = flick;
+                    if (headCount >= visibleHeads.Length)
+                        break;
+
+                    SticksHitObject head = drawable switch
+                    {
+                        DrawableSticksFlick flick when !flick.Judged => flick.HitObject,
+                        DrawableSticksSlider slider when !slider.HeadJudged => slider.HitObject,
+                        DrawableSticksHold hold when !hold.HeadJudged => hold.HitObject,
+                        _ => null,
+                    };
+
+                    if (head != null)
+                        visibleHeads[headCount++] = head;
                 }
 
-                for (int i = 0; i < flickCount && overlapCount < overlaps.Length; i++)
+                for (int i = 0; i < headCount && overlapCount < overlaps.Length; i++)
                 {
-                    SticksFlick first = visibleFlicks[i].HitObject;
+                    SticksHitObject first = visibleHeads[i];
 
-                    for (int j = i + 1; j < flickCount && overlapCount < overlaps.Length; j++)
+                    for (int j = i + 1; j < headCount && overlapCount < overlaps.Length; j++)
                     {
-                        SticksFlick second = visibleFlicks[j].HitObject;
+                        SticksHitObject second = visibleHeads[j];
 
                         if (first.Side == second.Side || Math.Abs(first.StartTime - second.StartTime) >= 0.01)
                             continue;
@@ -97,7 +110,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     }
                 }
 
-                Array.Clear(visibleFlicks, 0, flickCount);
+                Array.Clear(visibleHeads, 0, headCount);
             }
 
             for (int i = overlapCount; i < overlaps.Length; i++)

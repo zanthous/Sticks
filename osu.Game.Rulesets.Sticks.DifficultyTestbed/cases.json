@@ -41,6 +41,28 @@
           "comment": "Kept most of the cost on predictable 180-degree jumps and reduced broad regional diversity to a smaller additional premium."
         }
       ]
+    },
+    {
+      "id": "unexpected-adventure",
+      "sourceHash": "172a0302e6ce09defcc6c03f075efefe99eba8dad33d289fc16b6017afef24ef",
+      "metadata": {
+        "artist": "Snail's House",
+        "title": "Lullaby",
+        "creator": "Voltaeyx",
+        "difficulty": "[2B] An Unexpected Adventure"
+      },
+      "conversion": "procedural",
+      "targetStars": null,
+      "comments": [
+        "This unranked aspire conversion is a pathological stress case, not a primary calibration target; it was estimated at no more than roughly 7.5 stars in playtesting.",
+        "It exposed the globally over-aggressive stream-speed curve and mechanical difficulty exploding when a duration object ends immediately before the next same-stick head."
+      ],
+      "traits": [
+        "2B aspire patterns",
+        "dense duration transitions",
+        "extreme conversion stress test"
+      ],
+      "milestones": []
     }
   ]
 }

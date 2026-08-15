@@ -308,8 +308,13 @@ namespace osu.Game.Rulesets.Sticks
                 gap /= Math.Clamp((gap / Math.Max(1, fullGreatWindow)) / 0.93, 0.92, 1);
 
                 const double high_speed_boundary = 60000.0 / 140 / 2; // Same-stick gap in a 140 BPM alternating 1/4 stream.
+                // osu!standard starts its quadratic speed bonus at a 75 ms interval and uses a
+                // 40 ms balancing distance. Scale that distance with Sticks' longer per-stick
+                // boundary so the bonus grows at the same relative rate instead of exploding
+                // immediately above 140 BPM.
+                const double speed_balancing_factor = high_speed_boundary * 40 / 75;
                 double speedBonus = gap < high_speed_boundary
-                    ? 0.75 * Math.Pow((high_speed_boundary - gap) / 50, 2)
+                    ? 0.75 * Math.Pow((high_speed_boundary - gap) / speed_balancing_factor, 2)
                     : 0;
 
                 impulse = 250 / Math.Max(25, gap) * (1 + speedBonus);

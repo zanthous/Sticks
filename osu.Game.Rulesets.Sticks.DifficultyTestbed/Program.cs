@@ -18,7 +18,7 @@ internal static class Program
 
     public static int Main(string[] args)
     {
-        if (!tryParseArguments(args, out List<string> filesRoots, out bool showHelp))
+        if (!tryParseArguments(args, out List<string> filesRoots, out bool showHelp, out bool showDiagnostics))
             return 2;
 
         if (showHelp)
@@ -93,7 +93,7 @@ internal static class Program
 
             try
             {
-                evaluate(calibrationCase, sourcePath);
+                evaluate(calibrationCase, sourcePath, showDiagnostics);
                 completed++;
             }
             catch (Exception exception)
@@ -108,7 +108,7 @@ internal static class Program
         return errors == 0 ? 0 : 1;
     }
 
-    private static void evaluate(CalibrationCase calibrationCase, string sourcePath)
+    private static void evaluate(CalibrationCase calibrationCase, string sourcePath, bool showDiagnostics)
     {
         verifyHash(sourcePath, calibrationCase.SourceHash);
 
@@ -154,6 +154,10 @@ internal static class Program
         Console.WriteLine($"Skills: mechanical {difficulty.Mechanical:0.000}, reading {difficulty.Reading:0.000}, control {difficulty.Control:0.000}, coordination {difficulty.Coordination:0.000}");
         Console.WriteLine($"Precision: angular {difficulty.AngularPrecision:0.000}, timing {difficulty.TimingPrecision:0.000}");
         Console.WriteLine($"Structure: {counts.SourceObjects} source -> {counts.ConvertedObjects} converted | {counts.TimingGroups} timing groups, {counts.Flicks} flicks, {counts.Sliders} sliders, {counts.Holds} hold{(counts.Holds == 1 ? string.Empty : "s")}, {counts.Chords} chords");
+
+        if (showDiagnostics)
+            printMechanicalDiagnostics(objects, convertedBeatmap.Difficulty.OverallDifficulty);
+
         Console.WriteLine($"Traits: {string.Join(", ", calibrationCase.Traits)}");
 
         foreach (string comment in calibrationCase.Comments)
@@ -313,10 +317,78 @@ internal static class Program
         }
     }
 
-    private static bool tryParseArguments(string[] args, out List<string> filesRoots, out bool showHelp)
+    private static void printMechanicalDiagnostics(SticksHitObject[] objects, float overallDifficulty)
+    {
+        const double simultaneousEpsilon = 0.01;
+        const double highSpeedBoundary = 60000.0 / 140 / 2;
+        double fullGreatWindow = 2 * Math.Max(19.5, 79.5 - 6 * overallDifficulty);
+        var previousEndBySide = new Dictionary<StickSide, double>();
+        var events = new List<MechanicalDiagnostic>();
+        int overlappingPreviousDuration = 0;
+
+        for (int groupStart = 0; groupStart < objects.Length;)
+        {
+            int groupEnd = groupStart + 1;
+            while (groupEnd < objects.Length && Math.Abs(objects[groupEnd].StartTime - objects[groupStart].StartTime) <= simultaneousEpsilon)
+                groupEnd++;
+
+            foreach (IGrouping<StickSide, SticksHitObject> sideGroup in objects[groupStart..groupEnd].GroupBy(hitObject => hitObject.Side))
+            {
+                SticksHitObject current = sideGroup.First();
+                double rawGap = previousEndBySide.TryGetValue(current.Side, out double previousEnd)
+                    ? current.StartTime - previousEnd
+                    : double.PositiveInfinity;
+                double impulse = 0.35;
+
+                if (double.IsFinite(rawGap))
+                {
+                    if (rawGap <= 0)
+                        overlappingPreviousDuration++;
+
+                    double gap = Math.Max(25, rawGap);
+                    gap /= Math.Clamp((gap / Math.Max(1, fullGreatWindow)) / 0.93, 0.92, 1);
+                    double speedBonus = gap < highSpeedBoundary
+                        ? 0.75 * Math.Pow((highSpeedBoundary - gap) / 50, 2)
+                        : 0;
+                    impulse = 250 / Math.Max(25, gap) * (1 + speedBonus);
+                }
+
+                if (sideGroup.Any(hitObject => hitObject is SticksSlider))
+                    impulse *= 1.1;
+                else if (sideGroup.Any(hitObject => hitObject is SticksHold))
+                    impulse *= 1.03;
+
+                events.Add(new MechanicalDiagnostic(current.StartTime, current.Side, rawGap, impulse, current.GetType().Name));
+
+                double latestEnd = sideGroup.Max(endTimeOf);
+                previousEndBySide[current.Side] = latestEnd;
+            }
+
+            groupStart = groupEnd;
+        }
+
+        Console.WriteLine($"Mechanical diagnostics: {overlappingPreviousDuration} same-stick heads start before the previous duration object ends.");
+        Console.WriteLine("Top mechanical impulses:");
+
+        foreach (MechanicalDiagnostic diagnostic in events.OrderByDescending(value => value.Impulse).Take(10))
+        {
+            string gap = double.IsFinite(diagnostic.RawGap) ? $"{diagnostic.RawGap:0.###}ms" : "first";
+            Console.WriteLine($"  {diagnostic.Time:0.###}ms {diagnostic.Side,-5} {diagnostic.Kind,-12} gap-from-previous-end {gap,12} -> impulse {diagnostic.Impulse:0.###}");
+        }
+
+        static double endTimeOf(SticksHitObject hitObject) => hitObject switch
+        {
+            SticksSlider slider => slider.EndTime,
+            SticksHold hold => hold.EndTime,
+            _ => hitObject.StartTime,
+        };
+    }
+
+    private static bool tryParseArguments(string[] args, out List<string> filesRoots, out bool showHelp, out bool showDiagnostics)
     {
         filesRoots = new List<string>();
         showHelp = false;
+        showDiagnostics = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -338,6 +410,10 @@ internal static class Program
                     showHelp = true;
                     break;
 
+                case "--diagnostics":
+                    showDiagnostics = true;
+                    break;
+
                 default:
                     Console.Error.WriteLine($"Unknown argument '{args[i]}'.");
                     printUsage();
@@ -350,7 +426,7 @@ internal static class Program
 
     private static void printUsage()
     {
-        Console.WriteLine("Usage: dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -- [--files-root <lazer-files-directory>]");
+        Console.WriteLine("Usage: dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -- [--files-root <lazer-files-directory>] [--diagnostics]");
         Console.WriteLine($"If --files-root is omitted, the usual lazer stores and {files_environment_variable} are checked.");
         Console.WriteLine("The files root is the lazer content-store directory named 'files', not the parent osu data directory.");
     }
@@ -365,6 +441,8 @@ internal static class Program
         int Sliders,
         int Holds,
         int Chords);
+
+    private readonly record struct MechanicalDiagnostic(double Time, StickSide Side, double RawGap, double Impulse, string Kind);
 }
 
 internal sealed class TestbedManifest

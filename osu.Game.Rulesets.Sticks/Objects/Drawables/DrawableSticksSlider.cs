@@ -194,13 +194,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             base.LoadComplete();
 
             RemoveInternal(radialPath, false);
-            playfield.AddRadialPath(radialPath);
-            radialPathRegistered = true;
         }
 
         protected override void Dispose(bool isDisposing)
         {
-            if (isDisposing && radialPathRegistered)
+            if (isDisposing)
             {
                 playfield.RemoveRadialPath(radialPath);
                 radialPathRegistered = false;
@@ -244,12 +242,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (useCenterOut)
             {
                 hideFixedLanePaths();
-                radialPath.Alpha = now < HitObject.EndTime ? 1 : 0;
-                radialPath.SetSliderGeometry(HitObject, now);
+                setRadialPathRegistered(now < HitObject.EndTime);
+
+                if (now < HitObject.EndTime)
+                    radialPath.SetSliderGeometry(HitObject, now);
             }
             else
             {
-                radialPath.Alpha = 0;
+                setRadialPathRegistered(false);
 
                 (double remainingStart, double remainingEnd) = HitObject.RemainingPathRangeAt(now);
                 int segmentIndex = active ? HitObject.SegmentIndexAt(now) : 0;
@@ -262,20 +262,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             updateHeadCue(now, cueActive);
 
-            trackingMarker.Angle = HitObject.AngleAt(now);
             trackingMarker.Presentation = playfield.NotePresentation;
             trackingMarker.TargetCircleScale = playfield.NoteCircleScale;
             trackingMarker.Alpha = !useCenterOut && active ? 1 : 0;
+
+            if (!useCenterOut)
+                trackingMarker.Angle = HitObject.AngleAt(now);
 
             updateHeadJudgement(now);
 
             bool tracking = active && TrackingAuthorised && isStickInRange(now);
 
             if (useCenterOut)
-                radialPath.SetTrackingState(tracking, HitObject.BeatPulseAt(now));
+                radialPath.SetTrackingState(tracking, tracking ? HitObject.BeatPulseAt(now) : 0);
 
             bool showSparks = useCenterOut && playfield.SliderTrackingSparks && tracking;
-            float trackingAngle = HitObject.AngleAt(Math.Clamp(now, HitObject.StartTime, HitObject.EndTime));
+            float trackingAngle = showSparks
+                ? HitObject.AngleAt(Math.Clamp(now, HitObject.StartTime, HitObject.EndTime))
+                : 0;
 
             sliderContactEffect.SetState(
                 showSparks,
@@ -283,6 +287,20 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 trackingAngle,
                 HitObject.PrimaryHitAngle,
                 colourFor(HitObject.Side));
+        }
+
+        private void setRadialPathRegistered(bool registered)
+        {
+            if (radialPathRegistered == registered)
+                return;
+
+            radialPathRegistered = registered;
+            radialPath.Alpha = registered ? 1 : 0;
+
+            if (registered)
+                playfield.AddRadialPath(radialPath);
+            else
+                playfield.DetachRadialPath(radialPath);
         }
 
         private bool isStickInRange(double now)
@@ -439,12 +457,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateSyncedNoteLink(double now, double headGrowth)
         {
+            if (playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut)
+            {
+                if (syncedNoteLink != null)
+                    syncedNoteLink.Alpha = 0;
+
+                return;
+            }
+
             ensureSyncedNoteLink();
 
             if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                syncedNoteLink.Alpha = playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut
-                    ? 0
-                    : SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
+                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
         }
 
         private void updateDirectionPreview(double now, bool cueActive, bool active)

@@ -169,8 +169,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             base.LoadComplete();
 
             RemoveInternal(radialPath, false);
-            playfield.AddRadialPath(radialPath);
-            radialPathRegistered = true;
 
             // Native judgement results rewind automatically in the editor, but the hold's
             // parallel gesture/audio state is custom and must follow the head result explicitly.
@@ -183,7 +181,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         protected override void Dispose(bool isDisposing)
         {
-            if (isDisposing && radialPathRegistered)
+            if (isDisposing)
             {
                 playfield.RemoveRadialPath(radialPath);
                 radialPathRegistered = false;
@@ -231,8 +229,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             durationCursor.Alpha = !useCenterOut && active ? 0.9f : 0;
             durationCursor.Position = Vector2.Lerp(railEnd, railStart, (float)progress);
 
-            radialPath.Alpha = useCenterOut && now < HitObject.EndTime ? 1 : 0;
-            if (useCenterOut)
+            setRadialPathRegistered(useCenterOut && now < HitObject.EndTime);
+            if (useCenterOut && now < HitObject.EndTime)
                 radialPath.SetHoldGeometry(HitObject, now);
 
             updateHeadJudgement(now);
@@ -243,7 +241,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool currentlyTracking = active && TrackingAuthorised && isStickInRange();
 
             if (useCenterOut)
-                radialPath.SetTrackingState(currentlyTracking, HitObject.BeatPulseAt(now));
+                radialPath.SetTrackingState(currentlyTracking, currentlyTracking ? HitObject.BeatPulseAt(now) : 0);
 
             holdContactEffect.SetState(
                 useCenterOut && playfield.SliderTrackingSparks && currentlyTracking,
@@ -253,6 +251,20 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 colourFor(HitObject.Side));
 
             updateHoldingSample(currentlyTracking && !Judged);
+        }
+
+        private void setRadialPathRegistered(bool registered)
+        {
+            if (radialPathRegistered == registered)
+                return;
+
+            radialPathRegistered = registered;
+            radialPath.Alpha = registered ? 1 : 0;
+
+            if (registered)
+                playfield.AddRadialPath(radialPath);
+            else
+                playfield.DetachRadialPath(radialPath);
         }
 
         private void updateVisualRadialOffset()
@@ -379,12 +391,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateSyncedNoteLink(double now, double headGrowth)
         {
+            if (playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut)
+            {
+                if (syncedNoteLink != null)
+                    syncedNoteLink.Alpha = 0;
+
+                return;
+            }
+
             ensureSyncedNoteLink();
 
             if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                syncedNoteLink.Alpha = playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut
-                    ? 0
-                    : SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
+                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
         }
 
         private void updateHeadJudgement(double now)

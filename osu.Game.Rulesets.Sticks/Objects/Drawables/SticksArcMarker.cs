@@ -139,8 +139,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     return;
 
                 approachProgress = value;
-                updateApproachCircle();
-                updateBoxArcs();
+
+                if (presentation == SticksNotePresentation.ApproachCircles)
+                    updateApproachCircle();
+                else if (presentation == SticksNotePresentation.FillingArcs)
+                    updateBoxArcs();
             }
         }
 
@@ -251,12 +254,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 arc.PathRadius = outerHalfThickness;
                 arc.Vertices = arcVertices(radius, span);
             }
-            updateBoxArcs(radius);
+            if (presentation == SticksNotePresentation.FillingArcs)
+                updateBoxArcs(radius);
+
             positionCap(leadingCap, radius, -span / 2);
             positionCap(trailingCap, radius, span / 2);
             positionCap(centerTick, radius, 0);
-            hitCircle.Position = SticksPlayfield.PointAt(0, radius);
-            approachCircle.Position = hitCircle.Position;
+
+            if (presentation == SticksNotePresentation.ApproachCircles)
+            {
+                hitCircle.Position = SticksPlayfield.PointAt(0, radius);
+                approachCircle.Position = hitCircle.Position;
+            }
         }
 
         private void updatePresentation()

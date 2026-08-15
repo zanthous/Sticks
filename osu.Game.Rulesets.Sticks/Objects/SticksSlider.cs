@@ -91,9 +91,21 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public IReadOnlyList<float> SegmentArcAngles => customSegmentArcAngles ?? createLegacySegments();
 
-        public float TotalAngularDistance => customSegmentArcAngles == null
-            ? Math.Abs(ArcAngle) * SegmentCount
-            : customSegmentArcAngles.Sum(segment => Math.Abs(segment));
+        public float TotalAngularDistance
+        {
+            get
+            {
+                if (customSegmentArcAngles == null)
+                    return Math.Abs(ArcAngle) * SegmentCount;
+
+                float total = 0;
+
+                for (int i = 0; i < customSegmentArcAngles.Count; i++)
+                    total += Math.Abs(customSegmentArcAngles[i]);
+
+                return total;
+            }
+        }
 
         public int InitialDirection => Math.Sign(SegmentArcAngleAt(0)) == 0 ? 1 : Math.Sign(SegmentArcAngleAt(0));
 
@@ -153,6 +165,53 @@ namespace osu.Game.Rulesets.Sticks.Objects
         {
             int segmentIndex = SegmentIndexAt(time);
             return SegmentStartAngleAt(segmentIndex) + SegmentArcAngleAt(segmentIndex) * (float)SegmentProgressAt(time);
+        }
+
+        /// <summary>
+        /// Samples this slider's constant-speed path in chronological order without repeatedly
+        /// rescanning all preceding reversal segments for every timestamp.
+        /// </summary>
+        internal void FillAngleSamples(double startTime, double endTime, Span<float> destination)
+        {
+            if (destination.Length == 0)
+                return;
+
+            int segmentCount = SegmentCount;
+            float totalDistance = TotalAngularDistance;
+
+            if (segmentCount <= 0 || totalDistance <= 0 || Duration <= 0)
+            {
+                destination.Fill(Angle);
+                return;
+            }
+
+            int segmentIndex = 0;
+            float segmentStartAngle = Angle;
+            float distanceBeforeSegment = 0;
+            float segmentArc = SegmentArcAngleAt(segmentIndex);
+            float segmentDistance = Math.Abs(segmentArc);
+
+            for (int i = 0; i < destination.Length; i++)
+            {
+                double sampleTime = destination.Length == 1
+                    ? startTime
+                    : startTime + (endTime - startTime) * i / (destination.Length - 1);
+                float travelledDistance = totalDistance * (float)Math.Clamp((sampleTime - StartTime) / Duration, 0, 1);
+
+                while (segmentIndex < segmentCount - 1
+                       && travelledDistance >= distanceBeforeSegment + segmentDistance)
+                {
+                    distanceBeforeSegment += segmentDistance;
+                    segmentStartAngle += segmentArc;
+                    segmentArc = SegmentArcAngleAt(++segmentIndex);
+                    segmentDistance = Math.Abs(segmentArc);
+                }
+
+                float segmentProgress = segmentDistance <= 0
+                    ? 1
+                    : Math.Clamp((travelledDistance - distanceBeforeSegment) / segmentDistance, 0, 1);
+                destination[i] = segmentStartAngle + segmentArc * segmentProgress;
+            }
         }
 
         public int SegmentIndexAt(double time)

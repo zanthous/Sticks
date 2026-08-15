@@ -35,6 +35,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private double previousTime = double.NaN;
         private double nextMoteTime = double.NaN;
         private double nextShardTime = double.NaN;
+        private double latestParticleEndTime = double.NegativeInfinity;
+        private bool drewParticlesLastFrame;
         private float contactAngle;
         private float contactSpan;
         private Color4 contactColour = Color4.White;
@@ -59,9 +61,22 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public void SetContinuousState(bool active, double now, float angle, float span, Color4 colour)
         {
-            contactAngle = angle;
-            contactSpan = span;
-            contactColour = colour;
+            bool wasEmitting = emitting;
+
+            // Inactive duration objects report their state every gameplay frame. Keep their
+            // timelines current without copying an empty 128-particle buffer to the draw thread.
+            if (!active && !wasEmitting)
+            {
+                currentTime = previousTime = now;
+                return;
+            }
+
+            if (active)
+            {
+                contactAngle = angle;
+                contactSpan = span;
+                contactColour = colour;
+            }
 
             if (!double.IsFinite(previousTime) || now < previousTime || now - previousTime > seek_reset_threshold)
                 resetTimeline(now, clearParticles: now < previousTime || now - previousTime > seek_reset_threshold);
@@ -107,6 +122,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             previousTime = double.NaN;
             nextMoteTime = double.NaN;
             nextShardTime = double.NaN;
+            latestParticleEndTime = double.NegativeInfinity;
+            drewParticlesLastFrame = false;
             Invalidate(Invalidation.DrawNode);
         }
 
@@ -114,13 +131,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
             currentTime = Time.Current;
-            Invalidate(Invalidation.DrawNode);
+            bool hasVisibleParticles = emitting || currentTime <= latestParticleEndTime;
+
+            // Invalidate once more when the last particle expires so the draw thread drops it,
+            // then remain completely dormant until the next emission.
+            if (hasVisibleParticles || drewParticlesLastFrame)
+                Invalidate(Invalidation.DrawNode);
+
+            drewParticlesLastFrame = hasVisibleParticles;
         }
 
         private void resetTimeline(double now, bool clearParticles)
         {
             if (clearParticles)
+            {
                 Array.Clear(particles);
+                latestParticleEndTime = double.NegativeInfinity;
+                drewParticlesLastFrame = false;
+            }
 
             nextMoteTime = now;
             nextShardTime = now;
@@ -176,14 +204,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             float radius = SticksPlayfield.GUIDE_RADIUS + lerp(-0.5f, 2, random01());
 
             ref Particle particle = ref particles[nextParticle];
+            double lifetime = (kind == ParticleKind.Shard
+                ? lerp(125, 195, random01())
+                : lerp(170, 280, random01())) / Math.Max(0.8f, intensity);
             particle = new Particle
             {
                 Active = true,
                 Kind = kind,
                 BirthTime = birthTime,
-                Lifetime = (kind == ParticleKind.Shard
-                    ? lerp(125, 195, random01())
-                    : lerp(170, 280, random01())) / Math.Max(0.8f, intensity),
+                Lifetime = lifetime,
                 Origin = SticksPlayfield.PointAt(spawnAngle, radius),
                 Outward = outward,
                 Tangent = tangent,
@@ -202,6 +231,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Shape = random01(),
                 Colour = colour,
             };
+
+            latestParticleEndTime = Math.Max(latestParticleEndTime, birthTime + lifetime);
 
             nextParticle = (nextParticle + 1) % particles.Length;
         }

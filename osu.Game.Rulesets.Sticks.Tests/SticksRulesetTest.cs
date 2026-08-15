@@ -2031,6 +2031,28 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestBatchedSliderAngleSamplingMatchesIndividualQueries()
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3500,
+                Angle = 10,
+            };
+            slider.SetCustomSegments(new[] { 90f, -180f, 45f });
+
+            var samples = new float[73];
+            slider.FillAngleSamples(700, 4800, samples);
+
+            for (int i = 0; i < samples.Length; i++)
+            {
+                double time = 700 + (4800 - 700) * i / (samples.Length - 1d);
+                Assert.That(SticksHitObject.DeltaAngle(samples[i], slider.AngleAt(time)),
+                    Is.Zero.Within(0.0001), $"Sample at {time}");
+            }
+        }
+
+        [Test]
         public void TestStandardDifficultyModsAreAvailable()
         {
             Mod[] reductions = new SticksRuleset().GetModsFor(ModType.DifficultyReduction).ToArray();

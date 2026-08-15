@@ -189,6 +189,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 {
                     RelativeSizeAxes = Axes.Both,
                     Depth = 5,
+                    Alpha = 0,
                     // Max-blended ribbon colours require zero RGB in transparent pixels.
                     // Color4.Transparent is transparent white, which wins a component-wise
                     // maximum and washes every isolated ribbon fill to white.
@@ -211,7 +212,17 @@ namespace osu.Game.Rulesets.Sticks.UI
             });
         }
 
-        internal void AddRadialPath(SticksRadialTimelinePath path) => radialPathLayer.Add(path);
+        internal void AddRadialPath(SticksRadialTimelinePath path)
+        {
+            if (path.Parent == null)
+                radialPathLayer.Add(path);
+        }
+
+        internal void DetachRadialPath(SticksRadialTimelinePath path)
+        {
+            if (path.Parent == radialPathLayer)
+                radialPathLayer.Remove(path, false);
+        }
 
         internal void RemoveRadialPath(SticksRadialTimelinePath path)
         {
@@ -221,6 +232,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             {
                 if (path.Parent == radialPathLayer)
                     radialPathLayer.Remove(path, true);
+                else
+                    path.Dispose();
             });
         }
 
@@ -533,6 +546,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private void updateRadialPresentationMode()
         {
+            radialPathBuffer.Alpha = CenterOutPresentation ? 1 : 0;
             ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing =
                 !CenterOutPresentation && stackedNotePresentation == SticksStackedNotePresentation.RadialSpacing;
         }

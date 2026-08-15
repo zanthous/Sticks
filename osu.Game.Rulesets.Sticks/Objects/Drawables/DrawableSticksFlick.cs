@@ -108,9 +108,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 ? 0.9f * (float)(1 - Math.Clamp((Time.Current - HitObject.StartTime) / 50, 0, 1))
                 : 0;
 
-            ensureSyncedNoteLink();
-            if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                syncedNoteLink.Alpha = useCenterOut ? 0 : SticksSyncedNoteLink.AlphaAtGrowth(growth);
+            if (useCenterOut)
+            {
+                if (syncedNoteLink != null)
+                    syncedNoteLink.Alpha = 0;
+            }
+            else
+            {
+                ensureSyncedNoteLink();
+                if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
+                    syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtGrowth(growth);
+            }
 
             long sequence = playfield.FlickSequence(HitObject.Side);
             if (Judged)

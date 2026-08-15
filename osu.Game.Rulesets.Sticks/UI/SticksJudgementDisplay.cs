@@ -2,16 +2,17 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
-using osu.Game.Graphics;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Scoring;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks.UI
 {
@@ -24,8 +25,6 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float BAR_HEIGHT = 4;
         public const double DISPLAY_DURATION = 420;
         public const double FADE_DURATION = 100;
-
-        private static readonly OsuColour colours = new OsuColour();
 
         private readonly Box fill;
         private readonly Dictionary<SticksAngleComponent, HitResult> pendingTimingResults = new Dictionary<SticksAngleComponent, HitResult>();
@@ -59,7 +58,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (result.HitObject is not ISticksAccuracyComponent component)
             {
                 if (isActionCheckpoint(result.HitObject))
-                    displayResult(result.Type);
+                    displayResult(result.Type.IsHit() ? HitResult.Perfect : result.Type);
 
                 return;
             }
@@ -119,7 +118,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 return;
 
             LastResult = result;
-            fill.Colour = colours.ForHitResult(result);
+            fill.Colour = ColourForResult(result);
 
             ClearTransforms();
             Alpha = 1;
@@ -154,5 +153,15 @@ namespace osu.Game.Rulesets.Sticks.UI
                 _ => HitResult.Miss,
             };
         }
+
+        internal static Color4 ColourForResult(HitResult result) => result switch
+        {
+            HitResult.Perfect => Color4Extensions.FromHex("99EEFF"),
+            HitResult.Great or HitResult.LargeTickHit or HitResult.SmallTickHit or HitResult.SliderTailHit => Color4Extensions.FromHex("00E589"),
+            HitResult.Good => Color4Extensions.FromHex("4EC42B"),
+            HitResult.Ok => Color4Extensions.FromHex("FFCC22"),
+            HitResult.Meh => Color4Extensions.FromHex("FF802B"),
+            _ => Color4Extensions.FromHex("ED1121"),
+        };
     }
 }

@@ -18,6 +18,7 @@ using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.UI;
 using osu.Game.Scoring;
+using osu.Game.Screens.Edit;
 using osu.Game.Screens.Play;
 
 namespace osu.Game.Rulesets.Sticks.UI
@@ -49,6 +50,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         [Resolved(CanBeNull = true)]
         private Player player { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private Editor editor { get; set; }
+
         public DrawableSticksRuleset(SticksRuleset ruleset, IBeatmap beatmap, IReadOnlyList<Mod> mods = null)
             : base(ruleset, beatmap, mods)
         {
@@ -70,7 +74,9 @@ namespace osu.Game.Rulesets.Sticks.UI
                 ((SticksPlayfield)Playfield).StackedNotePresentation = presentation.NewValue, true);
             Config.BindWith(SticksRulesetSetting.NotePresentation, notePresentation);
             notePresentation.BindValueChanged(presentation =>
-                ((SticksPlayfield)Playfield).NotePresentation = presentation.NewValue, true);
+                ((SticksPlayfield)Playfield).NotePresentation = editor == null
+                    ? presentation.NewValue
+                    : SticksNotePresentation.BracketMarkers, true);
             Config.BindWith(SticksRulesetSetting.HideInactiveCursors, hideInactiveCursors);
             hideInactiveCursors.BindValueChanged(hidden =>
                 ((SticksPlayfield)Playfield).HideInactiveCursors = hidden.NewValue, true);

@@ -152,8 +152,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     return;
 
                 approachProgress = value;
-                updateApproachCircleSize();
-                updateBoxArcs();
+
+                if (presentation == SticksNotePresentation.ApproachCircles)
+                    updateApproachCircleSize();
+                else if (presentation == SticksNotePresentation.FillingArcs)
+                    updateBoxArcs();
             }
         }
 
@@ -278,7 +281,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 widthArc.Vertices = arcVertices(radius, arcStart, arcEnd);
             }
 
-            updateBoxArcs(radius, arcStart, arcEnd);
+            if (presentation == SticksNotePresentation.FillingArcs)
+                updateBoxArcs(radius, arcStart, arcEnd);
 
             if (reversalStyle)
             {
@@ -294,10 +298,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             updateCapVisibility();
 
-            Vector2 centrePosition = SticksPlayfield.PointAt(0, radius);
-            approachCircle.Position = centrePosition;
-            colourPlate.Position = centrePosition;
-            directionArrow.Position = centrePosition;
+            if (presentation != SticksNotePresentation.CenterOut)
+            {
+                Vector2 centrePosition = SticksPlayfield.PointAt(0, radius);
+                approachCircle.Position = centrePosition;
+                colourPlate.Position = centrePosition;
+                directionArrow.Position = centrePosition;
+            }
         }
 
         private void updateApproachCircleVisibility() =>

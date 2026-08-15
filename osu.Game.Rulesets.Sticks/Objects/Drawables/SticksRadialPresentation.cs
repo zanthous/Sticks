@@ -4,8 +4,8 @@ using System;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Rendering;
 using osu.Framework.Graphics.Shaders;
@@ -30,39 +30,28 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private const float rail_radius = 1.35f;
 
         private readonly RibbonPoint[] points = new RibbonPoint[max_points];
-        private readonly RibbonFill fill;
-        private readonly SmoothPath leftRail;
-        private readonly SmoothPath rightRail;
-        private readonly SmoothPath leadingRail;
+        private readonly float[] sampledAngles = new float[max_points];
+        private readonly RibbonShape shape;
         private int pointCount;
         private StickSide displayedSide;
+        private float displayedFillAlpha = 0.82f;
 
         public SticksRadialTimelinePath(Color4 colour)
         {
             displayedSide = colour.B > colour.R ? StickSide.Left : StickSide.Right;
             Size = new Vector2(SticksPlayfield.SIZE);
-            AddRangeInternal(new Drawable[]
+            AddInternal(shape = new RibbonShape
             {
-                fill = new RibbonFill
+                Size = new Vector2(SticksPlayfield.SIZE),
+                Blending = new BlendingParameters
                 {
-                    Size = new Vector2(SticksPlayfield.SIZE),
-                    Depth = 2,
-                    // The containing hit-object buffer isolates this from the beatmap background.
-                    // Component-wise max keeps either lane unchanged alone, while red/blue
-                    // intersections become purple regardless of draw order.
-                    Blending = new BlendingParameters
-                    {
-                        Source = BlendingType.SrcAlpha,
-                        Destination = BlendingType.One,
-                        SourceAlpha = BlendingType.One,
-                        DestinationAlpha = BlendingType.One,
-                        RGBEquation = BlendingEquation.Max,
-                        AlphaEquation = BlendingEquation.Max,
-                    },
+                    Source = BlendingType.SrcAlpha,
+                    Destination = BlendingType.One,
+                    SourceAlpha = BlendingType.One,
+                    DestinationAlpha = BlendingType.One,
+                    RGBEquation = BlendingEquation.Max,
+                    AlphaEquation = BlendingEquation.Max,
                 },
-                leftRail = createRail(),
-                rightRail = createRail(),
-                leadingRail = createRail(),
             });
 
             applyColour(colour);
@@ -71,7 +60,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public void SetSliderGeometry(SticksSlider slider, double now)
         {
             setGeometry(slider.StartTime, slider.EndTime, slider.ApproachDuration, slider.PrimaryHitAngle, now, slider, slider.Angle);
-            applyColour(colourFor(slider.Side));
+
+            if (displayedSide != slider.Side)
+                applyColour(colourFor(slider.Side));
         }
 
         /// <summary>
@@ -80,21 +71,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         /// </summary>
         public void SetTrackingState(bool tracking, float beatPulse)
         {
-            if (!tracking)
-            {
-                fill.Colour = fillMask(0.82f);
-                return;
-            }
-
             // Supplied from the active beatmap timing section, keeping BPM changes and seeks aligned.
-            float pulse = Math.Clamp(beatPulse, 0, 1);
-            fill.Colour = fillMask(0.82f + 0.08f * pulse);
+            float desiredAlpha = tracking
+                ? 0.82f + 0.08f * Math.Clamp(beatPulse, 0, 1)
+                : 0.82f;
+
+            if (Math.Abs(displayedFillAlpha - desiredAlpha) < 0.0001f)
+                return;
+
+            displayedFillAlpha = desiredAlpha;
+            shape.SetStyle(displayedSide, displayedFillAlpha);
         }
 
         public void SetHoldGeometry(SticksHold hold, double now)
         {
             setGeometry(hold.StartTime, hold.EndTime, hold.ApproachDuration, hold.PrimaryHitAngle, now, null, hold.Angle);
-            applyColour(colourFor(hold.Side));
+
+            if (displayedSide != hold.Side)
+                applyColour(colourFor(hold.Side));
         }
 
         private void setGeometry(
@@ -111,6 +105,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             if (visibleEnd - visibleStart <= 0.001)
             {
+                if (pointCount == 0)
+                    return;
+
                 pointCount = 0;
                 updateGeometry();
                 return;
@@ -119,14 +116,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             pointCount = Math.Clamp((int)Math.Ceiling((visibleEnd - visibleStart) / target_sample_interval) + 1, 2, max_points);
             float halfAngularSpan = MathF.Max(minimum_half_span, angularSpan / 2);
 
+            if (slider != null)
+                slider.FillAngleSamples(visibleStart, visibleEnd, sampledAngles.AsSpan(0, pointCount));
+            else
+                sampledAngles.AsSpan(0, pointCount).Fill(constantAngle);
+
             for (int i = 0; i < pointCount; i++)
             {
                 double time = Interpolation.Lerp(visibleStart, visibleEnd, i / (double)(pointCount - 1));
                 float radialProgress = SticksPlayfield.CenterOutProgressAt(now, time, approachDuration);
                 float radius = SticksPlayfield.GUIDE_RADIUS * radialProgress;
-                float angle = slider?.AngleAt(time) ?? constantAngle;
+                float angle = sampledAngles[i];
 
-                points[i] = new RibbonPoint(radius, angle, halfAngularSpan);
+                points[i] = new RibbonPoint(
+                    radius,
+                    angle,
+                    halfAngularSpan,
+                    SticksPlayfield.PointAt(angle - halfAngularSpan, radius),
+                    SticksPlayfield.PointAt(angle + halfAngularSpan, radius));
             }
 
             updateGeometry();
@@ -134,76 +141,29 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateGeometry()
         {
-            fill.SetGeometry(points, pointCount);
-            leftRail.ClearVertices();
-            rightRail.ClearVertices();
-            leadingRail.ClearVertices();
-
-            for (int i = 0; i < pointCount; i++)
-            {
-                RibbonPoint point = points[i];
-                leftRail.AddVertex(SticksPlayfield.PointAt(point.Angle - point.HalfSpan, point.Radius));
-                rightRail.AddVertex(SticksPlayfield.PointAt(point.Angle + point.HalfSpan, point.Radius));
-            }
-
-            if (pointCount == 0)
-                return;
-
-            const int cap_segments = 12;
-            RibbonPoint leading = points[0];
-
-            for (int i = 0; i <= cap_segments; i++)
-            {
-                float angle = leading.Angle - leading.HalfSpan + 2 * leading.HalfSpan * i / cap_segments;
-                leadingRail.AddVertex(SticksPlayfield.PointAt(angle, leading.Radius));
-            }
+            shape.SetGeometry(points, pointCount);
         }
 
         private void applyColour(Color4 colour)
         {
             displayedSide = colour.B > colour.R ? StickSide.Left : StickSide.Right;
-            fill.Colour = fillMask(0.82f);
-            leftRail.Colour = railMask;
-            rightRail.Colour = railMask;
-            leadingRail.Colour = railMask;
-            leftRail.PathRadius = rightRail.PathRadius = leadingRail.PathRadius = rail_radius;
+            displayedFillAlpha = 0.82f;
+            shape.SetStyle(displayedSide, displayedFillAlpha);
         }
 
-        // The isolated framebuffer stores geometry masks, not display colours. This gives the
-        // compositor an exact, order-independent distinction between either lane and its rails.
-        private Color4 fillMask(float alpha) => displayedSide == StickSide.Left
-            ? new Color4(0, 1, 0, alpha)
-            : new Color4(1, 0, 0, alpha);
+        private readonly record struct RibbonPoint(
+            float Radius,
+            float Angle,
+            float HalfSpan,
+            Vector2 LeftEdge,
+            Vector2 RightEdge);
 
-        private Color4 railMask => displayedSide == StickSide.Left
-            ? new Color4(0, 1, 1, 1)
-            : new Color4(1, 0, 1, 1);
-
-        private static SmoothPath createRail() => new SmoothPath
-        {
-            AutoSizeAxes = Axes.None,
-            Size = new Vector2(SticksPlayfield.SIZE),
-            PathRadius = rail_radius,
-            Depth = 0,
-            Blending = overlapBlending,
-        };
-
-        private static BlendingParameters overlapBlending => new BlendingParameters
-        {
-            Source = BlendingType.SrcAlpha,
-            Destination = BlendingType.One,
-            SourceAlpha = BlendingType.One,
-            DestinationAlpha = BlendingType.One,
-            RGBEquation = BlendingEquation.Max,
-            AlphaEquation = BlendingEquation.Max,
-        };
-
-        private readonly record struct RibbonPoint(float Radius, float Angle, float HalfSpan);
-
-        private partial class RibbonFill : Drawable
+        private partial class RibbonShape : Drawable
         {
             private readonly RibbonPoint[] points = new RibbonPoint[max_points];
             private int pointCount;
+            private StickSide side;
+            private float fillAlpha;
             private IShader shader = null!;
             private Texture texture = null!;
 
@@ -221,20 +181,30 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Invalidate(Invalidation.DrawNode);
             }
 
-            protected override DrawNode CreateDrawNode() => new RibbonFillDrawNode(this);
+            public void SetStyle(StickSide newSide, float newFillAlpha)
+            {
+                if (side == newSide && Math.Abs(fillAlpha - newFillAlpha) < 0.0001f)
+                    return;
 
-            private sealed class RibbonFillDrawNode : DrawNode
+                side = newSide;
+                fillAlpha = newFillAlpha;
+                Invalidate(Invalidation.DrawNode);
+            }
+
+            protected override DrawNode CreateDrawNode() => new RibbonShapeDrawNode(this);
+
+            private sealed class RibbonShapeDrawNode : DrawNode
             {
                 private readonly RibbonPoint[] points = new RibbonPoint[max_points];
-                private readonly Vector2[] leftEdges = new Vector2[max_points];
-                private readonly Vector2[] rightEdges = new Vector2[max_points];
                 private int pointCount;
+                private StickSide side;
+                private float fillAlpha;
                 private IShader shader = null!;
                 private Texture texture = null!;
 
-                private new RibbonFill Source => (RibbonFill)base.Source;
+                private new RibbonShape Source => (RibbonShape)base.Source;
 
-                public RibbonFillDrawNode(RibbonFill source)
+                public RibbonShapeDrawNode(RibbonShape source)
                     : base(source)
                 {
                 }
@@ -246,13 +216,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     shader = Source.shader;
                     texture = Source.texture;
                     pointCount = Source.pointCount;
+                    side = Source.side;
+                    fillAlpha = Source.fillAlpha;
                     Array.Copy(Source.points, points, pointCount);
-
-                    for (int i = 0; i < pointCount; i++)
-                    {
-                        leftEdges[i] = SticksPlayfield.PointAt(points[i].Angle - points[i].HalfSpan, points[i].Radius);
-                        rightEdges[i] = SticksPlayfield.PointAt(points[i].Angle + points[i].HalfSpan, points[i].Radius);
-                    }
                 }
 
                 protected override void Draw(IRenderer renderer)
@@ -262,6 +228,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     if (pointCount < 2 || shader == null || texture == null)
                         return;
 
+                    ColourInfo fillColour = ColourInfo.SingleColour(side == StickSide.Left
+                        ? new Color4(0, 1, 0, fillAlpha)
+                        : new Color4(1, 0, 0, fillAlpha));
+                    ColourInfo railColour = ColourInfo.SingleColour(side == StickSide.Left
+                        ? new Color4(0, 1, 1, 1)
+                        : new Color4(1, 0, 1, 1));
+
                     shader.Bind();
 
                     for (int i = 0; i < pointCount - 1; i++)
@@ -269,24 +242,28 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                         renderer.DrawQuad(
                             texture,
                             new Quad(
-                                Vector2Extensions.Transform(leftEdges[i], DrawInfo.Matrix),
-                                Vector2Extensions.Transform(leftEdges[i + 1], DrawInfo.Matrix),
-                                Vector2Extensions.Transform(rightEdges[i], DrawInfo.Matrix),
-                                Vector2Extensions.Transform(rightEdges[i + 1], DrawInfo.Matrix)),
-                            DrawColourInfo.Colour);
+                                Vector2Extensions.Transform(points[i].LeftEdge, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(points[i + 1].LeftEdge, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(points[i].RightEdge, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(points[i + 1].RightEdge, DrawInfo.Matrix)),
+                            fillColour);
+
+                        drawRailSegment(renderer, points[i].LeftEdge, points[i + 1].LeftEdge, railColour);
+                        drawRailSegment(renderer, points[i].RightEdge, points[i + 1].RightEdge, railColour);
                     }
 
-                    drawCurvedLeadingCap(renderer);
+                    drawCurvedLeadingCap(renderer, fillColour, railColour);
                     shader.Unbind();
                 }
 
-                private void drawCurvedLeadingCap(IRenderer renderer)
+                private void drawCurvedLeadingCap(IRenderer renderer, ColourInfo fillColour, ColourInfo railColour)
                 {
                     const int cap_segments = 12;
                     RibbonPoint leading = points[0];
                     float halfSpanRadians = leading.HalfSpan * MathF.PI / 180;
                     float capDepth = Math.Max(2, leading.Radius * (1 - MathF.Cos(halfSpanRadians)) + 1);
                     float innerRadius = Math.Max(0, leading.Radius - capDepth);
+                    Vector2 previousOuter = SticksPlayfield.PointAt(leading.Angle - leading.HalfSpan, leading.Radius);
 
                     for (int i = 0; i < cap_segments; i++)
                     {
@@ -300,8 +277,36 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                                 Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, leading.Radius), DrawInfo.Matrix),
                                 Vector2Extensions.Transform(SticksPlayfield.PointAt(firstAngle, innerRadius), DrawInfo.Matrix),
                                 Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, innerRadius), DrawInfo.Matrix)),
-                            DrawColourInfo.Colour);
+                            fillColour);
+
+                        Vector2 nextOuter = SticksPlayfield.PointAt(secondAngle, leading.Radius);
+                        drawRailSegment(renderer, previousOuter, nextOuter, railColour);
+                        previousOuter = nextOuter;
                     }
+                }
+
+                private void drawRailSegment(IRenderer renderer, Vector2 from, Vector2 to, ColourInfo colour)
+                {
+                    Vector2 difference = to - from;
+                    float length = difference.Length;
+
+                    if (length <= 0.001f)
+                        return;
+
+                    Vector2 direction = difference / length;
+                    Vector2 normal = new Vector2(-direction.Y, direction.X) * rail_radius;
+                    Vector2 extension = direction * rail_radius;
+                    Vector2 start = from - extension;
+                    Vector2 end = to + extension;
+
+                    renderer.DrawQuad(
+                        texture,
+                        new Quad(
+                            Vector2Extensions.Transform(start - normal, DrawInfo.Matrix),
+                            Vector2Extensions.Transform(end - normal, DrawInfo.Matrix),
+                            Vector2Extensions.Transform(start + normal, DrawInfo.Matrix),
+                            Vector2Extensions.Transform(end + normal, DrawInfo.Matrix)),
+                        colour);
                 }
 
             }
@@ -325,6 +330,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SticksContactParticleEmitter particles;
         private bool targetActive;
         private float visualStrength;
+        private float displayedAngle = float.NaN;
+        private float displayedSpan = float.NaN;
+        private Color4 displayedColour;
 
         public SticksSliderContactEffect(Color4 colour, double sparkPhaseOffset)
         {
@@ -348,13 +356,34 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public void SetState(bool isActive, double now, float angle, float sliderSpan, Color4 colour)
         {
+            bool wasActive = targetActive;
             targetActive = isActive;
 
+            if (!isActive)
+            {
+                if (wasActive)
+                    particles.SetContinuousState(false, now, angle, sliderSpan, colour);
+
+                return;
+            }
+
             float span = ContactSpanFor(sliderSpan);
-            setArcRange(halo, angle, span, 5.5f, 1);
-            setArcRange(glow, angle, span * 0.72f, 2.75f, 0.5f);
-            setArcRange(core, angle, span * 0.52f, 1, 0);
-            applyColour(colour);
+
+            if (Math.Abs(displayedAngle - angle) >= 0.001f || Math.Abs(displayedSpan - span) >= 0.001f)
+            {
+                displayedAngle = angle;
+                displayedSpan = span;
+                setArcRange(halo, angle, span, 5.5f, 1);
+                setArcRange(glow, angle, span * 0.72f, 2.75f, 0.5f);
+                setArcRange(core, angle, span * 0.52f, 1, 0);
+            }
+
+            if (displayedColour != colour)
+            {
+                displayedColour = colour;
+                applyColour(colour);
+            }
+
             particles.SetContinuousState(isActive, now, angle, span, colour);
         }
 
@@ -363,6 +392,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         protected override void Update()
         {
             base.Update();
+
+            if (!targetActive && visualStrength == 0)
+                return;
 
             visualStrength = (float)Interpolation.DampContinuously(
                 visualStrength,

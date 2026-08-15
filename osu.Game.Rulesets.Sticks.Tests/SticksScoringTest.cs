@@ -308,7 +308,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 display.ResetDisplay();
                 display.Process(result(hitObject, hitResult));
-                Assert.That(display.LastResult, Is.EqualTo(hitResult), hitObject.GetType().Name);
+                Assert.That(display.LastResult, Is.EqualTo(HitResult.Perfect), hitObject.GetType().Name);
             }
         }
 

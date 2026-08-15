@@ -58,6 +58,9 @@ namespace osu.Game.Rulesets.Sticks
             var config = (SticksRulesetConfigManager)Config;
             var stackedNotePresentation = config.GetBindable<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation);
             var notePresentation = config.GetBindable<SticksNotePresentation>(SticksRulesetSetting.NotePresentation);
+            if (notePresentation.Value is SticksNotePresentation.ApproachCircles or SticksNotePresentation.FillingArcs)
+                notePresentation.Value = SticksNotePresentation.CenterOut;
+
             var radialApproachDistance = new SettingsItemV2(new FormSliderBar<float>
             {
                 Caption = "Radial approach distance",
@@ -77,6 +80,22 @@ namespace osu.Game.Rulesets.Sticks
                 Caption = "Contact effects",
                 HintText = "Show restrained contact feedback when hitting notes and tracking or completing sliders and holds in center-out mode.",
                 Current = config.GetBindable<bool>(SticksRulesetSetting.SliderTrackingSparks),
+            });
+            var hideInactiveCursors = new SettingsItemV2(new FormCheckBox
+            {
+                Caption = "Hide inactive cursors",
+                HintText = "In center-out mode, only show a cursor while held at least 90% outward or moving outward beyond 20%.",
+                Current = config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors),
+            });
+            var chordLinkPresentation = new SettingsItemV2(new FormEnumDropdown<SticksChordLinkPresentation>
+            {
+                Caption = "Synced-note links",
+                Current = config.GetBindable<SticksChordLinkPresentation>(SticksRulesetSetting.ChordLinkPresentation),
+            });
+            var stackedNotePresentationSetting = new SettingsItemV2(new FormEnumDropdown<SticksStackedNotePresentation>
+            {
+                Caption = "Stacked note presentation",
+                Current = stackedNotePresentation,
             });
 
             Children = new Drawable[]
@@ -100,37 +119,28 @@ namespace osu.Game.Rulesets.Sticks
                 {
                     Caption = "Note presentation",
                     Current = notePresentation,
+                    Items = new[]
+                    {
+                        SticksNotePresentation.CenterOut,
+                        SticksNotePresentation.BracketMarkers,
+                    },
                 }),
-                new SettingsItemV2(new FormCheckBox
-                {
-                    Caption = "Hide inactive cursors",
-                    HintText = "In center-out mode, only show a cursor while held at least 90% outward or moving outward beyond 20%.",
-                    Current = config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors),
-                }),
+                hideInactiveCursors,
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = "Show cursor trails",
                     HintText = "Show a short continuous trail behind both stick cursors.",
                     Current = config.GetBindable<bool>(SticksRulesetSetting.ShowCursorTrails),
                 }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Disable beatmap hitsounds",
+                    HintText = "For converted osu! beatmaps, ignore mapped hitsounds and use the default normal hit sound at full volume.",
+                    Current = config.GetBindable<bool>(SticksRulesetSetting.DisableBeatmapHitsounds),
+                }),
                 contactEffects,
-                new SettingsItemV2(new FormSliderBar<float>
-                {
-                    Caption = "Note circle size",
-                    Current = config.GetBindable<float>(SticksRulesetSetting.NoteCircleScale),
-                    KeyboardStep = 0.1f,
-                    LabelFormat = value => $"{value:0.0}x",
-                }),
-                new SettingsItemV2(new FormEnumDropdown<SticksChordLinkPresentation>
-                {
-                    Caption = "Synced-note links",
-                    Current = config.GetBindable<SticksChordLinkPresentation>(SticksRulesetSetting.ChordLinkPresentation),
-                }),
-                new SettingsItemV2(new FormEnumDropdown<SticksStackedNotePresentation>
-                {
-                    Caption = "Stacked note presentation",
-                    Current = stackedNotePresentation,
-                }),
+                chordLinkPresentation,
+                stackedNotePresentationSetting,
                 radialApproachDistance,
                 radialApproachSpeed,
                 new SettingsButtonV2
@@ -156,15 +166,22 @@ namespace osu.Game.Rulesets.Sticks
                 },
             };
 
-            stackedNotePresentation.BindValueChanged(presentation =>
+            void updateConditionalVisibility()
             {
-                bool showRadialApproachControls = presentation.NewValue == SticksStackedNotePresentation.RadialApproach;
+                bool centerOut = notePresentation.Value == SticksNotePresentation.CenterOut;
+                bool brackets = notePresentation.Value == SticksNotePresentation.BracketMarkers;
+                bool showRadialApproachControls = brackets && stackedNotePresentation.Value == SticksStackedNotePresentation.RadialApproach;
+
+                hideInactiveCursors.CanBeShown.Value = centerOut;
+                contactEffects.CanBeShown.Value = centerOut;
+                chordLinkPresentation.CanBeShown.Value = brackets;
+                stackedNotePresentationSetting.CanBeShown.Value = brackets;
                 radialApproachDistance.CanBeShown.Value = showRadialApproachControls;
                 radialApproachSpeed.CanBeShown.Value = showRadialApproachControls;
-            }, true);
+            }
 
-            notePresentation.BindValueChanged(presentation =>
-                contactEffects.CanBeShown.Value = presentation.NewValue == SticksNotePresentation.CenterOut, true);
+            stackedNotePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
+            notePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
         }
 
         private void openEditor(bool retainConvertedObjects)
@@ -186,7 +203,7 @@ namespace osu.Game.Rulesets.Sticks
                                                   ?? throw new InvalidOperationException("osu!standard is unavailable.");
                     RulesetInfo sticksRuleset = rulesetStore.GetRuleset("sticks")
                                                 ?? throw new InvalidOperationException("Sticks is unavailable.");
-                    WorkingBeatmap created = SticksEditorBootstrap.CreateDifficulty(beatmapManager, osuScreen.Beatmap.Value, standardRuleset, sticksRuleset,
+                    WorkingBeatmap created = SticksEditorBootstrap.CreateDifficulty(beatmapManager, realmAccess, osuScreen.Beatmap.Value, standardRuleset, sticksRuleset,
                                                                                    retainConvertedObjects);
 
                     osuScreen.Beatmap.Value = created;

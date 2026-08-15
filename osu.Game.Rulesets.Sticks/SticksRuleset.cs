@@ -67,7 +67,10 @@ namespace osu.Game.Rulesets.Sticks
         public override DrawableRuleset CreateDrawableRulesetWith(IBeatmap beatmap, IReadOnlyList<Mod> mods = null) =>
             new DrawableSticksRuleset(this, beatmap, mods);
 
-        public override IBeatmapConverter CreateBeatmapConverter(IBeatmap beatmap) => new SticksBeatmapConverter(beatmap, this);
+        public override IBeatmapConverter CreateBeatmapConverter(IBeatmap beatmap) => new SticksBeatmapConverter(beatmap, this)
+        {
+            DisableBeatmapHitsounds = SticksRulesetConfigManager.DisableBeatmapHitsoundsForConversion,
+        };
 
         public override IBeatmapProcessor CreateBeatmapProcessor(IBeatmap beatmap) => SticksLegacyEditorBridge.TryCreateProcessor(beatmap);
 

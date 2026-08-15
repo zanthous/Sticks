@@ -65,7 +65,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public override bool DisplayResult => false;
 
-        public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.CreatePlayableSamples();
+        public override IEnumerable<HitSampleInfo> GetSamples() => HitObject.NodeSamples.Count > 0 && HitObject.NodeSamples[0].Count > 0
+            ? SticksHitObject.CreatePlayableSamples(HitObject.NodeSamples[0])
+            : HitObject.CreatePlayableSamples();
 
         internal bool HeadHit => headHit;
 

@@ -78,7 +78,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestCursorTrailSpritesAreEmbedded()
+        public void TestRulesetTexturesAreEmbedded()
         {
             using var resources = new SticksRuleset().CreateResourceStore();
 
@@ -86,6 +86,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(resources.Get("Textures/Cursors/blue.png"), Is.Not.Null);
                 Assert.That(resources.Get("Textures/Cursors/red.png"), Is.Not.Null);
+                Assert.That(resources.Get("Textures/Icon/sticks_icon.png"), Is.Not.Null);
             });
         }
 
@@ -527,7 +528,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
             slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty { ApproachRate = 10 });
 
-            Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(8));
+            Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(7.5f));
             Assert.Multiple(() =>
             {
                 Assert.That(SticksHitObject.ApproachDurationFor(0), Is.EqualTo(1800));
@@ -627,7 +628,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(config.Get<SticksNotePresentation>(SticksRulesetSetting.NotePresentation), Is.EqualTo(SticksNotePresentation.BracketMarkers));
+                Assert.That(config.Get<SticksNotePresentation>(SticksRulesetSetting.NotePresentation), Is.EqualTo(SticksNotePresentation.CenterOut));
                 Assert.That(marker.Presentation, Is.EqualTo(SticksNotePresentation.BracketMarkers));
                 Assert.That(leadingCap.Alpha, Is.EqualTo(1));
                 Assert.That(trailingCap.Alpha, Is.EqualTo(1));
@@ -1008,6 +1009,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
             var playfield = new SticksPlayfield();
+            playfield.NotePresentation = SticksNotePresentation.BracketMarkers;
             var hitObjectContainer = (SticksHitObjectContainer)playfield.HitObjectContainer;
 
             Assert.Multiple(() =>
@@ -1022,6 +1024,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(config.Get<bool>(SticksRulesetSetting.HideInactiveCursors), Is.False);
                 Assert.That(config.Get<bool>(SticksRulesetSetting.SliderTrackingSparks), Is.False);
                 Assert.That(config.Get<bool>(SticksRulesetSetting.ShowCursorTrails), Is.False);
+                Assert.That(config.Get<bool>(SticksRulesetSetting.DisableBeatmapHitsounds), Is.False);
                 Assert.That(playfield.HideInactiveCursors, Is.False);
                 Assert.That(playfield.RadialNoteApproach, Is.False);
                 Assert.That(playfield.StackedNotePresentation, Is.EqualTo(SticksStackedNotePresentation.RadialSpacing));
@@ -1524,13 +1527,22 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Alpha = 0,
             };
+            var halo = (CircularProgress)typeof(SticksSliderContactEffect)
+                                          .GetField("halo", BindingFlags.Instance | BindingFlags.NonPublic)!
+                                          .GetValue(effect)!;
 
             Assert.That(effect.AlwaysPresent, Is.False,
                 "Invisible contact effects should sleep until their owning duration object activates them.");
 
             effect.SetState(true, 1000, 30, 20, Color4.White);
-            Assert.That(effect.Alpha, Is.GreaterThan(0),
-                "Activation must wake the sleeping effect so its smoothing can begin immediately.");
+            Assert.Multiple(() =>
+            {
+                Assert.That(effect.Alpha, Is.GreaterThan(0),
+                    "Activation must wake the sleeping effect so its smoothing can begin immediately.");
+                Assert.That(halo.Progress, Is.EqualTo(20f / 360).Within(0.0001),
+                    "The first activation must initialise the requested arc instead of rendering a zero-length cap at the top of the circle.");
+                Assert.That(halo.Rotation, Is.EqualTo(110).Within(0.001));
+            });
         }
 
         [TestCase(15f)]

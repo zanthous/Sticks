@@ -69,7 +69,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestNormalisesConvertedHitsounds()
+        public void TestPreservesConvertedHitsoundsByDefault()
         {
             var source = new Beatmap<HitObject>();
             source.HitObjects.Add(new TestPositionedHitObject
@@ -83,13 +83,36 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
+                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
+                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(27));
+            });
+        }
+
+        [Test]
+        public void TestCanDisableConvertedHitsounds()
+        {
+            var source = new Beatmap<HitObject>();
+            source.HitObjects.Add(new TestPositionedHitObject
+            {
+                StartTime = 1000,
+                Position = new Vector2(512, 192),
+                Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 27) },
+            });
+
+            SticksHitObject converted = (SticksHitObject)new SticksBeatmapConverter(source, new SticksRuleset())
+            {
+                DisableBeatmapHitsounds = true,
+            }.Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
                 Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
                 Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
             });
         }
 
         [Test]
-        public void TestNormalisesConvertedSliderNodeHitsounds()
+        public void TestPreservesConvertedSliderNodeHitsoundsByDefault()
         {
             var source = new Beatmap<HitObject>();
             source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
@@ -115,10 +138,54 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
+                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
+                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(24));
+                Assert.That(converted.NodeSamples.Select(samples => samples.Single().Name),
+                    Is.EqualTo(new[] { HitSampleInfo.HIT_WHISTLE, HitSampleInfo.HIT_CLAP, HitSampleInfo.HIT_WHISTLE }));
+                Assert.That(converted.NodeSamples.Select(samples => samples.Single().Volume), Is.EqualTo(new[] { 31, 42, 53 }));
+                Assert.That(converted.NestedHitObjects.OfType<SticksSliderTick>().SelectMany(tick => tick.Samples),
+                    Has.All.Matches<HitSampleInfo>(sample => sample.Name == "slidertick" && sample.Volume == 24));
+                Assert.That(converted.NestedHitObjects.OfType<SticksSliderRepeat>().Single().Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_CLAP));
+                Assert.That(converted.NestedHitObjects.OfType<SticksSliderRepeat>().Single().Samples.Single().Volume, Is.EqualTo(42));
+                Assert.That(converted.NestedHitObjects.OfType<SticksSliderTail>().Single().Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_WHISTLE));
+                Assert.That(converted.NestedHitObjects.OfType<SticksSliderTail>().Single().Samples.Single().Volume, Is.EqualTo(53));
+                Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples), Is.Not.Empty);
+            });
+        }
+
+        [Test]
+        public void TestDisablingConvertedHitsoundsAlsoNormalisesSliderNodes()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            var sourceSlider = new TestRepeatDurationHitObject
+            {
+                StartTime = 1000,
+                Duration = 1500,
+                RepeatCount = 1,
+                Position = new Vector2(512, 192),
+                Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 24) },
+            };
+            sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 31) });
+            sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 42) });
+            sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 53) });
+            source.HitObjects.Add(sourceSlider);
+
+            var converted = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset())
+            {
+                DisableBeatmapHitsounds = true,
+            }.Convert().HitObjects.Single();
+            converted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+            HitObject[] audibleNested = converted.NestedHitObjects
+                                                  .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
+                                                  .ToArray();
+
+            Assert.Multiple(() =>
+            {
                 Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
                 Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
                 Assert.That(converted.NodeSamples, Is.Empty);
-                Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples), Is.Not.Empty);
                 Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples),
                     Has.All.Matches<HitSampleInfo>(sample =>
                         (sample.Name == HitSampleInfo.HIT_NORMAL || sample.Name == "slidertick") && sample.Volume == 100));
@@ -844,7 +911,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(converter.CanConvert(), Is.True);
                 Assert.That(converter.AuthoredCarrierError, Is.Null);
                 Assert.That(converted.Angle, Is.EqualTo(0).Within(0.001));
-                Assert.That(converted.Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_NORMAL));
+                Assert.That(converted.Samples.Single(), Is.TypeOf<ConvertHitObjectParser.FileHitSampleInfo>());
+                Assert.That(((ConvertHitObjectParser.FileHitSampleInfo)converted.Samples.Single()).Filename,
+                    Is.EqualTo("ordinary-custom-sample.wav"));
+                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(80));
             });
         }
 
@@ -1388,6 +1458,28 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY, Is.EqualTo(120));
                 Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(12).Within(0.001));
                 Assert.That(angularVelocity, Is.LessThanOrEqualTo(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001));
+            });
+        }
+
+        [Test]
+        public void TestGeneratedSubDegreeSliderBecomesFlick()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestDurationHitObject
+            {
+                StartTime = 333030,
+                Duration = 6,
+                Position = new Vector2(512, 192),
+            });
+
+            SticksHitObject converted = (SticksHitObject)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Is.TypeOf<SticksFlick>());
+                Assert.That(converted.StartTime, Is.EqualTo(333030));
+                Assert.That(SticksAuthoredBeatmapCodec.TryDecode(SticksAuthoredBeatmapCodec.CreateLegacyProxy(converted), out _), Is.True);
             });
         }
 

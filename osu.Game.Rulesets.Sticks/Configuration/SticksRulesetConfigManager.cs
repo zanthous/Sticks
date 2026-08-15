@@ -12,15 +12,20 @@ namespace osu.Game.Rulesets.Sticks.Configuration
 {
     public class SticksRulesetConfigManager : RulesetConfigManager<SticksRulesetSetting>
     {
+        internal static bool DisableBeatmapHitsoundsForConversion { get; private set; }
+
         public SticksRulesetConfigManager(SettingsStore settings, RulesetInfo ruleset)
             : base(settings, ruleset)
         {
+            GetBindable<bool>(SticksRulesetSetting.DisableBeatmapHitsounds).BindValueChanged(
+                value => DisableBeatmapHitsoundsForConversion = value.NewValue,
+                true);
         }
 
         protected override void InitialiseDefaults()
         {
             base.InitialiseDefaults();
-            SetDefault(SticksRulesetSetting.ApproachRate, 8f, 0f, 12f, 0.1f);
+            SetDefault(SticksRulesetSetting.ApproachRate, 7.5f, 0f, 12f, 0.1f);
             SetDefault(SticksRulesetSetting.FlickActivationThreshold,
                 SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD,
                 SticksInputTracker.MIN_ACTIVATION_THRESHOLD,
@@ -28,10 +33,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 0.01f);
             SetDefault(SticksRulesetSetting.ChordLinkPresentation, SticksChordLinkPresentation.FullToCentre);
             SetDefault(SticksRulesetSetting.StackedNotePresentation, SticksStackedNotePresentation.RadialSpacing);
-            SetDefault(SticksRulesetSetting.NotePresentation, SticksNotePresentation.BracketMarkers);
+            SetDefault(SticksRulesetSetting.NotePresentation, SticksNotePresentation.CenterOut);
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, false);
             SetDefault(SticksRulesetSetting.ShowCursorTrails, false);
+            SetDefault(SticksRulesetSetting.DisableBeatmapHitsounds, false);
             SetDefault(SticksRulesetSetting.NoteCircleScale,
                 SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE,
                 SticksPlayfield.MIN_NOTE_CIRCLE_SCALE,
@@ -91,6 +97,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks cursor trails",
                 value: enabled ? "enabled" : "disabled"
             )),
+            new TrackedSetting<bool>(SticksRulesetSetting.DisableBeatmapHitsounds, disabled => new SettingDescription(
+                rawValue: disabled,
+                name: "Sticks disable beatmap hitsounds",
+                value: disabled ? "enabled" : "disabled"
+            )),
             new TrackedSetting<float>(SticksRulesetSetting.NoteCircleScale, scale => new SettingDescription(
                 rawValue: scale,
                 name: "Sticks note circle size",
@@ -122,6 +133,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         HideInactiveCursors,
         SliderTrackingSparks,
         ShowCursorTrails,
+        DisableBeatmapHitsounds,
     }
 
     public enum SticksChordLinkPresentation

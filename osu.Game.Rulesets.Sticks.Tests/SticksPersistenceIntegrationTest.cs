@@ -95,6 +95,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 authored = SticksEditorBootstrap.CreateDifficulty(
                     beatmaps,
+                    Realm,
                     reference,
                     reference.BeatmapInfo.Ruleset,
                     new SticksRuleset().RulesetInfo,
@@ -323,7 +324,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                    0,0,"background.jpg",0,0
 
                                    [HitObjects]
-                                   256,192,1000,1,0,0:0:0:100:custom.wav
+                                   256,192,1000,1,0,0:0:0:100:sticks-v1~f~x~0.wav
                                    """;
 
             var stream = new MemoryStream();
@@ -346,6 +347,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
                 using (Stream customSample = archive.CreateEntry("custom.wav").Open())
                     customSample.Write(createSilentWave());
+
+                // This deliberately occupies Sticks' reserved carrier namespace while remaining
+                // ordinary source-map data. The explicit editor conversion must ignore it.
+                using (Stream markerLikeSample = archive.CreateEntry("sticks-v1~f~x~0.wav").Open())
+                    markerLikeSample.Write(createSilentWave());
             }
 
             stream.Position = 0;

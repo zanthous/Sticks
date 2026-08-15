@@ -64,7 +64,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private float noteCircleScale = DEFAULT_NOTE_CIRCLE_SCALE;
         private bool leftTrailWasVisible;
         private bool rightTrailWasVisible;
-        private SticksNotePresentation notePresentation = SticksNotePresentation.BracketMarkers;
+        private SticksNotePresentation notePresentation = SticksNotePresentation.CenterOut;
         private float leftX;
         private float leftY;
         private float rightX;

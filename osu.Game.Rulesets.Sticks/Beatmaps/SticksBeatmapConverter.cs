@@ -51,6 +51,12 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         public bool DisableReversals { get; set; }
 
+        /// <summary>
+        /// Whether procedural conversion should discard the source beatmap's hitsounds and use
+        /// one full-volume normal hit sample instead. Authored Sticks carriers are unaffected.
+        /// </summary>
+        public bool DisableBeatmapHitsounds { get; set; }
+
         public SticksBeatmapConverter(IBeatmap beatmap, Ruleset ruleset, bool forceProceduralConversion = false)
             : base(beatmap, ruleset)
         {
@@ -161,7 +167,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Duration = generatedHoldDuration,
                     Side = plan.Side,
                     Angle = plan.Angle,
-                    Samples = normalisedConversionSamples(),
+                    Samples = conversionSamples(original),
                 };
                 yield break;
             }
@@ -176,7 +182,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         Duration = duration.Duration,
                         Side = plan.Side,
                         Angle = plan.Angle,
-                        Samples = normalisedConversionSamples(),
+                        Samples = conversionSamples(original),
                     };
                     yield break;
                 }
@@ -197,8 +203,27 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Side = plan.Side,
                     Angle = plan.Angle,
                     ArcAngle = removeReversals ? plan.ArcAngle * sourceSpanCount : plan.ArcAngle,
-                    Samples = normalisedConversionSamples(),
+                    Samples = conversionSamples(original),
                 };
+
+                copySliderNodeSamples(original, slider, removeReversals, sourceRepeatCount);
+
+                // Speed limiting can collapse pathological osu! sliders to a sub-degree path
+                // (for example, a 6 ms aspire slider becomes 0.72 degrees). Sticks' authored
+                // slider model intentionally requires at least one degree per segment. Such an
+                // object has no meaningful trackable duration, so preserve its hit timing as a
+                // flick instead of generating a carrier marker the editor cannot reopen.
+                if (Math.Abs(slider.ArcAngle) < 1)
+                {
+                    yield return new SticksFlick
+                    {
+                        StartTime = original.StartTime,
+                        Side = plan.Side,
+                        Angle = plan.Angle,
+                        Samples = sliderHeadSamples(original),
+                    };
+                    yield break;
+                }
 
                 yield return slider;
             }
@@ -209,7 +234,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     StartTime = original.StartTime,
                     Side = plan.Side,
                     Angle = plan.Angle,
-                    Samples = normalisedConversionSamples(),
+                    Samples = conversionSamples(original),
                 };
 
                 yield return flick;
@@ -221,7 +246,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         StartTime = original.StartTime,
                         Side = partner.Side,
                         Angle = partner.Angle,
-                        Samples = normalisedConversionSamples(),
+                        Samples = conversionSamples(original),
                     };
                 }
             }
@@ -229,6 +254,46 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         private static IList<HitSampleInfo> normalisedConversionSamples() =>
             new[] { new HitSampleInfo(HitSampleInfo.HIT_NORMAL) };
+
+        private IList<HitSampleInfo> conversionSamples(HitObject original)
+        {
+            if (DisableBeatmapHitsounds)
+                return normalisedConversionSamples();
+
+            IList<HitSampleInfo> samples = cloneSamples(original.Samples);
+            return samples.Count > 0 ? samples : normalisedConversionSamples();
+        }
+
+        private IList<HitSampleInfo> sliderHeadSamples(HitObject original)
+        {
+            if (DisableBeatmapHitsounds || original is not IHasRepeats repeats || repeats.NodeSamples.Count == 0)
+                return conversionSamples(original);
+
+            IList<HitSampleInfo> samples = cloneSamples(repeats.NodeSamples[0]);
+            return samples.Count > 0 ? samples : conversionSamples(original);
+        }
+
+        private void copySliderNodeSamples(HitObject original, SticksSlider converted, bool removeReversals, int sourceRepeatCount)
+        {
+            if (DisableBeatmapHitsounds || original is not IHasRepeats repeats || repeats.NodeSamples.Count == 0)
+                return;
+
+            if (removeReversals)
+            {
+                converted.NodeSamples.Add(cloneSamples(nodeSamplesAt(repeats, original, 0)));
+                converted.NodeSamples.Add(cloneSamples(nodeSamplesAt(repeats, original, sourceRepeatCount + 1)));
+                return;
+            }
+
+            for (int nodeIndex = 0; nodeIndex < sourceRepeatCount + 2; nodeIndex++)
+                converted.NodeSamples.Add(cloneSamples(nodeSamplesAt(repeats, original, nodeIndex)));
+        }
+
+        private static IList<HitSampleInfo> nodeSamplesAt(IHasRepeats repeats, HitObject original, int index) =>
+            index < repeats.NodeSamples.Count ? repeats.NodeSamples[index] : original.Samples;
+
+        private static IList<HitSampleInfo> cloneSamples(IEnumerable<HitSampleInfo> samples) =>
+            samples.Select(sample => sample.With()).ToList();
 
         private static (bool IsAuthoredCarrier, string? Error) preflightAuthoredCarrier(IBeatmap beatmap)
         {

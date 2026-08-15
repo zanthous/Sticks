@@ -38,7 +38,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly Bindable<SticksStackedNotePresentation> stackedNotePresentation =
             new Bindable<SticksStackedNotePresentation>(SticksStackedNotePresentation.RadialSpacing);
         private readonly Bindable<SticksNotePresentation> notePresentation =
-            new Bindable<SticksNotePresentation>(SticksNotePresentation.BracketMarkers);
+            new Bindable<SticksNotePresentation>(SticksNotePresentation.CenterOut);
         private readonly BindableBool hideInactiveCursors = new BindableBool();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly BindableBool showCursorTrails = new BindableBool();

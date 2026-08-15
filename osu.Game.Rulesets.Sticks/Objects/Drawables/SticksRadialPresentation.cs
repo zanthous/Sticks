@@ -441,7 +441,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             float span = ContactSpanFor(sliderSpan);
 
-            if (Math.Abs(displayedAngle - angle) >= 0.001f || Math.Abs(displayedSpan - span) >= 0.001f)
+            if (!float.IsFinite(displayedAngle)
+                || !float.IsFinite(displayedSpan)
+                || Math.Abs(displayedAngle - angle) >= 0.001f
+                || Math.Abs(displayedSpan - span) >= 0.001f)
             {
                 displayedAngle = angle;
                 displayedSpan = span;

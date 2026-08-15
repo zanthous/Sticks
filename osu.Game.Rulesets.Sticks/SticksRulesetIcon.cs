@@ -1,16 +1,20 @@
 // Copyright (c) Zankai LLC. See LICENSE.md for license terms.
 
+using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.Textures;
+using osu.Framework.IO.Stores;
+using osu.Framework.Platform;
 using osuTK;
-using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks
 {
     public partial class SticksRulesetIcon : CompositeDrawable
     {
-        private static readonly Color4 icon_colour = Color4.White;
+        private readonly Sprite icon;
+        private TextureStore textureStore;
 
         public SticksRulesetIcon()
         {
@@ -18,41 +22,33 @@ namespace osu.Game.Rulesets.Sticks
             // The root must therefore have an intrinsic size rather than relative sizing.
             Size = new Vector2(32);
 
-            InternalChildren = new Drawable[]
+            InternalChild = icon = new Sprite
             {
-                createRing(0.78f),
-                createRing(0.56f),
-                createCursor(0.24f, -0.39f),
-                createCursor(0.20f, 0.28f),
+                Anchor = Anchor.Centre,
+                Origin = Anchor.Centre,
+                RelativeSizeAxes = Axes.Both,
+                Size = Vector2.One,
+                FillMode = FillMode.Fit,
             };
         }
 
-        private static CircularContainer createRing(float diameter) => new CircularContainer
+        [BackgroundDependencyLoader]
+        private void load(GameHost host)
         {
-            Anchor = Anchor.Centre,
-            Origin = Anchor.Centre,
-            RelativeSizeAxes = Axes.Both,
-            Size = new Vector2(diameter),
-            Masking = true,
-            BorderThickness = 2.4f,
-            BorderColour = icon_colour,
-            Child = new Box
-            {
-                RelativeSizeAxes = Axes.Both,
-                Alpha = 0,
-                AlwaysPresent = true,
-            },
-        };
+            var resources = new NamespacedResourceStore<byte[]>(
+                new DllResourceStore(typeof(SticksRulesetIcon).Assembly),
+                @"Resources/Textures");
 
-        private static Circle createCursor(float diameter, float relativeY) => new Circle
+            textureStore = new TextureStore(host.Renderer, host.CreateTextureLoaderStore(resources));
+            icon.Texture = textureStore.Get("Icon/sticks_icon");
+        }
+
+        protected override void Dispose(bool isDisposing)
         {
-            Anchor = Anchor.Centre,
-            Origin = Anchor.Centre,
-            RelativePositionAxes = Axes.Both,
-            RelativeSizeAxes = Axes.Both,
-            Position = new Vector2(0, relativeY),
-            Size = new Vector2(diameter),
-            Colour = icon_colour,
-        };
+            base.Dispose(isDisposing);
+
+            if (isDisposing)
+                textureStore?.Dispose();
+        }
     }
 }

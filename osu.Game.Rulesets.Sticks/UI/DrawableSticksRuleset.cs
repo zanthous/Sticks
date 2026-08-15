@@ -74,9 +74,10 @@ namespace osu.Game.Rulesets.Sticks.UI
                 ((SticksPlayfield)Playfield).StackedNotePresentation = presentation.NewValue, true);
             Config.BindWith(SticksRulesetSetting.NotePresentation, notePresentation);
             notePresentation.BindValueChanged(presentation =>
-                ((SticksPlayfield)Playfield).NotePresentation = editor == null
-                    ? presentation.NewValue
-                    : SticksNotePresentation.BracketMarkers, true);
+                ((SticksPlayfield)Playfield).NotePresentation = NotePresentationForContext(
+                    presentation.NewValue,
+                    editor != null,
+                    player != null), true);
             Config.BindWith(SticksRulesetSetting.HideInactiveCursors, hideInactiveCursors);
             hideInactiveCursors.BindValueChanged(hidden =>
                 ((SticksPlayfield)Playfield).HideInactiveCursors = hidden.NewValue, true);
@@ -181,5 +182,13 @@ namespace osu.Game.Rulesets.Sticks.UI
             foreach (DrawableHitObject nested in drawable.NestedHitObjects)
                 refreshApproachTransforms(nested);
         }
+
+        internal static SticksNotePresentation NotePresentationForContext(
+            SticksNotePresentation selectedPresentation,
+            bool hasEditor,
+            bool hasPlayer) =>
+            hasEditor && !hasPlayer
+                ? SticksNotePresentation.BracketMarkers
+                : selectedPresentation;
     }
 }

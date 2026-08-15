@@ -48,3 +48,4 @@ void main(void)
     lowp vec4 texel = vec4(mappedColour * mask.a, mask.a);
     o_Colour = getRoundedColor(texel, wrappedCoord);
 }
+ca

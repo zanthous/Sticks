@@ -391,6 +391,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [TestCase(false, true, SticksNotePresentation.CenterOut)]
+        [TestCase(true, false, SticksNotePresentation.BracketMarkers)]
+        [TestCase(true, true, SticksNotePresentation.CenterOut)]
+        public void TestEditorPresentationContext(bool hasEditor, bool hasPlayer, SticksNotePresentation expected) =>
+            Assert.That(
+                DrawableSticksRuleset.NotePresentationForContext(SticksNotePresentation.CenterOut, hasEditor, hasPlayer),
+                Is.EqualTo(expected));
+
         [Test]
         public void TestSimultaneousFlickTargetUsesClosestAngle()
         {

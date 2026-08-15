@@ -24,28 +24,32 @@ void main(void)
     mediump float presenceSum = max(redPresence + bluePresence, 0.001);
     mediump float redShare = redPresence / presenceSum;
     mediump float overlap = min(redPresence, bluePresence);
-    mediump float outline = smoothstep(0.02, 0.8, mask.b);
+    // B now carries a normalised distance field across a narrow band inside each ribbon edge.
+    // Turn that one gradient into a soft bloom with a concentrated bright core.
+    mediump float edgeFalloff = smoothstep(0.0, 1.0, clamp(mask.b, 0.0, 1.0));
+    mediump float edgeCore = smoothstep(0.72, 0.98, mask.b);
+    mediump float edgeLighting = clamp(0.435 * edgeFalloff + 0.565 * edgeCore, 0.0, 1.0);
 
     const lowp vec3 BLUE_FILL = vec3(0.2, 0.62, 1.0);
     const lowp vec3 RED_FILL = vec3(1.0, 0.25, 0.3);
-    const lowp vec3 BLUE_OUTLINE = vec3(0.48, 0.753, 1.0);
-    const lowp vec3 RED_OUTLINE = vec3(1.0, 0.513, 0.556);
+    const lowp vec3 BLUE_OUTLINE = vec3(0.439, 0.839, 1.0);   // #70D6FF
+    const lowp vec3 RED_OUTLINE = vec3(1.0, 0.408, 0.498);    // #FF687F
     const lowp vec3 OVERLAP_FILL = vec3(0.722, 0.278, 1.0);    // #B847FF
     const lowp vec3 OVERLAP_OUTLINE = vec3(0.914, 0.576, 1.0); // #E993FF
 
     lowp vec3 singleFill = mix(BLUE_FILL, RED_FILL, redShare);
     lowp vec3 singleOutline = mix(BLUE_OUTLINE, RED_OUTLINE, redShare);
-    lowp vec3 singleColour = mix(singleFill, singleOutline, outline);
-    lowp vec3 overlapColour = mix(OVERLAP_FILL, OVERLAP_OUTLINE, outline);
+    lowp vec3 singleColour = mix(singleFill, singleOutline, edgeLighting);
+    lowp vec3 overlapColour = mix(OVERLAP_FILL, OVERLAP_OUTLINE, edgeLighting);
     lowp vec3 mappedColour = mix(singleColour, overlapColour, overlap);
 
     // Tracking raises the interior mask alpha from .82 to .90 in time with the local beat.
-    // Keep the authored overlap and rail colours stable; only a single-lane fill pulses.
+    // Apply the existing pulse after edge lighting while protecting the coloured boundary itself.
     mediump float pulse = clamp((mask.a - 0.82) / 0.08, 0.0, 1.0)
-                           * (1.0 - outline) * (1.0 - overlap);
+                           * (1.0 - edgeLighting) * (1.0 - overlap);
     mappedColour = mix(mappedColour, vec3(1.0), 0.252 * pulse);
 
-    lowp vec4 texel = vec4(mappedColour * mask.a, mask.a);
+    lowp float outputAlpha = mix(mask.a, 1.0, edgeLighting);
+    lowp vec4 texel = vec4(mappedColour, outputAlpha);
     o_Colour = getRoundedColor(texel, wrappedCoord);
 }
-ca

@@ -28,6 +28,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private const double target_sample_interval = 18;
         private const float minimum_half_span = 0.35f;
         private const float rail_radius = 1.35f;
+        private const float edge_glow_width = 24;
 
         private readonly RibbonPoint[] points = new RibbonPoint[max_points];
         private readonly float[] sampledAngles = new float[max_points];
@@ -234,6 +235,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     ColourInfo railColour = ColourInfo.SingleColour(side == StickSide.Left
                         ? new Color4(0, 1, 1, 1)
                         : new Color4(1, 0, 1, 1));
+                    ColourInfo edgeToInterior = ColourInfo.GradientVertical(
+                        new Color4(0, 0, 1, 0.82f),
+                        new Color4(0, 0, 0, 0.82f));
+                    ColourInfo interiorToEdge = ColourInfo.GradientVertical(
+                        new Color4(0, 0, 0, 0.82f),
+                        new Color4(0, 0, 1, 0.82f));
 
                     shader.Bind();
 
@@ -248,21 +255,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                                 Vector2Extensions.Transform(points[i + 1].RightEdge, DrawInfo.Matrix)),
                             fillColour);
 
+                        drawEdgeGlowSegment(renderer, points[i], points[i + 1], true, edgeToInterior);
+                        drawEdgeGlowSegment(renderer, points[i], points[i + 1], false, interiorToEdge);
                         drawRailSegment(renderer, points[i].LeftEdge, points[i + 1].LeftEdge, railColour);
                         drawRailSegment(renderer, points[i].RightEdge, points[i + 1].RightEdge, railColour);
                     }
 
-                    drawCurvedLeadingCap(renderer, fillColour, railColour);
+                    drawCurvedLeadingCap(renderer, fillColour, railColour, edgeToInterior);
                     shader.Unbind();
                 }
 
-                private void drawCurvedLeadingCap(IRenderer renderer, ColourInfo fillColour, ColourInfo railColour)
+                private void drawCurvedLeadingCap(IRenderer renderer, ColourInfo fillColour, ColourInfo railColour, ColourInfo edgeToInterior)
                 {
                     const int cap_segments = 12;
                     RibbonPoint leading = points[0];
                     float halfSpanRadians = leading.HalfSpan * MathF.PI / 180;
                     float capDepth = Math.Max(2, leading.Radius * (1 - MathF.Cos(halfSpanRadians)) + 1);
                     float innerRadius = Math.Max(0, leading.Radius - capDepth);
+                    float glowInnerRadius = Math.Max(innerRadius, leading.Radius - edge_glow_width);
                     Vector2 previousOuter = SticksPlayfield.PointAt(leading.Angle - leading.HalfSpan, leading.Radius);
 
                     for (int i = 0; i < cap_segments; i++)
@@ -279,10 +289,64 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                                 Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, innerRadius), DrawInfo.Matrix)),
                             fillColour);
 
+                        renderer.DrawQuad(
+                            texture,
+                            new Quad(
+                                Vector2Extensions.Transform(SticksPlayfield.PointAt(firstAngle, leading.Radius), DrawInfo.Matrix),
+                                Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, leading.Radius), DrawInfo.Matrix),
+                                Vector2Extensions.Transform(SticksPlayfield.PointAt(firstAngle, glowInnerRadius), DrawInfo.Matrix),
+                                Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, glowInnerRadius), DrawInfo.Matrix)),
+                            edgeToInterior);
+
                         Vector2 nextOuter = SticksPlayfield.PointAt(secondAngle, leading.Radius);
                         drawRailSegment(renderer, previousOuter, nextOuter, railColour);
                         previousOuter = nextOuter;
                     }
+                }
+
+                private void drawEdgeGlowSegment(
+                    IRenderer renderer,
+                    RibbonPoint from,
+                    RibbonPoint to,
+                    bool leftEdge,
+                    ColourInfo colour)
+                {
+                    Vector2 fromAcross = from.RightEdge - from.LeftEdge;
+                    Vector2 toAcross = to.RightEdge - to.LeftEdge;
+                    float fromWidth = fromAcross.Length;
+                    float toWidth = toAcross.Length;
+
+                    if (fromWidth <= 0.001f || toWidth <= 0.001f)
+                        return;
+
+                    Vector2 fromDirection = fromAcross / fromWidth;
+                    Vector2 toDirection = toAcross / toWidth;
+                    float fromDepth = Math.Min(edge_glow_width, fromWidth / 2);
+                    float toDepth = Math.Min(edge_glow_width, toWidth / 2);
+
+                    Vector2 fromEdge = leftEdge ? from.LeftEdge : from.RightEdge;
+                    Vector2 toEdge = leftEdge ? to.LeftEdge : to.RightEdge;
+                    Vector2 fromInner = leftEdge
+                        ? fromEdge + fromDirection * fromDepth
+                        : fromEdge - fromDirection * fromDepth;
+                    Vector2 toInner = leftEdge
+                        ? toEdge + toDirection * toDepth
+                        : toEdge - toDirection * toDepth;
+
+                    renderer.DrawQuad(
+                        texture,
+                        leftEdge
+                            ? new Quad(
+                                Vector2Extensions.Transform(fromEdge, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(toEdge, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(fromInner, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(toInner, DrawInfo.Matrix))
+                            : new Quad(
+                                Vector2Extensions.Transform(fromInner, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(toInner, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(fromEdge, DrawInfo.Matrix),
+                                Vector2Extensions.Transform(toEdge, DrawInfo.Matrix)),
+                        colour);
                 }
 
                 private void drawRailSegment(IRenderer renderer, Vector2 from, Vector2 to, ColourInfo colour)
@@ -337,7 +401,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public SticksSliderContactEffect(Color4 colour, double sparkPhaseOffset)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
-            AlwaysPresent = true;
             Blending = BlendingParameters.Additive;
 
             AddRangeInternal(new Drawable[]
@@ -358,6 +421,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             bool wasActive = targetActive;
             targetActive = isActive;
+
+            // An invisible contact effect should not keep its arcs and particle emitter in the
+            // update traversal for every approaching duration object. Give a newly-active effect
+            // a sub-pixel wake-up alpha so its normal damped fade-in starts on this frame.
+            if (isActive && !wasActive && visualStrength == 0)
+            {
+                visualStrength = 0.001f;
+                Alpha = visualStrength;
+            }
 
             if (!isActive)
             {
@@ -501,7 +573,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public SticksContactBurstEffect(int seed)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
-            AlwaysPresent = true;
             Alpha = 0;
             Blending = BlendingParameters.Additive;
 

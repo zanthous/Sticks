@@ -736,6 +736,49 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [TestCase(0, 20, 0, 20, 350, 20)]
+        [TestCase(355, 20, 5, 20, 355, 10)]
+        [TestCase(20, 30, 30, 10, 25, 10)]
+        public void TestSimultaneousCenterOutNotesFindAngularOverlap(
+            float firstAngle,
+            float firstSpan,
+            float secondAngle,
+            float secondSpan,
+            float expectedStart,
+            float expectedSpan)
+        {
+            bool overlaps = SticksCenterOutNoteOverlapLayer.TryGetAngularOverlap(
+                firstAngle,
+                firstSpan,
+                secondAngle,
+                secondSpan,
+                out float start,
+                out float span,
+                out _,
+                out _);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(overlaps, Is.True);
+                Assert.That(start, Is.EqualTo(expectedStart).Within(0.001));
+                Assert.That(span, Is.EqualTo(expectedSpan).Within(0.001));
+            });
+        }
+
+        [Test]
+        public void TestSeparatedCenterOutNotesHaveNoAngularOverlap()
+        {
+            Assert.That(SticksCenterOutNoteOverlapLayer.TryGetAngularOverlap(
+                0,
+                20,
+                30,
+                20,
+                out _,
+                out _,
+                out _,
+                out _), Is.False);
+        }
+
         [Test]
         public void TestFillingArcUsesOpaqueRoundedContainerAndMatchingCenterOutFill()
         {
@@ -1482,8 +1525,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Alpha = 0,
             };
 
-            Assert.That(effect.AlwaysPresent, Is.True,
-                "The contact effect must continue updating while initially invisible so its activation smoothing can begin.");
+            Assert.That(effect.AlwaysPresent, Is.False,
+                "Invisible contact effects should sleep until their owning duration object activates them.");
+
+            effect.SetState(true, 1000, 30, 20, Color4.White);
+            Assert.That(effect.Alpha, Is.GreaterThan(0),
+                "Activation must wake the sleeping effect so its smoothing can begin immediately.");
         }
 
         [TestCase(15f)]

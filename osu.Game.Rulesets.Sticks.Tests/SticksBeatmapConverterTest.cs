@@ -586,6 +586,37 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [Test]
+        public void TestForcedProceduralConversionIgnoresCarrierLikeStandardSample()
+        {
+            var source = new Beatmap<HitObject>();
+
+            for (int i = 0; i < 10; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 1000 + i * 1000,
+                    Position = new Vector2(64 + i * 32, 192),
+                    Samples = i == 7
+                        ? new[] { new ConvertHitObjectParser.FileHitSampleInfo("sticks-v1~f~x~0.wav", 100) }
+                        : System.Array.Empty<HitSampleInfo>(),
+                });
+            }
+
+            var normalConverter = new SticksBeatmapConverter(source, new SticksRuleset());
+            var forcedConverter = new SticksBeatmapConverter(source, new SticksRuleset(), forceProceduralConversion: true);
+            IBeatmap converted = forcedConverter.Convert();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(normalConverter.CanConvert(), Is.False);
+                Assert.That(normalConverter.AuthoredCarrierError, Does.Contain("malformed v1 marker"));
+                Assert.That(forcedConverter.CanConvert(), Is.True);
+                Assert.That(forcedConverter.AuthoredCarrierError, Is.Null);
+                Assert.That(converted.HitObjects, Has.Count.GreaterThanOrEqualTo(10));
+            });
+        }
+
         [TestCase("sticks-vx~f~l~0.wav")]
         [TestCase("sticks-v~f~l~0.wav")]
         public void TestMalformedReservedNamespaceWithoutNumericVersionFailsClosed(string marker)

@@ -4,6 +4,7 @@
 
 using System;
 using System.Linq;
+using System.Threading;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -49,7 +50,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 BeatmapSetInfo copiedSet = copiedInfo.BeatmapSet
                                            ?? throw new InvalidOperationException("The copied difficulty has no beatmap set.");
 
-                IBeatmap authored = copied.GetPlayableBeatmap(sticksRuleset);
+                IBeatmap authored = convertStandardSource(copied, sticksRuleset);
                 if (!retainConvertedObjects)
                 {
                     if (authored is not Beatmap<SticksHitObject> sticksBeatmap)
@@ -82,6 +83,27 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 beatmapManager.DeleteDifficultyImmediately(copiedInfo);
                 throw;
             }
+        }
+
+        private static IBeatmap convertStandardSource(WorkingBeatmap source, RulesetInfo sticksRuleset)
+        {
+            Ruleset rulesetInstance = sticksRuleset.CreateInstance()
+                                      ?? throw new InvalidOperationException("Creating the Sticks ruleset instance failed.");
+
+            // This command is only exposed for a source difficulty already verified as mode 0.
+            // Force procedural conversion so arbitrary osu!standard sample filenames cannot be
+            // mistaken for the hidden carrier data used when reopening an authored Sticks map.
+            var converter = new SticksBeatmapConverter(source.Beatmap, rulesetInstance, forceProceduralConversion: true);
+            IBeatmap converted = converter.Convert(CancellationToken.None);
+
+            IBeatmapProcessor? processor = rulesetInstance.CreateBeatmapProcessor(converted);
+            processor?.PreProcess();
+
+            foreach (var hitObject in converted.HitObjects)
+                hitObject.ApplyDefaults(converted.ControlPointInfo, converted.Difficulty, CancellationToken.None);
+
+            processor?.PostProcess();
+            return converted;
         }
 
         private static string uniqueDifficultyName(BeatmapSetInfo set, Guid currentID, string baseName)

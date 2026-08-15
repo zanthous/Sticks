@@ -55,6 +55,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SmoothPath rightRelaxDirectionLine;
         private readonly Container radialPathLayer;
         private readonly SticksRibbonBuffer radialPathBuffer;
+        private readonly SticksCenterOutNoteOverlapLayer noteOverlapLayer;
         private readonly SticksContactBurstLayer contactBurstLayer;
         private readonly SticksJudgementDisplay judgementDisplay;
         private readonly SticksInputTracker input = new SticksInputTracker();
@@ -203,6 +204,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 // therefore replace slider colour normally and remain fully opaque when the two
                 // overlap, while ribbon/ribbon intersections can still mix to purple below.
                 HitObjectContainer,
+                noteOverlapLayer = new SticksCenterOutNoteOverlapLayer(this),
                 contactBurstLayer = new SticksContactBurstLayer(),
                 judgementDisplay = new SticksJudgementDisplay(),
                 leftTrail = new SticksCursorTrail("Cursors/blue"),

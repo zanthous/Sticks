@@ -51,11 +51,17 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         public bool DisableReversals { get; set; }
 
-        public SticksBeatmapConverter(IBeatmap beatmap, Ruleset ruleset)
+        public SticksBeatmapConverter(IBeatmap beatmap, Ruleset ruleset, bool forceProceduralConversion = false)
             : base(beatmap, ruleset)
         {
             targetRuleset = ruleset;
-            (isAuthoredCarrier, authoredCarrierError) = preflightAuthoredCarrier(beatmap);
+
+            // The editor's explicit "create converted difficulty" command starts from a map that
+            // has already been verified as osu!standard. In that one context, sample filenames are
+            // source-map data and must never be interpreted as Sticks carrier metadata.
+            (isAuthoredCarrier, authoredCarrierError) = forceProceduralConversion
+                ? (false, null)
+                : preflightAuthoredCarrier(beatmap);
 
             if (authoredCarrierError == null && !isAuthoredCarrier)
                 buildPlans(beatmap);

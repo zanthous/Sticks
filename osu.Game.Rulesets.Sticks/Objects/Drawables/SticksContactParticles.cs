@@ -21,10 +21,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     /// </summary>
     public partial class SticksContactParticleEmitter : Drawable
     {
-        private const int max_particles = 128;
-        private const double mote_interval = 1000.0 / 42;
-        private const double shard_interval = 1000.0 / 15;
-        private const double maximum_lifetime = 320;
+        // At the current emission rate and maximum lifetime, fewer than 24 particles from one
+        // contact can coexist. Keep ample burst/catch-up headroom without copying 128 mostly
+        // expired records for every simultaneously tracked duration object on every frame.
+        private const int max_particles = 48;
+        // Short, fast particles keep the effect responsive during dense play. The increased
+        // cadence offsets their shorter lifetime without increasing the number alive at once.
+        private const double mote_interval = 1000.0 / 63;
+        private const double shard_interval = 1000.0 / 22.5;
+        private const double maximum_lifetime = 220;
         private const double seek_reset_threshold = 500;
 
         private readonly Particle[] particles = new Particle[max_particles];
@@ -100,7 +105,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             }
 
             previousTime = now;
-            Invalidate(Invalidation.DrawNode);
         }
 
         public void TriggerBurst(double now, float angle, float span, Color4 colour, int count, float intensity)
@@ -199,14 +203,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             float directionRadians = directionOffset * MathF.PI / 180;
             Vector2 direction = outward * MathF.Cos(directionRadians) + tangent * MathF.Sin(directionRadians);
             float speed = kind == ParticleKind.Shard
-                ? lerp(325, 490, random01())
-                : lerp(195, 325, random01());
+                ? lerp(487.5f, 735, random01())
+                : lerp(292.5f, 487.5f, random01());
             float radius = SticksPlayfield.GUIDE_RADIUS + lerp(-0.5f, 2, random01());
 
             ref Particle particle = ref particles[nextParticle];
             double lifetime = (kind == ParticleKind.Shard
-                ? lerp(125, 195, random01())
-                : lerp(170, 280, random01())) / Math.Max(0.8f, intensity);
+                ? lerp(81, 127, random01())
+                : lerp(111, 182, random01())) / Math.Max(0.8f, intensity);
             particle = new Particle
             {
                 Active = true,

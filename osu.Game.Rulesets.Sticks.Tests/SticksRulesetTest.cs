@@ -457,16 +457,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Assert.Multiple(() =>
             {
-                Assert.That(SticksHitObject.HitAngleForCircleSize(0), Is.EqualTo(35));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(0), Is.EqualTo(45));
                 Assert.That(SticksHitObject.HitAngleForCircleSize(3), Is.EqualTo(35));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(4), Is.EqualTo(25).Within(0.0001f));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(4), Is.EqualTo(27.5f));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(5), Is.EqualTo(22.5f));
                 Assert.That(SticksHitObject.HitAngleForCircleSize(5.4f), Is.EqualTo(20));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(10), Is.EqualTo(20));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(10), Is.EqualTo(15));
             });
 
-            float previous = SticksHitObject.HitAngleForCircleSize(3);
+            float previous = SticksHitObject.HitAngleForCircleSize(0);
 
-            for (float circleSize = 3.05f; circleSize <= 5.4f; circleSize += 0.05f)
+            for (float circleSize = 0.05f; circleSize <= 10; circleSize += 0.05f)
             {
                 float current = SticksHitObject.HitAngleForCircleSize(circleSize);
                 Assert.That(current, Is.LessThan(previous), $"CS {circleSize} should produce a tighter angle than the preceding step.");
@@ -487,10 +488,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(slider.PrimaryHitAngle, Is.EqualTo(25).Within(0.0001f));
-                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(12.5f).Within(0.0001f));
+                Assert.That(slider.PrimaryHitAngle, Is.EqualTo(27.5f).Within(0.0001f));
+                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(13.75f).Within(0.0001f));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
-                    Math.Abs(nested.PrimaryHitAngle - 25) < 0.0001f && Math.Abs(nested.SecondaryHitAngle - 12.5f) < 0.0001f));
+                    Math.Abs(nested.PrimaryHitAngle - 27.5f) < 0.0001f && Math.Abs(nested.SecondaryHitAngle - 13.75f) < 0.0001f));
             });
         }
 
@@ -513,7 +514,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(difficulty.OverallDifficulty, Is.EqualTo(4));
                 Assert.That(difficulty.DrainRate, Is.EqualTo(3));
                 Assert.That(difficulty.ApproachRate, Is.EqualTo(7));
-                Assert.That(SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize), Is.EqualTo(35));
+                Assert.That(SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize), Is.EqualTo(36.66667f).Within(0.0001f));
             });
         }
 

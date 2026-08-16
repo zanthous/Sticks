@@ -28,17 +28,19 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public const float PRECISE_HALF_ANGLE = VISIBLE_ARC_SPAN / 2;
         public const float LENIENT_HALF_ANGLE = VISIBLE_ARC_SPAN;
 
+        public const float MINIMUM_CIRCLE_SIZE = 0;
         public const float EASY_CIRCLE_SIZE = 3;
         public const float DEFAULT_CIRCLE_SIZE = 4;
+        public const float PRECISE_CIRCLE_SIZE = 5;
         public const float HARD_CIRCLE_SIZE = 5.4f;
+        public const float MAXIMUM_CIRCLE_SIZE = 10;
 
+        public const float MINIMUM_CIRCLE_SIZE_HIT_ANGLE = 45;
         public const float EASY_HIT_ANGLE = 35;
-        public const float DEFAULT_HIT_ANGLE = 25;
+        public const float DEFAULT_HIT_ANGLE = 27.5f;
+        public const float PRECISE_HIT_ANGLE = 22.5f;
         public const float HARD_HIT_ANGLE = 20;
-
-        private static readonly double circle_size_curve_exponent =
-            Math.Log((DEFAULT_HIT_ANGLE - HARD_HIT_ANGLE) / (EASY_HIT_ANGLE - HARD_HIT_ANGLE))
-            / Math.Log(1 - (DEFAULT_CIRCLE_SIZE - EASY_CIRCLE_SIZE) / (HARD_CIRCLE_SIZE - EASY_CIRCLE_SIZE));
+        public const float MAXIMUM_CIRCLE_SIZE_HIT_ANGLE = 15;
 
         public float PrimaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
 
@@ -190,21 +192,37 @@ namespace osu.Game.Rulesets.Sticks.Objects
             IBeatmapDifficultyInfo.DifficultyRange(approachRate, 1800, 1200, 450);
 
         /// <summary>
-        /// Computes the full width of both angular grading bands from circle size.
-        /// The curve reaches its 25 degree reference at CS 4 while easing out towards
-        /// the 20 degree lower bound, rather than changing abruptly near CS 5.4.
+        /// Computes the full primary angular grading width from circle size by linearly
+        /// interpolating between the explicitly tuned CS reference points.
+        /// The secondary width is always half of this value.
         /// </summary>
         public static float HitAngleForCircleSize(float circleSize)
         {
-            if (circleSize <= EASY_CIRCLE_SIZE)
-                return EASY_HIT_ANGLE;
+            if (circleSize <= MINIMUM_CIRCLE_SIZE)
+                return MINIMUM_CIRCLE_SIZE_HIT_ANGLE;
 
-            if (circleSize >= HARD_CIRCLE_SIZE)
-                return HARD_HIT_ANGLE;
+            if (circleSize < EASY_CIRCLE_SIZE)
+                return interpolateHitAngle(circleSize, MINIMUM_CIRCLE_SIZE, EASY_CIRCLE_SIZE, MINIMUM_CIRCLE_SIZE_HIT_ANGLE, EASY_HIT_ANGLE);
 
-            double progress = (circleSize - EASY_CIRCLE_SIZE) / (HARD_CIRCLE_SIZE - EASY_CIRCLE_SIZE);
-            double remaining = Math.Clamp(1 - progress, 0, 1);
-            return (float)(HARD_HIT_ANGLE + (EASY_HIT_ANGLE - HARD_HIT_ANGLE) * Math.Pow(remaining, circle_size_curve_exponent));
+            if (circleSize < DEFAULT_CIRCLE_SIZE)
+                return interpolateHitAngle(circleSize, EASY_CIRCLE_SIZE, DEFAULT_CIRCLE_SIZE, EASY_HIT_ANGLE, DEFAULT_HIT_ANGLE);
+
+            if (circleSize < PRECISE_CIRCLE_SIZE)
+                return interpolateHitAngle(circleSize, DEFAULT_CIRCLE_SIZE, PRECISE_CIRCLE_SIZE, DEFAULT_HIT_ANGLE, PRECISE_HIT_ANGLE);
+
+            if (circleSize < HARD_CIRCLE_SIZE)
+                return interpolateHitAngle(circleSize, PRECISE_CIRCLE_SIZE, HARD_CIRCLE_SIZE, PRECISE_HIT_ANGLE, HARD_HIT_ANGLE);
+
+            if (circleSize < MAXIMUM_CIRCLE_SIZE)
+                return interpolateHitAngle(circleSize, HARD_CIRCLE_SIZE, MAXIMUM_CIRCLE_SIZE, HARD_HIT_ANGLE, MAXIMUM_CIRCLE_SIZE_HIT_ANGLE);
+
+            return MAXIMUM_CIRCLE_SIZE_HIT_ANGLE;
+        }
+
+        private static float interpolateHitAngle(float circleSize, float startCircleSize, float endCircleSize, float startAngle, float endAngle)
+        {
+            float progress = (circleSize - startCircleSize) / (endCircleSize - startCircleSize);
+            return startAngle + (endAngle - startAngle) * progress;
         }
 
         public void ApplyPlayerApproachRate(float approachRate)

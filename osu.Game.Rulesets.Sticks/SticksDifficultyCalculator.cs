@@ -26,7 +26,7 @@ namespace osu.Game.Rulesets.Sticks
 {
     public class SticksDifficultyCalculator : DifficultyCalculator
     {
-        public override int Version => 202608150;
+        public override int Version => 202608160;
 
         private SticksDifficultyModel.IncrementalState incrementalState;
         private IBeatmap incrementalBeatmap;

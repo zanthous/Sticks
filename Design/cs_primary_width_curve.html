@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sticks primary hit-angle width</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, "Segoe UI", sans-serif;
+      background: #090c11;
+      color: #f7f9ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    main {
+      width: min(960px, 100%);
+      padding: 24px;
+      border: 1px solid #252e3b;
+      border-radius: 18px;
+      background: #10141b;
+      box-shadow: 0 18px 60px #0008;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0 0 5px;
+      font-size: clamp(20px, 3vw, 28px);
+    }
+
+    p {
+      margin: 0;
+      color: #aeb8c8;
+      font-size: 14px;
+    }
+
+    #readout {
+      min-width: 160px;
+      padding: 9px 12px;
+      border: 1px solid #354154;
+      border-radius: 9px;
+      background: #19202b;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #readout strong {
+      display: block;
+      color: #70d6ff;
+      font-size: 18px;
+    }
+
+    #readout span { display: block; }
+    #readout .candidate { color: #ff76dc; }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 32px;
+      margin-bottom: 4px;
+      color: #aeb8c8;
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 16px;
+    }
+
+    .key::before {
+      content: "";
+      display: inline-block;
+      width: 22px;
+      height: 4px;
+      margin-right: 7px;
+      border-radius: 2px;
+      vertical-align: 2px;
+      background: #70d6ff;
+    }
+
+    .key.candidate::before { background: #ff76dc; }
+
+    button {
+      padding: 6px 10px;
+      border: 1px solid #3a4659;
+      border-radius: 7px;
+      background: #19202b;
+      color: #dce3ef;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:hover { background: #222c3a; }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: min(56vw, 510px);
+      min-height: 330px;
+      border-radius: 10px;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    @media (max-width: 600px) {
+      main { padding: 16px; }
+      header { align-items: start; flex-direction: column; }
+      #readout { width: 100%; text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Primary hit-angle width</h1>
+        <p>Secondary width is exactly half of primary and is not shown.</p>
+      </div>
+      <div id="readout" aria-live="polite">
+        <strong>CS 4.00</strong>
+        <span>Current: 25.00°</span>
+        <span class="candidate">Candidate: 25.00°</span>
+      </div>
+    </header>
+    <div class="controls">
+      <div class="legend">
+        <span class="key">Current</span>
+        <span class="key candidate">Candidate — drag its six points</span>
+        <span id="anchors">CS 0: 45.0° · CS 3: 35.0° · CS 4: 27.5° · CS 5: 22.5° · CS 5.4: 20.0° · CS 10: 15.0°</span>
+      </div>
+      <button id="reset" type="button">Reset</button>
+    </div>
+    <canvas id="chart" aria-label="Interactive graph of Sticks primary hit-angle width by circle size"></canvas>
+  </main>
+
+  <script>
+    const canvas = document.querySelector('#chart');
+    const readout = document.querySelector('#readout');
+    const anchors = document.querySelector('#anchors');
+    const resetButton = document.querySelector('#reset');
+    const context = canvas.getContext('2d');
+
+    const minimumCircleSize = 0;
+    const easyCircleSize = 3;
+    const defaultCircleSize = 4;
+    const preciseCircleSize = 5;
+    const hardCircleSize = 5.4;
+    const maximumCircleSize = 10;
+    const minimumCircleSizeWidth = 45;
+    const easyWidth = 35;
+    const defaultWidth = 27.5;
+    const preciseWidth = 22.5;
+    const hardWidth = 20;
+    const maximumCircleSizeWidth = 15;
+    const minimumPlottedCircleSize = minimumCircleSize - 0.15;
+    const maximumPlottedCircleSize = maximumCircleSize + 0.15;
+    const minimumPlottedWidth = 12;
+    const maximumPlottedWidth = 50;
+    const anchorCircleSizes = [minimumCircleSize, easyCircleSize, defaultCircleSize, preciseCircleSize, hardCircleSize, maximumCircleSize];
+
+    let selectedCircleSize = 4;
+    const defaultCandidateWidths = [45, 35, 27.5, 22.5, 20, 15];
+
+    let candidateWidths = [...defaultCandidateWidths];
+    let draggedAnchor = null;
+
+    function primaryWidth(circleSize) {
+      if (circleSize <= minimumCircleSize) return minimumCircleSizeWidth;
+      if (circleSize >= maximumCircleSize) return maximumCircleSizeWidth;
+
+      const widths = [minimumCircleSizeWidth, easyWidth, defaultWidth, preciseWidth, hardWidth, maximumCircleSizeWidth];
+      let segment = 0;
+      while (circleSize > anchorCircleSizes[segment + 1]) segment++;
+      const progress = (circleSize - anchorCircleSizes[segment])
+        / (anchorCircleSizes[segment + 1] - anchorCircleSizes[segment]);
+      return widths[segment] + progress * (widths[segment + 1] - widths[segment]);
+    }
+
+    function candidateWidth(circleSize) {
+      if (circleSize <= minimumCircleSize) return candidateWidths[0];
+      if (circleSize >= maximumCircleSize) return candidateWidths[candidateWidths.length - 1];
+
+      let segment = 0;
+      while (circleSize > anchorCircleSizes[segment + 1]) segment++;
+
+      const startX = anchorCircleSizes[segment];
+      const endX = anchorCircleSizes[segment + 1];
+      const progress = (circleSize - startX) / (endX - startX);
+      return candidateWidths[segment]
+        + progress * (candidateWidths[segment + 1] - candidateWidths[segment]);
+    }
+
+    function updateReadout() {
+      readout.innerHTML = `<strong>CS ${selectedCircleSize.toFixed(2)}</strong>`
+        + `<span>Current: ${primaryWidth(selectedCircleSize).toFixed(2)}°</span>`
+        + `<span class="candidate">Candidate: ${candidateWidth(selectedCircleSize).toFixed(2)}°</span>`;
+      anchors.textContent = `CS 0: ${candidateWidths[0].toFixed(1)}° · `
+        + `CS 3: ${candidateWidths[1].toFixed(1)}° · CS 4: ${candidateWidths[2].toFixed(1)}° · `
+        + `CS 5: ${candidateWidths[3].toFixed(1)}° · CS 5.4: ${candidateWidths[4].toFixed(1)}° · `
+        + `CS 10: ${candidateWidths[5].toFixed(1)}°`;
+    }
+
+    function resize() {
+      const ratio = window.devicePixelRatio || 1;
+      const bounds = canvas.getBoundingClientRect();
+      canvas.width = Math.round(bounds.width * ratio);
+      canvas.height = Math.round(bounds.height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      draw();
+    }
+
+    function draw() {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const plot = { left: 68, right: width - 24, top: 30, bottom: height - 58 };
+
+      const plottedCircleSizeRange = maximumPlottedCircleSize - minimumPlottedCircleSize;
+      const xFor = circleSize => plot.left
+        + (circleSize - minimumPlottedCircleSize) / plottedCircleSizeRange * (plot.right - plot.left);
+      const circleSizeFor = x => minimumPlottedCircleSize
+        + (x - plot.left) / (plot.right - plot.left) * plottedCircleSizeRange;
+      const yFor = angle => plot.bottom
+        - (angle - minimumPlottedWidth) / (maximumPlottedWidth - minimumPlottedWidth) * (plot.bottom - plot.top);
+      const angleFor = y => maximumPlottedWidth
+        - (y - plot.top) / (plot.bottom - plot.top) * (maximumPlottedWidth - minimumPlottedWidth);
+
+      context.clearRect(0, 0, width, height);
+      context.lineCap = 'round';
+      context.lineJoin = 'round';
+      context.font = '12px Inter, Segoe UI, sans-serif';
+
+      // Only the useful horizontal widths and CS breakpoints are labelled.
+      context.strokeStyle = '#2a3341';
+      context.lineWidth = 1;
+      context.fillStyle = '#aeb8c8';
+      context.textAlign = 'right';
+      context.textBaseline = 'middle';
+
+      for (const angle of [15, 20, 25, 30, 35, 40, 45, 50]) {
+        const y = yFor(angle);
+        context.beginPath();
+        context.moveTo(plot.left, y);
+        context.lineTo(plot.right, y);
+        context.stroke();
+        context.fillText(`${angle}°`, plot.left - 10, y);
+      }
+
+      context.textAlign = 'center';
+      context.textBaseline = 'top';
+      for (const circleSize of [0, 3, 4, 5, 5.4, 10]) {
+        const x = xFor(circleSize);
+        context.beginPath();
+        context.moveTo(x, plot.top);
+        context.lineTo(x, plot.bottom);
+        context.stroke();
+        context.fillText(String(circleSize), x, plot.bottom + 12);
+      }
+
+      context.fillStyle = '#d7deea';
+      context.font = '14px Inter, Segoe UI, sans-serif';
+      context.fillText('Circle size (CS)', (plot.left + plot.right) / 2, plot.bottom + 36);
+
+      context.save();
+      context.translate(17, (plot.top + plot.bottom) / 2);
+      context.rotate(-Math.PI / 2);
+      context.textAlign = 'center';
+      context.textBaseline = 'top';
+      context.fillText('Primary width (degrees)', 0, 0);
+      context.restore();
+
+      function drawCurve(widthAt, colour, lineWidth) {
+        context.beginPath();
+        for (let step = 0; step <= 500; step++) {
+          const circleSize = minimumPlottedCircleSize
+            + step / 500 * (maximumPlottedCircleSize - minimumPlottedCircleSize);
+          const x = xFor(circleSize);
+          const y = yFor(widthAt(circleSize));
+          if (step === 0) context.moveTo(x, y);
+          else context.lineTo(x, y);
+        }
+        context.strokeStyle = colour;
+        context.lineWidth = lineWidth;
+        context.stroke();
+      }
+
+      // The candidate is thinner, leaving the current curve visible when they coincide.
+      drawCurve(primaryWidth, '#70d6ff', 7);
+      drawCurve(candidateWidth, '#ff76dc', 3.5);
+
+      for (const [circleSize, angle] of [[3, 35], [4, 25], [5.4, 20]]) {
+        context.beginPath();
+        context.arc(xFor(circleSize), yFor(angle), 6, 0, Math.PI * 2);
+        context.fillStyle = '#10141b';
+        context.fill();
+        context.strokeStyle = '#70d6ff';
+        context.lineWidth = 4;
+        context.stroke();
+      }
+
+      const selectedX = xFor(selectedCircleSize);
+      context.beginPath();
+      context.moveTo(selectedX, plot.top);
+      context.lineTo(selectedX, plot.bottom);
+      context.strokeStyle = '#ffffff55';
+      context.lineWidth = 1;
+      context.stroke();
+
+      for (const [widthAt, colour] of [[primaryWidth, '#70d6ff'], [candidateWidth, '#ff76dc']]) {
+        context.beginPath();
+        context.arc(selectedX, yFor(widthAt(selectedCircleSize)), 5, 0, Math.PI * 2);
+        context.fillStyle = colour;
+        context.fill();
+        context.strokeStyle = '#f7f9ff';
+        context.lineWidth = 2;
+        context.stroke();
+      }
+
+      // Candidate anchors are the draggable controls. Their x positions stay fixed.
+      for (let index = 0; index < anchorCircleSizes.length; index++) {
+        context.beginPath();
+        context.arc(xFor(anchorCircleSizes[index]), yFor(candidateWidths[index]), 9, 0, Math.PI * 2);
+        context.fillStyle = '#ff76dc';
+        context.fill();
+        context.strokeStyle = '#ffffff';
+        context.lineWidth = draggedAnchor === index ? 4 : 2.5;
+        context.stroke();
+      }
+
+      canvas.circleSizeAtX = circleSizeFor;
+      canvas.angleAtY = angleFor;
+      canvas.xForCircleSize = xFor;
+      canvas.yForAngle = yFor;
+    }
+
+    function selectFromPointer(event) {
+      const bounds = canvas.getBoundingClientRect();
+      selectedCircleSize = Math.max(
+        minimumPlottedCircleSize,
+        Math.min(maximumPlottedCircleSize, canvas.circleSizeAtX(event.clientX - bounds.left)),
+      );
+      updateReadout();
+      draw();
+    }
+
+    function pointerPosition(event) {
+      const bounds = canvas.getBoundingClientRect();
+      return { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+    }
+
+    function anchorNear(position) {
+      let closest = null;
+      let closestDistance = 18;
+
+      for (let index = 0; index < anchorCircleSizes.length; index++) {
+        const dx = position.x - canvas.xForCircleSize(anchorCircleSizes[index]);
+        const dy = position.y - canvas.yForAngle(candidateWidths[index]);
+        const distance = Math.hypot(dx, dy);
+        if (distance < closestDistance) {
+          closest = index;
+          closestDistance = distance;
+        }
+      }
+
+      return closest;
+    }
+
+    function dragCandidate(event) {
+      const position = pointerPosition(event);
+      const minimumGap = 0;
+      let width = Math.max(minimumPlottedWidth, Math.min(maximumPlottedWidth, canvas.angleAtY(position.y)));
+
+      if (draggedAnchor > 0)
+        width = Math.min(candidateWidths[draggedAnchor - 1] - minimumGap, width);
+      if (draggedAnchor < candidateWidths.length - 1)
+        width = Math.max(candidateWidths[draggedAnchor + 1] + minimumGap, width);
+
+      candidateWidths[draggedAnchor] = width;
+      selectedCircleSize = anchorCircleSizes[draggedAnchor];
+      updateReadout();
+      draw();
+    }
+
+    canvas.addEventListener('pointerdown', event => {
+      canvas.setPointerCapture(event.pointerId);
+      draggedAnchor = anchorNear(pointerPosition(event));
+      if (draggedAnchor === null)
+        selectFromPointer(event);
+      else
+        dragCandidate(event);
+    });
+    canvas.addEventListener('pointermove', event => {
+      if (draggedAnchor !== null) {
+        dragCandidate(event);
+        canvas.style.cursor = 'grabbing';
+      } else {
+        canvas.style.cursor = anchorNear(pointerPosition(event)) === null ? 'crosshair' : 'grab';
+        selectFromPointer(event);
+      }
+    });
+    canvas.addEventListener('pointerup', () => {
+      draggedAnchor = null;
+      canvas.style.cursor = 'crosshair';
+      draw();
+    });
+    canvas.addEventListener('pointercancel', () => {
+      draggedAnchor = null;
+      canvas.style.cursor = 'crosshair';
+      draw();
+    });
+    resetButton.addEventListener('click', () => {
+      candidateWidths = [...defaultCandidateWidths];
+      selectedCircleSize = defaultCircleSize;
+      updateReadout();
+      draw();
+    });
+    window.addEventListener('resize', resize);
+    updateReadout();
+    resize();
+  </script>
+</body>
+</html>

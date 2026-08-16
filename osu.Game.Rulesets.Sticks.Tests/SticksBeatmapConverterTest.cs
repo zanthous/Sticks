@@ -1080,7 +1080,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestFlickApproachNeverAppearsUnderSameStickSlider()
+        public void TestFlickAfterSliderMayReuseItsStick()
         {
             var source = new Beatmap<HitObject>();
             source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
@@ -1111,13 +1111,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(approachingFlicks, Is.Not.Empty);
-                Assert.That(approachingFlicks, Has.All.Matches<SticksFlick>(flick => flick.Side != slider.Side));
-                Assert.That(2500 - SticksBeatmapConverter.VISIBILITY_PREEMPT, Is.LessThan(slider.EndTime));
+                Assert.That(approachingFlicks, Has.All.Matches<SticksFlick>(flick => flick.Side == slider.Side));
+                Assert.That(approachingFlicks, Has.All.Matches<SticksFlick>(flick => flick.StartTime > slider.EndTime));
             });
         }
 
         [Test]
-        public void TestVisualReservationsOnBothSticksDoNotDeletePlayableNote()
+        public void TestEndedDurationsDoNotDeletePlayableNote()
         {
             var source = new Beatmap<HitObject>();
             source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
@@ -1228,8 +1228,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(converted.Length, Is.GreaterThan(40));
-                Assert.That(generatedChords.Length, Is.InRange(8, 15));
+                Assert.That(generatedChords.Length, Is.InRange(3, 15),
+                    "A generated slider-accompaniment phrase intentionally reserves one stick and replaces a few otherwise eligible chords.");
                 Assert.That(linkOwners, Has.Length.EqualTo(generatedChords.Length));
                 Assert.That(generatedChords, Has.All.Matches<IGrouping<double, SticksFlick>>(group => group.Select(flick => flick.Side).Distinct().Count() == 2));
                 Assert.That(linkOwners.Select(owner => System.Math.Abs(SticksHitObject.DeltaAngle(owner.Angle, owner.SyncedNoteAngle))).Distinct().Count(), Is.GreaterThan(1));
@@ -1288,6 +1288,130 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(hold.Duration, Is.InRange(1500, 2000));
                 Assert.That(accompaniment.Length, Is.GreaterThanOrEqualTo(3));
                 Assert.That(accompaniment, Has.All.Matches<SticksFlick>(flick => flick.Side != hold.Side));
+            });
+        }
+
+        [Test]
+        public void TestConverterBuildsLongInterleavedDualSlidersFromFourCirclePhrase()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(512, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2500, Position = new Vector2(256, 384) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 3000, Position = new Vector2(0, 192) });
+            source.HitObjects.Add(new TestPositionedHitObject { StartTime = 3500, Position = new Vector2(256, 0) });
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksSlider[] sliders = converted.OfType<SticksSlider>().OrderBy(slider => slider.StartTime).ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(2), "The two tail-anchor circles should not remain duplicate flicks.");
+                Assert.That(sliders, Has.Length.EqualTo(2));
+                Assert.That(sliders.Select(slider => slider.StartTime), Is.EqualTo(new[] { 2000, 2500 }));
+                Assert.That(sliders.Select(slider => slider.EndTime), Is.EqualTo(new[] { 3000, 3500 }));
+                Assert.That(sliders[0].Side, Is.Not.EqualTo(sliders[1].Side));
+                Assert.That(sliders[0].ArcAngle / sliders[0].Duration,
+                    Is.EqualTo(sliders[1].ArcAngle / sliders[1].Duration).Within(0.000001));
+                Assert.That(sliders, Has.All.Matches<SticksSlider>(slider =>
+                    System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000 <= SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY));
+            });
+        }
+
+        [Test]
+        public void TestConverterLeavesShortFourCircleBurstOutOfDualSliderPattern()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+
+            for (int i = 0; i < 4; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 1000 + i * 250,
+                    Position = new Vector2(256 + i * 40, 192),
+                });
+            }
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+            Assert.That(converted, Has.None.TypeOf<SticksSlider>());
+        }
+
+        [Test]
+        public void TestConverterBuildsGeneratedSliderWithOtherStickFlicksFromOrdinaryCircles()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+
+            for (int i = 0; i < 5; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 1000 + i * 500,
+                    Position = new Vector2(512 - i * 128, 192),
+                });
+            }
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksSlider slider = converted.OfType<SticksSlider>().Single();
+            SticksFlick[] accompaniment = converted.OfType<SticksFlick>().OrderBy(flick => flick.StartTime).ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(4), "The final source circle is the slider tail anchor, not another flick.");
+                Assert.That(slider.StartTime, Is.EqualTo(1000));
+                Assert.That(slider.EndTime, Is.EqualTo(3000));
+                Assert.That(accompaniment.Select(flick => flick.StartTime), Is.EqualTo(new[] { 1500, 2000, 2500 }));
+                Assert.That(accompaniment, Has.All.Matches<SticksFlick>(flick => flick.Side != slider.Side));
+                Assert.That(accompaniment, Has.All.Matches<SticksFlick>(flick =>
+                    System.Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, slider.AngleAt(flick.StartTime))) <= 0.001));
+            });
+        }
+
+        [Test]
+        public void TestLongOrdinaryCircleRunReceivesSparseOverlappingSliderGameplay()
+        {
+            var source = new Beatmap<HitObject>();
+            source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+
+            for (int i = 0; i < 80; i++)
+            {
+                source.HitObjects.Add(new TestPositionedHitObject
+                {
+                    StartTime = 1000 + i * 500,
+                    Position = (i % 4) switch
+                    {
+                        0 => new Vector2(512, 192),
+                        1 => new Vector2(256, 384),
+                        2 => new Vector2(0, 192),
+                        _ => new Vector2(256, 0),
+                    },
+                });
+            }
+
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksSlider[] sliders = converted.OfType<SticksSlider>().OrderBy(slider => slider.StartTime).ToArray();
+            SticksFlick[] flicks = converted.OfType<SticksFlick>().ToArray();
+            bool hasInterleavedPair = sliders.Any(first => sliders.Any(second =>
+                second.StartTime > first.StartTime
+                && second.StartTime < first.EndTime
+                && second.EndTime > first.EndTime));
+            bool hasSliderAccompaniment = sliders.Any(slider => flicks.Any(flick =>
+                flick.Side != slider.Side
+                && flick.StartTime > slider.StartTime
+                && flick.StartTime < slider.EndTime));
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(hasInterleavedPair, Is.True);
+                Assert.That(hasSliderAccompaniment, Is.True);
+                Assert.That(sliders.Length, Is.LessThan(source.HitObjects.Count / 3),
+                    "Generated overlap should remain an occasional phrase treatment, not replace the map's main vocabulary.");
             });
         }
 

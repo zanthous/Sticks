@@ -87,6 +87,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(resources.Get("Textures/Cursors/blue.png"), Is.Not.Null);
                 Assert.That(resources.Get("Textures/Cursors/red.png"), Is.Not.Null);
                 Assert.That(resources.Get("Textures/Icon/sticks_icon.png"), Is.Not.Null);
+                Assert.That(resources.Get("Samples/UI/ruleset-select-sticks.wav"), Is.Not.Null);
             });
         }
 
@@ -1023,7 +1024,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachDistance), Is.EqualTo(30));
                 Assert.That(config.Get<float>(SticksRulesetSetting.RadialApproachSpeed), Is.EqualTo(1));
                 Assert.That(config.Get<bool>(SticksRulesetSetting.HideInactiveCursors), Is.False);
-                Assert.That(config.Get<bool>(SticksRulesetSetting.SliderTrackingSparks), Is.False);
+                Assert.That(config.Get<bool>(SticksRulesetSetting.SliderTrackingSparks), Is.True);
                 Assert.That(config.Get<bool>(SticksRulesetSetting.ShowCursorTrails), Is.False);
                 Assert.That(config.Get<bool>(SticksRulesetSetting.DisableBeatmapHitsounds), Is.False);
                 Assert.That(playfield.HideInactiveCursors, Is.False);

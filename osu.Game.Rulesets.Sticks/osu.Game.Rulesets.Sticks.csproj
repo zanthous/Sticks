@@ -29,5 +29,8 @@
                       Link="Resources\Textures\Icon\sticks_icon.png"
                       LogicalName="$(RootNamespace).Resources.Textures.Icon.sticks_icon.png" />
     <EmbeddedResource Include="Resources\Shaders\*.fs" />
+    <EmbeddedResource Include="Resources\sklime_kira.wav"
+                      Link="Resources\Samples\UI\ruleset-select-sticks.wav"
+                      LogicalName="$(RootNamespace).Resources.Samples.UI.ruleset-select-sticks.wav" />
   </ItemGroup>
 </Project>

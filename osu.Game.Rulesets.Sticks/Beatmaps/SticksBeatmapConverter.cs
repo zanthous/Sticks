@@ -32,10 +32,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         /// </summary>
         public const double MAX_GENERATED_SLIDER_ANGULAR_VELOCITY = 120;
 
-        // Conversion overlap checks use a fixed, conservative visibility window. The player's
-        // persistent AR preference is not available when conversion plans are built.
-        public const double VISIBILITY_PREEMPT = 850;
-
         // This is a physical readability threshold, not a hit-window duration. Standard-style
         // miss windows are intentionally broad and must not cause playable half-beat patterns to
         // be deleted merely because two notes fall within each other's judgement lifetime.
@@ -45,6 +41,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private readonly Dictionary<HitObject, ConversionPlan> generatedChordPartners = new Dictionary<HitObject, ConversionPlan>();
         private readonly HashSet<HitObject> generatedHoldSources = new HashSet<HitObject>();
         private readonly Dictionary<HitObject, double> generatedFlickHoldDurations = new Dictionary<HitObject, double>();
+        private readonly Dictionary<HitObject, GeneratedSliderSpec> generatedSliders = new Dictionary<HitObject, GeneratedSliderSpec>();
         private readonly Ruleset targetRuleset;
         private readonly bool isAuthoredCarrier;
         private readonly string? authoredCarrierError;
@@ -169,6 +166,26 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Angle = plan.Angle,
                     Samples = conversionSamples(original),
                 };
+                yield break;
+            }
+
+            if (generatedSliders.TryGetValue(original, out GeneratedSliderSpec generatedSlider))
+            {
+                var slider = new SticksSlider
+                {
+                    StartTime = original.StartTime,
+                    Duration = generatedSlider.Duration,
+                    Side = plan.Side,
+                    Angle = plan.Angle,
+                    ArcAngle = generatedSlider.ArcAngle,
+                    Samples = conversionSamples(original),
+                };
+
+                // The source circles at the beginning and end remain the musical anchors for
+                // the generated slider's head and tail hitsounds.
+                slider.NodeSamples.Add(conversionSamples(original));
+                slider.NodeSamples.Add(conversionSamples(generatedSlider.TailAnchor));
+                yield return slider;
                 yield break;
             }
 
@@ -365,31 +382,16 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     usedSidesAtTimestamp.Clear();
                 }
 
-                // Keep a slider reserved until a following note's entire approach animation
-                // would begin after it. This prevents same-colour notes appearing beneath it.
-                activeSliders.RemoveAll(slider => slider.endTime < current.StartTime - VISIBILITY_PREEMPT - 0.01);
+                activeSliders.RemoveAll(slider => slider.endTime < current.StartTime - 0.01);
                 bool isDuration = current is IHasDuration { Duration: > 0 };
                 TimingControlPoint timing = beatmap.ControlPointInfo.TimingPointAt(current.StartTime);
                 double beatLength = validBeatLength(timing.BeatLength);
                 StickSide side;
 
-                StickSide[] visuallyOccupied = activeSliders.Select(slider => slider.side).Distinct().ToArray();
-                StickSide[] physicallyOccupied = activeSliders.Where(slider => slider.endTime >= current.StartTime - 0.01)
-                                                              .Select(slider => slider.side)
-                                                              .Distinct()
-                                                              .ToArray();
-                StickSide[] cleanAvailable = new[] { StickSide.Left, StickSide.Right }
-                                             .Where(candidate => !visuallyOccupied.Contains(candidate) && !usedSidesAtTimestamp.Contains(candidate))
-                                             .ToArray();
-                StickSide[] playableAvailable = new[] { StickSide.Left, StickSide.Right }
-                                                .Where(candidate => !physicallyOccupied.Contains(candidate) && !usedSidesAtTimestamp.Contains(candidate))
-                                                .ToArray();
-
-                // Prefer a side whose approach animation will not overlap an existing duration object.
-                // If both sides are only visually reserved, preserve the source note rather than treating
-                // that reservation as physical occupancy and silently deleting it.
-                bool usingVisibilityFallback = cleanAvailable.Length == 0 && playableAvailable.Length > 0;
-                StickSide[] available = cleanAvailable.Length > 0 ? cleanAvailable : playableAvailable;
+                StickSide[] occupied = activeSliders.Select(slider => slider.side).Distinct().ToArray();
+                StickSide[] available = new[] { StickSide.Left, StickSide.Right }
+                                        .Where(candidate => !occupied.Contains(candidate) && !usedSidesAtTimestamp.Contains(candidate))
+                                        .ToArray();
 
                 if (available.Length == 0)
                 {
@@ -402,16 +404,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 if (available.Length == 1)
                 {
                     side = available[0];
-                }
-                else if (usingVisibilityFallback)
-                {
-                    // Minimise the unavoidable overlap by choosing the lane whose obstructing
-                    // duration object finished first.
-                    side = available.OrderBy(candidate => activeSliders.Where(slider => slider.side == candidate)
-                                                                         .Select(slider => slider.endTime)
-                                                                         .DefaultIfEmpty(double.NegativeInfinity)
-                                                                         .Max())
-                                    .First();
                 }
                 else if (isDuration)
                 {
@@ -459,6 +451,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             }
 
             applyGeneratedHoldSections(objects, beatmap);
+            applyGeneratedOverlappingSliderPhrases(objects, beatmap);
             applyGeneratedFlickHoldSections(objects, beatmap);
             applyRarePatterns(objects, beatmap);
             enforceRapidAlternation(objects);
@@ -581,19 +574,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 return false;
 
             StickSide partnerSide = other(plan.Side);
-            bool partnerOccupied = objects.Any(candidate =>
-                candidate != current
-                && plans[candidate].Emit
-                && plans[candidate].Side == partnerSide
-                && candidate is IHasDuration { Duration: > 0 } duration
-                && candidate.StartTime < current.StartTime
-                && candidate.StartTime + duration.Duration >= current.StartTime - VISIBILITY_PREEMPT)
-                || generatedFlickHoldDurations.Any(hold =>
-                    plans[hold.Key].Side == partnerSide
-                    && hold.Key.StartTime < current.StartTime
-                    && hold.Key.StartTime + hold.Value >= current.StartTime - VISIBILITY_PREEMPT);
-
-            if (partnerOccupied)
+            if (sideOccupiedAt(partnerSide, current.StartTime, objects))
                 return false;
 
             bool partnerHasRapidNeighbour = objects.Any(candidate =>
@@ -666,7 +647,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             {
                 HitObject anchor = objects[i];
                 ConversionPlan anchorPlan = plans[anchor];
-                if (!anchorPlan.Emit || hasDuration(anchor) || generatedFlickHoldDurations.ContainsKey(anchor))
+                if (!anchorPlan.Emit || convertsToHoldOrSlider(anchor) || generatedChordPartners.ContainsKey(anchor))
                     continue;
 
                 TimingControlPoint timing = beatmap.ControlPointInfo.TimingPointAt(anchor.StartTime);
@@ -692,7 +673,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     if (elapsed > beatLength * 4)
                         break;
 
-                    if (!plans[candidate].Emit || hasDuration(candidate)
+                    if (!plans[candidate].Emit || convertsToHoldOrSlider(candidate) || generatedChordPartners.ContainsKey(candidate)
                         || objects.Count(otherObject => Math.Abs(otherObject.StartTime - candidate.StartTime) < 0.01 && plans[otherObject].Emit) != 1)
                         break;
 
@@ -722,6 +703,191 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             }
         }
 
+        /// <summary>
+        /// Builds overlapping duration gameplay from ordinary sequential circles. Normal
+        /// osu!standard maps do not place circles inside slider durations, so source circles are
+        /// deliberately repurposed as Sticks slider head/tail timing anchors here.
+        /// </summary>
+        private void applyGeneratedOverlappingSliderPhrases(HitObject[] objects, IBeatmap beatmap)
+        {
+            applyInterleavedDualSliders(objects, beatmap);
+            applyGeneratedSliderAccompanimentPhrases(objects, beatmap);
+        }
+
+        /// <summary>
+        /// Converts a clean four-circle phrase into two staggered sliders in the order
+        /// first head, second head, first tail, second tail.
+        /// </summary>
+        private void applyInterleavedDualSliders(HitObject[] objects, IBeatmap beatmap)
+        {
+            double lastPatternTime = double.NegativeInfinity;
+
+            for (int i = 0; i <= objects.Length - 4; i++)
+            {
+                HitObject firstHead = objects[i];
+                HitObject secondHead = objects[i + 1];
+                HitObject firstTail = objects[i + 2];
+                HitObject secondTail = objects[i + 3];
+                HitObject[] phrase = { firstHead, secondHead, firstTail, secondTail };
+
+                if (phrase.Any(hitObject => !isAvailableOrdinaryAnchor(hitObject)))
+                    continue;
+
+                TimingControlPoint timing = beatmap.ControlPointInfo.TimingPointAt(firstHead.StartTime);
+                double beatLength = validBeatLength(timing.BeatLength);
+                double[] intervals =
+                {
+                    secondHead.StartTime - firstHead.StartTime,
+                    firstTail.StartTime - secondHead.StartTime,
+                    secondTail.StartTime - firstTail.StartTime,
+                };
+                double firstDuration = firstTail.StartTime - firstHead.StartTime;
+                double secondDuration = secondTail.StartTime - secondHead.StartTime;
+
+                // Dual tracking is much clearer as a deliberate long phrase. Leave fast
+                // four-note bursts as flicks instead of creating abrupt overlapping sliders.
+                double minimumSpacing = Math.Max(360, beatLength * 0.7);
+                double maximumSpacing = beatLength * 2.1;
+                bool consistentlySpaced = intervals.All(interval => interval >= minimumSpacing && interval <= maximumSpacing)
+                                          && intervals.Max() <= intervals.Min() * 1.35;
+                bool sufficientlyLong = firstDuration >= Math.Max(900, beatLength * 1.6)
+                                        && secondDuration >= Math.Max(900, beatLength * 1.6);
+                double beatPosition = (firstHead.StartTime - timing.Time) / beatLength;
+                long nearestBeat = (long)Math.Round(beatPosition);
+                bool strongBeat = Math.Abs(beatPosition - nearestBeat) <= 0.08
+                                  && ((nearestBeat % 4) + 4) % 4 == 0;
+                bool safeFollowingGap = i + 4 == objects.Length
+                                        || objects[i + 4].StartTime - secondTail.StartTime >= RAPID_ALTERNATION_THRESHOLD;
+
+                if (!consistentlySpaced || !sufficientlyLong || !strongBeat || !safeFollowingGap
+                    || firstHead.StartTime - lastPatternTime < Math.Max(30000, beatLength * 64))
+                    continue;
+
+                StickSide firstSide = plans[firstHead].Side;
+                StickSide secondSide = other(firstSide);
+
+                if (plannedDurationOverlaps(firstSide, firstHead.StartTime, firstTail.StartTime, objects)
+                    || plannedDurationOverlaps(secondSide, secondHead.StartTime, secondTail.StartTime, objects))
+                    continue;
+
+                float firstArc = generatedPhraseArc(firstHead, firstTail, firstDuration, beatLength, "dual");
+                double angularVelocity = firstArc / firstDuration;
+                float secondArc = (float)(angularVelocity * secondDuration);
+
+                if (Math.Abs(firstArc) < 1 || Math.Abs(secondArc) < 1
+                    || Math.Abs(secondArc) / secondDuration * 1000 > MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001)
+                    continue;
+
+                plans[secondHead] = plans[secondHead] with { Side = secondSide };
+                generatedSliders[firstHead] = new GeneratedSliderSpec(firstDuration, firstArc, firstTail);
+                generatedSliders[secondHead] = new GeneratedSliderSpec(secondDuration, secondArc, secondTail);
+                plans[firstTail] = plans[firstTail] with { Emit = false };
+                plans[secondTail] = plans[secondTail] with { Emit = false };
+                lastPatternTime = firstHead.StartTime;
+                i += 3;
+            }
+        }
+
+        /// <summary>
+        /// Converts five ordinary circles into one slider head, three other-stick flicks following
+        /// its arc, and a consumed slider-tail anchor.
+        /// </summary>
+        private void applyGeneratedSliderAccompanimentPhrases(HitObject[] objects, IBeatmap beatmap)
+        {
+            double lastPatternTime = double.NegativeInfinity;
+
+            for (int i = 0; i <= objects.Length - 5; i++)
+            {
+                HitObject head = objects[i];
+                HitObject tail = objects[i + 4];
+                HitObject[] phrase = objects[i..(i + 5)];
+
+                if (phrase.Any(hitObject => !isAvailableOrdinaryAnchor(hitObject))
+                    || i + 5 < objects.Length && Math.Abs(objects[i + 5].StartTime - tail.StartTime) < 0.01)
+                    continue;
+
+                TimingControlPoint timing = beatmap.ControlPointInfo.TimingPointAt(head.StartTime);
+                double beatLength = validBeatLength(timing.BeatLength);
+                double duration = tail.StartTime - head.StartTime;
+                double[] intervals = phrase.Zip(phrase.Skip(1), (first, second) => second.StartTime - first.StartTime).ToArray();
+                bool intervalsPlayable = intervals.All(interval => interval >= RAPID_ALTERNATION_THRESHOLD && interval <= beatLength * 2.1)
+                                         && intervals.Max() <= intervals.Min() * 1.5;
+                bool sufficientlyLong = duration >= Math.Max(900, beatLength * 1.8)
+                                        && duration <= beatLength * 8.5;
+                double beatPosition = (head.StartTime - timing.Time) / beatLength;
+                long nearestBeat = (long)Math.Round(beatPosition);
+                bool strongBeat = Math.Abs(beatPosition - nearestBeat) <= 0.08
+                                  && ((nearestBeat % 4) + 4) % 4 == 0;
+                bool phraseStart = i == 0 || head.StartTime - objects[i - 1].StartTime >= beatLength * 1.5;
+
+                if (!intervalsPlayable || !sufficientlyLong || (!strongBeat && !phraseStart)
+                    || head.StartTime - lastPatternTime < Math.Max(15000, beatLength * 32)
+                    || generatedSliderStartsNear(head.StartTime, beatLength * 16))
+                    continue;
+
+                StickSide sliderSide = plans[head].Side;
+                StickSide playingSide = other(sliderSide);
+
+                if (plannedDurationOverlaps(sliderSide, head.StartTime, tail.StartTime, objects))
+                    continue;
+
+                float arc = generatedPhraseArc(head, tail, duration, beatLength, "accompaniment");
+                if (Math.Abs(arc) < 1)
+                    continue;
+
+                generatedSliders[head] = new GeneratedSliderSpec(duration, arc, tail);
+
+                for (int noteIndex = 1; noteIndex < phrase.Length - 1; noteIndex++)
+                {
+                    HitObject flick = phrase[noteIndex];
+                    float progress = (float)((flick.StartTime - head.StartTime) / duration);
+                    plans[flick] = plans[flick] with
+                    {
+                        Side = playingSide,
+                        Angle = SticksHitObject.NormaliseAngle(plans[head].Angle + arc * progress),
+                    };
+                }
+
+                plans[tail] = plans[tail] with { Emit = false };
+                lastPatternTime = head.StartTime;
+                i += 4;
+            }
+        }
+
+        private bool isAvailableOrdinaryAnchor(HitObject hitObject) =>
+            plans[hitObject].Emit
+            && !convertsToHoldOrSlider(hitObject)
+            && !generatedChordPartners.ContainsKey(hitObject);
+
+        private bool generatedSliderStartsNear(double time, double distance) =>
+            generatedSliders.Keys.Any(slider => Math.Abs(slider.StartTime - time) < distance);
+
+        private bool plannedDurationOverlaps(StickSide side, double startTime, double endTime, HitObject[] objects) =>
+            objects.Any(hitObject =>
+            {
+                if (!plans[hitObject].Emit || plans[hitObject].Side != side || !tryGetPlannedDuration(hitObject, out double duration))
+                    return false;
+
+                double existingEnd = hitObject.StartTime + duration;
+                return hitObject.StartTime < endTime - 0.01 && existingEnd > startTime + 0.01;
+            });
+
+        private float generatedPhraseArc(HitObject head, HitObject tail, double duration, double beatLength, string pattern)
+        {
+            float startAngle = plans[head].Angle;
+            float sourceDelta = SticksHitObject.DeltaAngle(startAngle, plans[tail].Angle);
+            float maximumMagnitude = (float)(duration / 1000 * MAX_GENERATED_SLIDER_ANGULAR_VELOCITY);
+            float musicalMagnitude = (float)Math.Clamp(Math.Round(duration / beatLength * 45 / 15) * 15, 60, 180);
+            int direction = Math.Abs(sourceDelta) >= 30
+                ? Math.Sign(sourceDelta)
+                : (stableHash($"{pattern}:{head.StartTime}:{tail.StartTime}") & 1) == 0 ? 1 : -1;
+            float desiredMagnitude = Math.Abs(sourceDelta) >= 30
+                ? (float)Math.Clamp(Math.Round(Math.Abs(sourceDelta) / 15) * 15, 60, musicalMagnitude)
+                : musicalMagnitude;
+
+            return direction * Math.Min(desiredMagnitude, maximumMagnitude);
+        }
+
         private HashSet<HitObject> applySliderAccompaniment(HitObject[] objects, IBeatmap beatmap)
         {
             var coordinatedTaps = new HashSet<HitObject>();
@@ -737,6 +903,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 HitObject[] taps = objects.Where(hitObject =>
                                                    plans[hitObject].Emit
                                                    && !convertsToHoldOrSlider(hitObject)
+                                                   && !generatedChordPartners.ContainsKey(hitObject)
                                                    && plans[hitObject].Side != sliderPlan.Side
                                                    && hitObject.StartTime > sliderObject.StartTime + edgePadding
                                                    && hitObject.StartTime < sliderObject.StartTime + duration.Duration - edgePadding)
@@ -767,8 +934,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             HitObject[] flicks = objects.Where(hitObject =>
                                                    plans[hitObject].Emit
                                                    && !convertsToHoldOrSlider(hitObject)
+                                                   && !generatedChordPartners.ContainsKey(hitObject)
                                                    && !excludedTaps.Contains(hitObject)
-                                                   && !approachOverlapsSlider(hitObject.StartTime, objects))
+                                                   && !overlapsDuration(hitObject.StartTime, objects))
                                        .ToArray();
             int eligiblePhraseIndex = 0;
 
@@ -843,7 +1011,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
                 StickSide alternate = other(currentPlan.Side);
 
-                if (!convertsToHoldOrSlider(current) && canMoveHeadTo(current, alternate, objects))
+                if (!convertsToHoldOrSlider(current)
+                    && !generatedChordPartners.ContainsKey(current)
+                    && canMoveHeadTo(current, alternate, objects))
                 {
                     plans[current] = currentPlan with { Side = alternate };
                     continue;
@@ -851,6 +1021,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
                 if (convertsToHoldOrSlider(current)
                     && !convertsToHoldOrSlider(previous)
+                    && !generatedChordPartners.ContainsKey(previous)
                     && canMoveHeadTo(previous, alternate, objects))
                 {
                     plans[previous] = previousPlan with { Side = alternate };
@@ -859,9 +1030,13 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
                 // Do not leave an unplayable rapid re-flick when both sticks are committed.
                 // Duration heads are preserved; a neighbouring standalone flick is expendable.
-                if (!convertsToHoldOrSlider(current) && isOnlyHeadAtTimestamp(current, objects))
+                if (!convertsToHoldOrSlider(current)
+                    && !generatedChordPartners.ContainsKey(current)
+                    && isOnlyHeadAtTimestamp(current, objects))
                     plans[current] = currentPlan with { Emit = false };
-                else if (!convertsToHoldOrSlider(previous) && isOnlyHeadAtTimestamp(previous, objects))
+                else if (!convertsToHoldOrSlider(previous)
+                         && !generatedChordPartners.ContainsKey(previous)
+                         && isOnlyHeadAtTimestamp(previous, objects))
                     plans[previous] = previousPlan with { Emit = false };
             }
         }
@@ -889,21 +1064,50 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             || generatedFlickHoldDurations.Any(hold =>
                 plans[hold.Key].Side == side
                 && hold.Key.StartTime < time
-                && hold.Key.StartTime + hold.Value >= time);
+                && hold.Key.StartTime + hold.Value >= time)
+            || generatedSliders.Any(slider =>
+                plans[slider.Key].Side == side
+                && slider.Key.StartTime < time
+                && slider.Key.StartTime + slider.Value.Duration >= time);
 
-        private bool approachOverlapsSlider(double time, HitObject[] objects) =>
+        private bool overlapsDuration(double time, HitObject[] objects) =>
             objects.Any(hitObject =>
                 plans[hitObject].Emit
                 && hitObject is IHasDuration { Duration: > 0 } duration
                 && time > hitObject.StartTime
-                && time - VISIBILITY_PREEMPT < hitObject.StartTime + duration.Duration)
+                && time <= hitObject.StartTime + duration.Duration)
             || generatedFlickHoldDurations.Any(hold =>
                 time > hold.Key.StartTime
-                && time - VISIBILITY_PREEMPT < hold.Key.StartTime + hold.Value);
+                && time <= hold.Key.StartTime + hold.Value)
+            || generatedSliders.Any(slider =>
+                time > slider.Key.StartTime
+                && time <= slider.Key.StartTime + slider.Value.Duration);
 
         private static bool hasDuration(HitObject hitObject) => hitObject is IHasDuration { Duration: > 0 };
 
-        private bool convertsToHoldOrSlider(HitObject hitObject) => hasDuration(hitObject) || generatedFlickHoldDurations.ContainsKey(hitObject);
+        private bool convertsToHoldOrSlider(HitObject hitObject) =>
+            hasDuration(hitObject) || generatedFlickHoldDurations.ContainsKey(hitObject) || generatedSliders.ContainsKey(hitObject);
+
+        private bool tryGetPlannedDuration(HitObject hitObject, out double duration)
+        {
+            if (hitObject is IHasDuration { Duration: > 0 } sourceDuration)
+            {
+                duration = sourceDuration.Duration;
+                return true;
+            }
+
+            if (generatedFlickHoldDurations.TryGetValue(hitObject, out duration))
+                return true;
+
+            if (generatedSliders.TryGetValue(hitObject, out GeneratedSliderSpec slider))
+            {
+                duration = slider.Duration;
+                return true;
+            }
+
+            duration = 0;
+            return false;
+        }
 
         private bool isHoldSource(HitObject hitObject) => generatedHoldSources.Contains(hitObject) || isNativeHoldSource(hitObject);
 
@@ -988,5 +1192,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         }
 
         private readonly record struct ConversionPlan(StickSide Side, float Angle, float ArcAngle, bool Emit);
+
+        private readonly record struct GeneratedSliderSpec(double Duration, float ArcAngle, HitObject TailAnchor);
     }
 }

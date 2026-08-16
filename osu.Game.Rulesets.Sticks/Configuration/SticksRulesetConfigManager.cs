@@ -35,7 +35,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             SetDefault(SticksRulesetSetting.StackedNotePresentation, SticksStackedNotePresentation.RadialSpacing);
             SetDefault(SticksRulesetSetting.NotePresentation, SticksNotePresentation.CenterOut);
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
-            SetDefault(SticksRulesetSetting.SliderTrackingSparks, false);
+            SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
             SetDefault(SticksRulesetSetting.ShowCursorTrails, false);
             SetDefault(SticksRulesetSetting.DisableBeatmapHitsounds, false);
             SetDefault(SticksRulesetSetting.NoteCircleScale,

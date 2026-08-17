@@ -46,6 +46,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private const double center_out_cursor_motion_grace = 40;
         public static readonly Color4 LEFT_COLOUR = new Color4(0.2f, 0.62f, 1f, 1f);
         public static readonly Color4 RIGHT_COLOUR = new Color4(1f, 0.25f, 0.3f, 1f);
+        public static readonly Color4 OVERLAP_COLOUR = new Color4(0.722f, 0.278f, 1f, 1f); // #B847FF
 
         private readonly CircularContainer leftCursor;
         private readonly CircularContainer rightCursor;
@@ -937,5 +938,6 @@ namespace osu.Game.Rulesets.Sticks.UI
                 compositeShader = shaders.Load(VertexShaderDescriptor.TEXTURE_2, "SticksRibbonComposite");
             }
         }
+
     }
 }

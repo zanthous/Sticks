@@ -26,8 +26,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private const float marker_half_thickness = 2.5f;
         private const float tick_half_length = 7 * 0.65f;
 
-        private static readonly Color4 overlap_colour = new Color4(0.722f, 0.278f, 1f, 1f); // #B847FF
-
         private readonly SticksPlayfield playfield;
         private readonly SticksHitObject[] visibleHeads = new SticksHitObject[max_visible_heads];
         private readonly OverlapVisual[] overlaps = new OverlapVisual[max_overlaps];
@@ -169,10 +167,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                         Origin = Anchor.Centre,
                         Position = new Vector2(SticksPlayfield.SIZE / 2),
                         RoundedCaps = true,
-                        Colour = overlap_colour,
+                        Colour = SticksPlayfield.OVERLAP_COLOUR,
                     },
-                    leadingCap = createTick(overlap_colour, 7),
-                    trailingCap = createTick(overlap_colour, 7),
+                    leadingCap = createTick(SticksPlayfield.OVERLAP_COLOUR, 7),
+                    trailingCap = createTick(SticksPlayfield.OVERLAP_COLOUR, 7),
                     firstTick = createTick(Color4.White, tick_half_length),
                     secondTick = createTick(Color4.White, tick_half_length),
                 });

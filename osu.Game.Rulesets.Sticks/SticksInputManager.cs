@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System.ComponentModel;
 using osu.Framework.Input.Bindings;
 using osu.Game.Rulesets.UI;

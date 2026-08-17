@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using Newtonsoft.Json;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;

@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets.Sticks.Objects;
 using osuTK.Input;

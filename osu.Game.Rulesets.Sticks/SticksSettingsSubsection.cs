@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
@@ -159,6 +157,13 @@ namespace osu.Game.Rulesets.Sticks
                 },
                 new SettingsButtonV2
                 {
+                    Text = "Restore selected authored Sticks difficulty",
+                    TooltipText = "Restore a Sticks difficulty which lazer's external-edit import changed to osu!standard. All authored Sticks data must still be intact.",
+                    Keywords = new[] { "editor", "map", "restore", "recover", "external" },
+                    Action = restoreAuthoredDifficulty,
+                },
+                new SettingsButtonV2
+                {
                     Text = "Export selected Sticks difficulty (.osz)",
                     TooltipText = "Package the selected authored Sticks difficulty with its song and resources for another Sticks player.",
                     Keywords = new[] { "export", "share", "map", "beatmap", "osz" },
@@ -182,6 +187,36 @@ namespace osu.Game.Rulesets.Sticks
 
             stackedNotePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
             notePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
+        }
+
+        private void restoreAuthoredDifficulty()
+        {
+            if (screenRunner == null)
+            {
+                postError("Sticks beatmap recovery is unavailable on this screen.");
+                return;
+            }
+
+            screenRunner.PerformFromScreen(screen =>
+            {
+                try
+                {
+                    if (screen is not IOsuScreen osuScreen)
+                        throw new InvalidOperationException("The current screen cannot provide a selected beatmap.");
+
+                    RulesetInfo sticksRuleset = rulesetStore.GetRuleset("sticks")
+                                                ?? throw new InvalidOperationException("Sticks is unavailable.");
+                    WorkingBeatmap restored = SticksEditorBootstrap.RestoreAuthoredDifficulty(beatmapManager, realmAccess, osuScreen.Beatmap.Value, sticksRuleset);
+
+                    osuScreen.Beatmap.Value = restored;
+                    osuScreen.Ruleset.Value = restored.BeatmapInfo.Ruleset;
+                    screen.Push(new EditorLoader());
+                }
+                catch (Exception exception)
+                {
+                    postError($"Could not restore Sticks difficulty: {exception.Message}");
+                }
+            }, new[] { typeof(SongSelect), typeof(MainMenu) });
         }
 
         private void openEditor(bool retainConvertedObjects)

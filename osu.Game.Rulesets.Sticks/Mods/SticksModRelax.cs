@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using osu.Framework.Localisation;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Sticks.Objects;

@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Scoring;

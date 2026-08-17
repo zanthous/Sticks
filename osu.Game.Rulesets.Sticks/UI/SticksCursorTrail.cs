@@ -1,6 +1,3 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh> and Zankai LLC.
-// Licensed under the MIT License; see THIRD_PARTY_NOTICES.md.
-
 #nullable disable
 
 using System;

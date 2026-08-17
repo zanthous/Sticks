@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Replays

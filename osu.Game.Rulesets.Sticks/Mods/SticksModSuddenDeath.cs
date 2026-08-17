@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using osu.Framework.Bindables;
 using osu.Game.Configuration;
 using osu.Game.Rulesets.Judgements;

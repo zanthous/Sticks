@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System;
 using System.Collections.Generic;
 using osu.Framework.Graphics;

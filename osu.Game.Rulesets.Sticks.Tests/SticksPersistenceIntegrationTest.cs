@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 #nullable enable
 
 using System;
@@ -146,6 +144,38 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             AddAssert("objects survive editor reopen", objectsAreIntact);
+        }
+
+        [Test]
+        public void TestRestoreAuthoredDifficultyAfterExternalImportResetsRuleset()
+        {
+            addRulesetSetupSteps();
+            addAuthoredDifficultySetupSteps();
+            addAuthorAndSaveSteps();
+
+            AddStep("simulate external import resetting mode", () =>
+            {
+                Realm.Write(realm =>
+                {
+                    BeatmapInfo liveBeatmap = realm.Find<BeatmapInfo>(authored.BeatmapInfo.ID).AsNonNull();
+                    liveBeatmap.Ruleset = realm.Find<RulesetInfo>("osu").AsNonNull();
+                });
+
+                BeatmapInfo resetInfo = beatmaps.QueryBeatmap(info => info.ID == authored.BeatmapInfo.ID).AsNonNull();
+                WorkingBeatmap reset = beatmaps.GetWorkingBeatmap(resetInfo, refetch: true);
+                Assert.That(reset.BeatmapInfo.Ruleset.ShortName, Is.EqualTo("osu"));
+
+                WorkingBeatmap restored = SticksEditorBootstrap.RestoreAuthoredDifficulty(
+                    beatmaps,
+                    Realm,
+                    reset,
+                    new SticksRuleset().RulesetInfo);
+
+                Assert.That(restored.BeatmapInfo.Ruleset.ShortName, Is.EqualTo("sticks"));
+                reopened = restored.GetPlayableBeatmap(new SticksRuleset().RulesetInfo);
+            });
+
+            AddAssert("objects survive identity restoration", objectsAreIntact);
         }
 
         [Test]

@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 #nullable enable
 
 using System;
@@ -71,6 +69,12 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         }
 
         public string? AuthoredCarrierError => authoredCarrierError;
+
+        /// <summary>
+        /// Whether the source contains a complete authored Sticks carrier rather than ordinary
+        /// osu!standard objects which should be procedurally converted.
+        /// </summary>
+        public bool IsAuthoredCarrier => isAuthoredCarrier;
 
         public override bool CanConvert() => authoredCarrierError == null;
 

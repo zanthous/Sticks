@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System.Linq;
 using System.Threading;
 using osu.Game.Audio;

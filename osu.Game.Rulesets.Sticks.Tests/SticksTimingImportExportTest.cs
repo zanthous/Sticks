@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System.IO;
 using NUnit.Framework;
 using osu.Game.Audio;

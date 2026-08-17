@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 #nullable enable
 
 using System.Collections.Generic;

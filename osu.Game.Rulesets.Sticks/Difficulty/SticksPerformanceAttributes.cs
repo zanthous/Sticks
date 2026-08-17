@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using osu.Game.Rulesets.Difficulty;

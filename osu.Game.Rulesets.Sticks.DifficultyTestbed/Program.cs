@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;

@@ -1,12 +1,12 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Framework.Platform;
 using osu.Game.Beatmaps;
+using osu.Game.Database;
 using osu.Game.Input.Bindings;
 using osu.Game.Input.Handlers;
 using osu.Game.Replays;
@@ -46,6 +46,11 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
         private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
+        private SticksReplayStore replayStore;
+        private SticksReplayPersistence replayPersistence;
+
+        [Resolved(CanBeNull = true)]
+        private RealmAccess realm { get; set; }
 
         [Resolved(CanBeNull = true)]
         private Player player { get; set; }
@@ -59,8 +64,12 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(Storage storage)
         {
+            replayStore = new SticksReplayStore(storage);
+            if (realm != null)
+                replayPersistence = new SticksReplayPersistence(replayStore, realm);
+
             Config.BindWith(SticksRulesetSetting.ApproachRate, approachRate);
             approachRate.BindValueChanged(rate => applyApproachRate(rate.NewValue), true);
             Config.BindWith(SticksRulesetSetting.FlickActivationThreshold, flickActivationThreshold);
@@ -108,7 +117,11 @@ namespace osu.Game.Rulesets.Sticks.UI
             () => ((SticksPlayfield)Playfield).PhysicalStickDistanceAtGameEdge,
             () => ((SticksPlayfield)Playfield).FlickActivationThreshold);
 
-        protected override ReplayRecorder CreateReplayRecorder(Score score) => new SticksReplayRecorder(score, (SticksPlayfield)Playfield);
+        protected override ReplayRecorder CreateReplayRecorder(Score score)
+        {
+            replayPersistence?.Track(score);
+            return new SticksReplayRecorder(score, (SticksPlayfield)Playfield);
+        }
 
         public override void SetReplayScore(Score replayScore)
         {
@@ -116,6 +129,10 @@ namespace osu.Game.Rulesets.Sticks.UI
             // same drawable ruleset remains alive. Do not retain the last bot stick position
             // while lazer replaces or removes its replay handler.
             replayInputProvider.Deactivate();
+
+            if (replayScore != null && replayScore.Replay.Frames.Count == 0)
+                replayStore?.TryRestore(replayScore);
+
             base.SetReplayScore(replayScore);
         }
 
@@ -190,5 +207,13 @@ namespace osu.Game.Rulesets.Sticks.UI
             hasEditor && !hasPlayer
                 ? SticksNotePresentation.BracketMarkers
                 : selectedPresentation;
+
+        protected override void Dispose(bool isDisposing)
+        {
+            // Dispose before the drawable hierarchy. If an incomplete recorder is detached as part
+            // of a retry or quit, it must not begin a new persistence operation while children expire.
+            replayPersistence?.Dispose();
+            base.Dispose(isDisposing);
+        }
     }
 }

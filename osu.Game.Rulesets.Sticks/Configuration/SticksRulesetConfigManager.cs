@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 using System.ComponentModel;
 using osu.Framework.Configuration.Tracking;
 using osu.Framework.Extensions;

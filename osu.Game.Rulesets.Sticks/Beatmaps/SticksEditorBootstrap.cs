@@ -1,5 +1,3 @@
-// Copyright (c) Zankai LLC. See LICENSE.md for license terms.
-
 #nullable enable
 
 using System;
@@ -20,6 +18,60 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
     /// </summary>
     public static class SticksEditorBootstrap
     {
+        /// <summary>
+        /// Restores the custom-ruleset database identity of a mode-0 authored carrier which was
+        /// reimported as osu!standard by lazer's external-edit flow.
+        /// </summary>
+        public static WorkingBeatmap RestoreAuthoredDifficulty(BeatmapManager beatmapManager, RealmAccess realmAccess, WorkingBeatmap selectedBeatmap,
+                                                               RulesetInfo sticksRuleset)
+        {
+            ArgumentNullException.ThrowIfNull(beatmapManager);
+            ArgumentNullException.ThrowIfNull(realmAccess);
+            ArgumentNullException.ThrowIfNull(selectedBeatmap);
+            ArgumentNullException.ThrowIfNull(sticksRuleset);
+
+            if (selectedBeatmap.BeatmapInfo.Ruleset.OnlineID != 0)
+                throw new InvalidOperationException("Select the osu!standard difficulty produced by the external-edit import.");
+            if (sticksRuleset.ShortName != "sticks" || sticksRuleset.OnlineID != -1)
+                throw new InvalidOperationException("The installed Sticks ruleset does not have a valid custom-ruleset identity.");
+
+            BeatmapInfo selectedInfo = beatmapManager.QueryBeatmap(info => info.ID == selectedBeatmap.BeatmapInfo.ID)
+                                       ?? throw new InvalidOperationException("The selected difficulty is not available in the local database.");
+            WorkingBeatmap fresh = beatmapManager.GetWorkingBeatmap(selectedInfo, refetch: true);
+            Ruleset rulesetInstance = sticksRuleset.CreateInstance()
+                                      ?? throw new InvalidOperationException("Creating the Sticks ruleset instance failed.");
+            var converter = new SticksBeatmapConverter(fresh.Beatmap, rulesetInstance);
+
+            if (!converter.IsAuthoredCarrier)
+                throw new InvalidOperationException("The selected difficulty contains no authored Sticks carrier data. The external editor may have removed it.");
+            if (!converter.CanConvert())
+                throw new InvalidOperationException(converter.AuthoredCarrierError ?? "The authored Sticks carrier is damaged.");
+
+            // Decode every object before mutating identity. This catches any marker data which
+            // passed preflight but cannot produce a playable authored object.
+            converter.Convert(CancellationToken.None);
+
+            realmAccess.Write(realm =>
+            {
+                BeatmapInfo liveBeatmap = realm.Find<BeatmapInfo>(selectedInfo.ID)
+                                           ?? throw new InvalidOperationException("The selected difficulty disappeared before its Sticks identity could be restored.");
+                RulesetInfo liveRuleset = realm.Find<RulesetInfo>(sticksRuleset.ShortName)
+                                           ?? throw new InvalidOperationException("The installed Sticks ruleset is missing from the database.");
+
+                liveBeatmap.Ruleset = liveRuleset;
+                liveBeatmap.StarRating = -1;
+            });
+
+            BeatmapInfo restoredInfo = beatmapManager.QueryBeatmap(info => info.ID == selectedInfo.ID)
+                                       ?? throw new InvalidOperationException("The restored Sticks difficulty could not be reopened.");
+            WorkingBeatmap restored = beatmapManager.GetWorkingBeatmap(restoredInfo, refetch: true);
+
+            if (restored.BeatmapInfo.Ruleset.ShortName != "sticks" || restored.BeatmapInfo.Ruleset.OnlineID != -1)
+                throw new InvalidOperationException("The Sticks difficulty identity was not persisted.");
+
+            return restored;
+        }
+
         public static WorkingBeatmap CreateDifficulty(BeatmapManager beatmapManager, RealmAccess realmAccess, WorkingBeatmap referenceBeatmap, RulesetInfo standardRuleset,
                                                       RulesetInfo sticksRuleset, bool retainConvertedObjects)
         {

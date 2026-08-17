@@ -136,6 +136,12 @@ namespace osu.Game.Rulesets.Sticks
                     HintText = "For converted osu! beatmaps, ignore mapped hitsounds and use the default normal hit sound at full volume.",
                     Current = config.GetBindable<bool>(SticksRulesetSetting.DisableBeatmapHitsounds),
                 }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Save Sticks replays",
+                    HintText = "Keep controller input for completed plays and failed plays you explicitly save. Scores are still saved when this is disabled.",
+                    Current = config.GetBindable<bool>(SticksRulesetSetting.SaveReplays),
+                }),
                 contactEffects,
                 chordLinkPresentation,
                 stackedNotePresentationSetting,

@@ -29,9 +29,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(easy, Is.EqualTo(5.0 / 7).Within(0.0001));
+                Assert.That(easy, Is.EqualTo(11.0 / 14).Within(0.0001));
                 Assert.That(reference, Is.EqualTo(1).Within(0.0001));
-                Assert.That(hard, Is.EqualTo(5.0 / 4).Within(0.0001));
+                Assert.That(hard, Is.EqualTo(11.0 / 8).Within(0.0001));
             });
         }
 
@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double easy = SticksDifficultyScaling.AngularPrecisionStarAdjustment(developed_map_stars,
                 SticksDifficultyScaling.AngularPrecisionMultiplier(35, 17.5f));
             double reference = SticksDifficultyScaling.AngularPrecisionStarAdjustment(developed_map_stars,
-                SticksDifficultyScaling.AngularPrecisionMultiplier(25, 12.5f));
+                SticksDifficultyScaling.AngularPrecisionMultiplier(27.5f, 13.75f));
             double hard = SticksDifficultyScaling.AngularPrecisionStarAdjustment(developed_map_stars,
                 SticksDifficultyScaling.AngularPrecisionMultiplier(20, 10));
             double trivialEasy = SticksDifficultyScaling.AngularPrecisionStarAdjustment(trivial_map_stars,
@@ -58,8 +58,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(reference, Is.Zero.Within(0.0001));
                 Assert.That(hard, Is.EqualTo(SticksDifficultyScaling.MAX_ANGULAR_STAR_INCREASE));
                 Assert.That(hard - easy, Is.EqualTo(0.6).Within(0.0001));
-                Assert.That(trivialEasy, Is.EqualTo(trivial_map_stars * (Math.Sqrt(5.0 / 7) - 1)).Within(0.0001));
-                Assert.That(trivialHard, Is.EqualTo(trivial_map_stars * (Math.Sqrt(5.0 / 4) - 1)).Within(0.0001));
+                Assert.That(trivialEasy, Is.EqualTo(trivial_map_stars * (Math.Sqrt(11.0 / 14) - 1)).Within(0.0001));
+                Assert.That(trivialHard, Is.EqualTo(trivial_map_stars * (Math.Sqrt(11.0 / 8) - 1)).Within(0.0001));
                 Assert.That(SticksDifficultyScaling.AngularPrecisionStarAdjustment(developed_map_stars, 100),
                     Is.EqualTo(SticksDifficultyScaling.MAX_ANGULAR_STAR_INCREASE));
                 Assert.That(SticksDifficultyScaling.AngularPrecisionStarAdjustment(developed_map_stars, 0.001),
@@ -81,8 +81,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(0), Is.EqualTo(5.0 / 7).Within(0.0001));
-                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(10), Is.EqualTo(5.0 / 4).Within(0.0001));
+                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(0), Is.EqualTo(11.0 / 18).Within(0.0001));
+                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(10), Is.EqualTo(11.0 / 6).Within(0.0001));
             });
         }
 
@@ -132,10 +132,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Assert.Multiple(() =>
             {
-                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(35, 17.5f), Is.EqualTo(5.0 / 7).Within(0.0001));
-                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(25, 12.5f), Is.EqualTo(1).Within(0.0001));
-                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(20, 10), Is.EqualTo(5.0 / 4).Within(0.0001));
-                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(35, 15), Is.EqualTo(Math.Sqrt(15.0 / 28)).Within(0.0001));
+                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(35, 17.5f), Is.EqualTo(11.0 / 14).Within(0.0001));
+                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(27.5f, 13.75f), Is.EqualTo(1).Within(0.0001));
+                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(20, 10), Is.EqualTo(11.0 / 8).Within(0.0001));
+                Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(35, 15), Is.EqualTo(Math.Sqrt(363.0 / 560)).Within(0.0001));
             });
         }
     }

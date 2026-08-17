@@ -36,6 +36,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
             SetDefault(SticksRulesetSetting.ShowCursorTrails, false);
             SetDefault(SticksRulesetSetting.DisableBeatmapHitsounds, false);
+            SetDefault(SticksRulesetSetting.SaveReplays, true);
             SetDefault(SticksRulesetSetting.NoteCircleScale,
                 SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE,
                 SticksPlayfield.MIN_NOTE_CIRCLE_SCALE,
@@ -132,6 +133,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         SliderTrackingSparks,
         ShowCursorTrails,
         DisableBeatmapHitsounds,
+        SaveReplays,
     }
 
     public enum SticksChordLinkPresentation

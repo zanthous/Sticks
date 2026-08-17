@@ -42,6 +42,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly BindableBool hideInactiveCursors = new BindableBool();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly BindableBool showCursorTrails = new BindableBool();
+        private readonly BindableBool saveReplays = new BindableBool(true);
         private readonly BindableFloat noteCircleScale = new BindableFloat(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE);
         private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
         private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
@@ -96,6 +97,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.ShowCursorTrails, showCursorTrails);
             showCursorTrails.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).ShowCursorTrails = enabled.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.SaveReplays, saveReplays);
             Config.BindWith(SticksRulesetSetting.NoteCircleScale, noteCircleScale);
             noteCircleScale.BindValueChanged(scale =>
                 ((SticksPlayfield)Playfield).NoteCircleScale = scale.NewValue, true);
@@ -119,7 +121,9 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         protected override ReplayRecorder CreateReplayRecorder(Score score)
         {
-            replayPersistence?.Track(score);
+            if (saveReplays.Value)
+                replayPersistence?.Track(score);
+
             return new SticksReplayRecorder(score, (SticksPlayfield)Playfield);
         }
 

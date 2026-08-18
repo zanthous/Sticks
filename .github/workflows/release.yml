@@ -35,11 +35,12 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}" -replace '^v', ''
-          if ($version -notmatch '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?<suffix>[0-9A-Za-z.+-]*)$') {
+          $versionMatch = [regex]::Match($version, '^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(?<suffix>[0-9A-Za-z.+-]*)$')
+          if (-not $versionMatch.Success) {
               throw "Release tag does not contain a supported version: $version"
           }
 
-          $assemblyVersion = "$($Matches.major).$($Matches.minor).$($Matches.patch).0"
+          $assemblyVersion = "$($versionMatch.Groups['major'].Value).$($versionMatch.Groups['minor'].Value).$($versionMatch.Groups['patch'].Value).0"
           "RULESET_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ASSEMBLY_VERSION=$assemblyVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 

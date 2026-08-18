@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
+using osu.Framework.Bindables;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
@@ -12,10 +13,11 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Beatmaps;
 using osu.Game.Rulesets.Sticks.Scoring;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {
-    public abstract class SticksHitObject : HitObject, IHasPosition
+    public abstract class SticksHitObject : HitObject, IHasPosition, IHasDisplayColour
     {
         private static readonly Vector2 legacy_centre = new Vector2(256, 192);
 
@@ -40,6 +42,11 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public const float HARD_HIT_ANGLE = 20;
         public const float MAXIMUM_CIRCLE_SIZE_HIT_ANGLE = 15;
 
+        public static readonly Color4 LEFT_DISPLAY_COLOUR = new Color4(0.2f, 0.62f, 1f, 1f);
+        public static readonly Color4 RIGHT_DISPLAY_COLOUR = new Color4(1f, 0.25f, 0.3f, 1f);
+
+        public Bindable<Color4> DisplayColour { get; } = new Bindable<Color4>(LEFT_DISPLAY_COLOUR);
+
         public float PrimaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
 
         public float SecondaryHitAngle { get; set; } = VISIBLE_ARC_SPAN / 2;
@@ -56,6 +63,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
             set
             {
                 side = value;
+                DisplayColour.Value = value == StickSide.Left ? LEFT_DISPLAY_COLOUR : RIGHT_DISPLAY_COLOUR;
                 RefreshLegacyEditorMarker();
             }
         }

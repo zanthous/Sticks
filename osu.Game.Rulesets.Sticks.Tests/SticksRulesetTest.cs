@@ -321,6 +321,20 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestTimelineDisplayColourFollowsStickSide()
+        {
+            var flick = new SticksFlick();
+
+            Assert.That(flick.DisplayColour.Value, Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
+
+            flick.Side = StickSide.Right;
+            Assert.That(flick.DisplayColour.Value, Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
+
+            flick.Side = StickSide.Left;
+            Assert.That(flick.DisplayColour.Value, Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
+        }
+
+        [Test]
         public void TestEightyPercentStickDistanceMapping()
         {
             Vector2 half = SticksPlayfield.MapStickDistance(new Vector2(0.4f, 0), 0.8f);

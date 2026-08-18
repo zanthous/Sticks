@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sticks judgments</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            background: #090a0d;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+
+        main {
+            width: min(92vw, 1500px);
+        }
+
+        .inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 90px;
+            align-items: center;
+        }
+
+        h2 {
+            margin: 0 0 24px;
+            text-align: center;
+            color: #b9bec8;
+            font-size: 28px;
+            letter-spacing: .14em;
+        }
+
+        svg {
+            display: block;
+            width: 100%;
+            height: 330px;
+        }
+
+        .indicator-label {
+            font: 700 25px Arial, sans-serif;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 14px;
+            margin-top: 55px;
+        }
+
+        .result {
+            height: 150px;
+            display: grid;
+            place-content: center;
+            gap: 12px;
+            border: 3px solid currentColor;
+            border-radius: 16px;
+            text-align: center;
+            background: #111318;
+        }
+
+        .result strong {
+            font-size: 48px;
+            line-height: 1;
+        }
+
+        .result span {
+            color: #d6d9df;
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .p300 { color: #99eeff; }
+        .p200 { color: #00e589; }
+        .p175 { color: #4ec42b; }
+        .p100 { color: #ffcc22; }
+        .p75 { color: #ff802b; }
+        .miss { color: #ed1121; }
+
+        @media (max-width: 1100px) {
+            .inputs { gap: 30px; }
+            .results { gap: 8px; }
+            .result strong { font-size: 36px; }
+            .result span { font-size: 15px; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <div class="inputs">
+        <section>
+            <h2>ANGLE</h2>
+            <svg viewBox="0 0 650 330" aria-label="Angle judgment windows">
+                <path d="M325 300 L260 58 A250 250 0 0 1 390 58 Z" fill="#ffcc22"/>
+                <path d="M325 300 L282 54 A250 250 0 0 1 368 54 Z" fill="#00e589"/>
+                <path d="M191 89 A250 250 0 0 1 459 89" fill="none" stroke="#707580" stroke-width="4"/>
+                <line x1="325" y1="300" x2="325" y2="45" stroke="#fff" stroke-width="5"/>
+                <text class="indicator-label" x="325" y="27" fill="#00e589">300</text>
+                <path d="M434 27 L414 27 L391 61" fill="none" stroke="#ffcc22" stroke-width="3"/>
+                <text class="indicator-label" x="465" y="27" fill="#ffcc22">100</text>
+            </svg>
+        </section>
+
+        <section>
+            <h2>TIMING</h2>
+            <svg viewBox="0 0 650 330" aria-label="Timing judgment windows">
+                <rect x="25" y="115" width="600" height="100" rx="18" fill="#ed1121"/>
+                <rect x="100" y="115" width="450" height="100" fill="#ff802b"/>
+                <rect x="175" y="115" width="300" height="100" fill="#ffcc22"/>
+                <rect x="250" y="115" width="150" height="100" fill="#00e589"/>
+                <line x1="325" y1="95" x2="325" y2="235" stroke="#fff" stroke-width="5"/>
+                <text class="indicator-label" x="325" y="278" fill="#00e589">300</text>
+                <text class="indicator-label" x="438" y="278" fill="#ffcc22">100</text>
+                <text class="indicator-label" x="513" y="278" fill="#ff802b">50</text>
+                <text class="indicator-label" x="588" y="278" fill="#ed1121">MISS</text>
+            </svg>
+        </section>
+    </div>
+
+    <div class="results">
+        <div class="result p300"><strong>300</strong><span>300 + 300</span></div>
+        <div class="result p200"><strong>200</strong><span>300 + 100<br>100 + 300</span></div>
+        <div class="result p175"><strong>175</strong><span>300 + 50</span></div>
+        <div class="result p100"><strong>100</strong><span>100 + 100</span></div>
+        <div class="result p75"><strong>75</strong><span>100 + 50</span></div>
+        <div class="result miss"><strong>MISS</strong><span>ANY MISS</span></div>
+    </div>
+</main>
+</body>
+</html>

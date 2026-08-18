@@ -42,8 +42,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float CENTER_OUT_CURSOR_HELD_THRESHOLD = 0.9f;
         public const float CENTER_OUT_CURSOR_MOVING_THRESHOLD = 0.2f;
         private const double center_out_cursor_motion_grace = 40;
-        public static readonly Color4 LEFT_COLOUR = new Color4(0.2f, 0.62f, 1f, 1f);
-        public static readonly Color4 RIGHT_COLOUR = new Color4(1f, 0.25f, 0.3f, 1f);
+        public static readonly Color4 LEFT_COLOUR = SticksHitObject.LEFT_DISPLAY_COLOUR;
+        public static readonly Color4 RIGHT_COLOUR = SticksHitObject.RIGHT_DISPLAY_COLOUR;
         public static readonly Color4 OVERLAP_COLOUR = new Color4(0.722f, 0.278f, 1f, 1f); // #B847FF
 
         private readonly CircularContainer leftCursor;

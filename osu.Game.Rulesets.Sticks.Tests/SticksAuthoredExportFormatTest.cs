@@ -35,8 +35,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                         TimelineZoom: 1
 
                                                         [Metadata]
-                                                        Title:Mapper export validation
-                                                        TitleUnicode:Mapper export validation
+                                                        Title:Authored export validation
+                                                        TitleUnicode:Authored export validation
                                                         Artist:Sticks
                                                         ArtistUnicode:Sticks
                                                         Creator:Zanthous
@@ -91,7 +91,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(source.BeatmapInfo.Ruleset.OnlineID, Is.Zero);
                 Assert.That(source.Metadata.AudioFile, Is.EqualTo("validation.wav"));
-                Assert.That(source.Metadata.Title, Is.EqualTo("Mapper export validation"));
+                Assert.That(source.Metadata.Title, Is.EqualTo("Authored export validation"));
                 Assert.That(source.ControlPointInfo.TimingPointAt(1000).BeatLength, Is.EqualTo(500));
 
                 Assert.That(converted, Has.Length.EqualTo(4));

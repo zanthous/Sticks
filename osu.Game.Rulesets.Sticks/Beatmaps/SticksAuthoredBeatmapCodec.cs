@@ -14,8 +14,8 @@ using osuTK;
 namespace osu.Game.Rulesets.Sticks.Beatmaps
 {
     /// <summary>
-    /// Lossless Sticks authoring data carried by ordinary mode-0 hit objects. This allows maps
-    /// created by the companion mapper to remain importable and distributable in stock lazer.
+    /// Lossless Sticks authoring data carried by ordinary mode-0 hit objects. This keeps authored
+    /// maps importable and distributable in stock lazer without modifying the client.
     /// </summary>
     public static class SticksAuthoredBeatmapCodec
     {

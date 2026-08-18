@@ -32,16 +32,8 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
       - name: Restore dependencies
         run: dotnet restore .\osu.Game.Rulesets.Sticks.sln
 
       - name: Build and test
         run: dotnet test .\osu.Game.Rulesets.Sticks.sln --configuration Release --no-restore
-
-      - name: Validate companion mapper timing
-        run: node .\osu.Game.Rulesets.Sticks.Tests\validate-mapper-timing.mjs

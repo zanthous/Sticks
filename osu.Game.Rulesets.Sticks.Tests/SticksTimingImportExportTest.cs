@@ -10,9 +10,8 @@ using osu.Game.Rulesets.Objects;
 namespace osu.Game.Rulesets.Sticks.Tests
 {
     /// <summary>
-    /// Defines the compatibility boundary for timing rows imported by the companion mapper.
-    /// The mapper deliberately carries legacy rows verbatim; this test verifies that an export
-    /// containing the difficult cases is interpreted correctly by lazer's stock decoder.
+    /// Verifies that authored Sticks beatmaps retain legacy timing rows which are interpreted
+    /// correctly by lazer's stock decoder.
     /// </summary>
     [TestFixture]
     public class SticksTimingImportExportTest

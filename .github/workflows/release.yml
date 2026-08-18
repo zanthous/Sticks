@@ -31,11 +31,6 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
       - name: Derive assembly version from tag
         shell: pwsh
         run: |
@@ -52,9 +47,6 @@ jobs:
       - name: Build and test release
         shell: pwsh
         run: dotnet test .\osu.Game.Rulesets.Sticks.sln --configuration Release --no-restore -p:Version=$env:RULESET_VERSION -p:IncludeSourceRevisionInInformationalVersion=false
-
-      - name: Validate companion mapper timing
-        run: node .\osu.Game.Rulesets.Sticks.Tests\validate-mapper-timing.mjs
 
       - name: Stage release assets
         shell: pwsh

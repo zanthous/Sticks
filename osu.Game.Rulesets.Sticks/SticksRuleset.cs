@@ -209,7 +209,7 @@ namespace osu.Game.Rulesets.Sticks
             float originalHitAngle = SticksHitObject.HitAngleForCircleSize(original.CircleSize);
             float adjustedHitAngle = SticksHitObject.HitAngleForCircleSize(adjusted.CircleSize);
             float primaryHitAngle = difficultyAdjust?.PrimaryHitAngle.Value ?? adjustedHitAngle;
-            float secondaryHitAngle = difficultyAdjust?.SecondaryHitAngle.Value ?? adjustedHitAngle / 2;
+            float secondaryHitAngle = primaryHitAngle / 2;
 
             yield return new RulesetBeatmapAttribute(SongSelectStrings.CircleSize, "CS", original.CircleSize, adjusted.CircleSize, 10)
             {

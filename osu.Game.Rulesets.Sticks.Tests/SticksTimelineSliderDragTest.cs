@@ -105,19 +105,21 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 continuationSlider.EnsureLegacyEditorMarker();
                 EditorBeatmap.Add(continuationSlider);
             });
-            AddStep("seek to end and select", () =>
+            AddStep("seek to end without selecting", () =>
             {
                 EditorClock.Seek(continuationSlider.EndTime);
-                EditorBeatmap.SelectedHitObjects.Add(continuationSlider);
+                EditorBeatmap.SelectedHitObjects.Clear();
             });
             AddUntilStep("reversal button available", () => drawAlpha(icon(FontAwesome.Solid.AngleDoubleRight)) > 0.9f);
+            AddAssert("slider is not selected", () => !EditorBeatmap.SelectedHitObjects.Contains(continuationSlider));
 
-            AddStep("click reversal button once", () =>
+            AddStep("click unselected reversal button once", () =>
             {
                 SpriteIcon reversal = icon(FontAwesome.Solid.AngleDoubleRight);
                 InputManager.MoveMouseTo(reversal);
                 InputManager.Click(MouseButton.Left);
             });
+            AddUntilStep("slider selected by reversal press", () => EditorBeatmap.SelectedHitObjects.Contains(continuationSlider));
             AddUntilStep("disabled confirmation appears", () => drawAlpha(icon(FontAwesome.Solid.Check)) > 0.1f);
             AddAssert("no segment committed yet", () => continuationSlider.SegmentCount == 1);
 

@@ -258,7 +258,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var mod = new SticksModDifficultyAdjust
             {
                 PrimaryHitAngle = { Value = 30 },
-                SecondaryHitAngle = { Value = 10 },
                 UseEightyPercentStickTravel = { Value = true },
                 SpeedChange = { Value = 1.25 },
             };
@@ -273,9 +272,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(slider.PrimaryHitAngle, Is.EqualTo(30));
-                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(10));
+                Assert.That(slider.SecondaryHitAngle, Is.EqualTo(15));
                 Assert.That(slider.PreciseHalfAngle, Is.EqualTo(15));
-                Assert.That(slider.LenientHalfAngle, Is.EqualTo(20));
+                Assert.That(slider.LenientHalfAngle, Is.EqualTo(22.5f));
                 Assert.That(slider.ResultForCurrentAngleError(15), Is.EqualTo(HitResult.Great));
                 Assert.That(slider.ResultForCurrentAngleError(15.01f), Is.EqualTo(HitResult.Ok));
                 Assert.That(mod.ApplyToRate(0), Is.EqualTo(1.25));
@@ -284,7 +283,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(mod.IncompatibleMods, Does.Contain(typeof(ModTimeRamp)));
                 Assert.That(mod.IncompatibleMods, Does.Contain(typeof(ModAdaptiveSpeed)));
                 Assert.That(slider.NestedHitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(nested =>
-                    nested.PrimaryHitAngle == 30 && nested.SecondaryHitAngle == 10));
+                    nested.PrimaryHitAngle == 30 && nested.SecondaryHitAngle == 15));
                 Assert.That(((SticksPlayfield)drawableRuleset.Playfield).ShowCursorTrails, Is.False);
                 Assert.That(((SticksPlayfield)drawableRuleset.Playfield).PhysicalStickDistanceAtGameEdge, Is.EqualTo(0.8f));
             });
@@ -445,7 +444,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(mod.PrimaryHitAngle.Value, Is.Null);
-                Assert.That(mod.SecondaryHitAngle.Value, Is.Null);
                 Assert.That(flick.PrimaryHitAngle, Is.EqualTo(35));
                 Assert.That(flick.SecondaryHitAngle, Is.EqualTo(17.5f));
             });

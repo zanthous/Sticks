@@ -215,6 +215,23 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         protected override bool OnMouseDown(MouseDownEvent e)
         {
+            if (!IsSelected
+                && e.Button == MouseButton.Left
+                && appendSegmentButton?.Enabled == true
+                && appendSegmentButton.ReceivePositionalInputAt(e.ScreenSpaceMousePosition))
+            {
+                // Child controls do not receive positional input until lazer has selected their
+                // blueprint. Let the normal editor selection handler process this press, then use
+                // that same press to enter reversal placement once selection has completed.
+                Schedule(() =>
+                {
+                    if (IsSelected)
+                        beginContinuationPlacement();
+                });
+
+                return false;
+            }
+
             if (!placingContinuation || HitObject is not SticksSlider)
                 return base.OnMouseDown(e);
 

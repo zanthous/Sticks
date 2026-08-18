@@ -36,23 +36,13 @@ namespace osu.Game.Rulesets.Sticks.Mods
             ReadCurrentFromDifficulty = difficulty => SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize),
         };
 
-        [SettingSource("Secondary hit angle", "Override the additional full angular width awarded a 100.", LAST_SETTING_ORDER + 2,
-            SettingControlType = typeof(DifficultyAdjustSettingsControl))]
-        public DifficultyBindable SecondaryHitAngle { get; } = new DifficultyBindable
-        {
-            MinValue = 0,
-            MaxValue = 90,
-            Precision = 1,
-            ReadCurrentFromDifficulty = difficulty => SticksHitObject.HitAngleForCircleSize(difficulty.CircleSize) / 2,
-        };
-
-        [SettingSource("Disable reversals", "Convert repeated sliders into continuous one-way motion.", LAST_SETTING_ORDER + 3)]
+        [SettingSource("Disable reversals", "Convert repeated sliders into continuous one-way motion.", LAST_SETTING_ORDER + 2)]
         public BindableBool DisableReversals { get; } = new BindableBool();
 
-        [SettingSource("80% stick travel", "Treat 80% physical stick distance as the edge of the playfield.", LAST_SETTING_ORDER + 4)]
+        [SettingSource("80% stick travel", "Treat 80% physical stick distance as the edge of the playfield.", LAST_SETTING_ORDER + 3)]
         public BindableBool UseEightyPercentStickTravel { get; } = new BindableBool();
 
-        [SettingSource("Speed", "Adjust gameplay and audio playback speed.", LAST_SETTING_ORDER + 5, SettingControlType = typeof(MultiplierSettingsSlider))]
+        [SettingSource("Speed", "Adjust gameplay and audio playback speed.", LAST_SETTING_ORDER + 4, SettingControlType = typeof(MultiplierSettingsSlider))]
         public BindableDouble SpeedChange { get; } = new BindableDouble(1)
         {
             MinValue = 0.5,
@@ -98,10 +88,10 @@ namespace osu.Game.Rulesets.Sticks.Mods
         private void applyAngles(SticksHitObject hitObject)
         {
             if (PrimaryHitAngle.Value is float primary)
+            {
                 hitObject.PrimaryHitAngle = primary;
-
-            if (SecondaryHitAngle.Value is float secondary)
-                hitObject.SecondaryHitAngle = secondary;
+                hitObject.SecondaryHitAngle = primary / 2;
+            }
 
             foreach (HitObject nested in hitObject.NestedHitObjects)
             {

@@ -15,7 +15,9 @@ using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Replays;
 using osu.Game.Replays.Legacy;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Replays;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Configuration;
@@ -823,6 +825,18 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     "The default blue trail must render its authored sprite without a second tint.");
                 Assert.That(rightTrail.Colour.AverageColour.SRGB, Is.EqualTo(Color4.White),
                     "The default red trail must render its authored sprite without a second tint.");
+            });
+
+            var storedDefaultLeft = new Color4((byte)51, (byte)158, byte.MaxValue, byte.MaxValue);
+            var storedDefaultRight = new Color4(byte.MaxValue, (byte)64, (byte)77, byte.MaxValue);
+            playfield.SetColours(storedDefaultLeft, storedDefaultRight, SticksPlayfield.OVERLAP_COLOUR);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(leftTrail.Colour.AverageColour.SRGB, Is.EqualTo(Color4.White),
+                    "An 8-bit settings round-trip must still select the authored blue trail.");
+                Assert.That(rightTrail.Colour.AverageColour.SRGB, Is.EqualTo(Color4.White),
+                    "An 8-bit settings round-trip must still select the authored red trail.");
             });
         }
 
@@ -2313,9 +2327,113 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [Test]
+        public void TestHealthCalibrationOrdersOverlappingObjectsChronologically()
+        {
+            var beatmap = new Beatmap<SticksHitObject>();
+            beatmap.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
+            beatmap.HitObjects.Add(new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                Side = StickSide.Left,
+                Angle = 0,
+                ArcAngle = 180,
+            });
+            beatmap.HitObjects.Add(new SticksFlick
+            {
+                StartTime = 2000,
+                Side = StickSide.Right,
+                Angle = 90,
+            });
+
+            foreach (SticksHitObject hitObject in beatmap.HitObjects)
+                hitObject.ApplyDefaults(beatmap.ControlPointInfo, beatmap.Difficulty);
+
+            double[] judgementTimes = new TestSticksHealthProcessor(0).JudgementTimes(beatmap);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(judgementTimes, Is.Ordered.Ascending,
+                    "Drain calibration must not gain fake health by stepping backwards from a duration tail to an overlapping note.");
+                Assert.That(judgementTimes, Does.Contain(2000));
+                Assert.That(Array.IndexOf(judgementTimes, 2000), Is.LessThan(Array.IndexOf(judgementTimes, 4000)));
+            });
+        }
+
+        [Test]
+        public void TestHeadHealthIncludesSixNoteRecoveryEquivalent()
+        {
+            var hitObject = new SticksFlick();
+            var healthProcessor = new TestSticksHealthProcessor(0);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(healthProcessor.HealthIncrease(hitObject, HitResult.Great) * 2,
+                    Is.EqualTo(0.03 + 0.07 / 6).Within(0.0000001));
+                Assert.That(healthProcessor.HealthIncrease(hitObject, HitResult.Ok) * 2,
+                    Is.EqualTo(0.011 + 0.05 / 6).Within(0.0000001));
+                Assert.That(healthProcessor.HealthIncrease(hitObject, HitResult.Meh) * 2,
+                    Is.EqualTo(0.002 + 0.03 / 6).Within(0.0000001));
+            });
+        }
+
+        [Test]
+        public void TestAddedHeadRecoveryDoesNotIncreasePassiveDrainCalibration()
+        {
+            var beatmap = new Beatmap<SticksHitObject>();
+            beatmap.HitObjects.Add(new SticksFlick
+            {
+                StartTime = 1000,
+                Side = StickSide.Left,
+                Angle = 0,
+            });
+
+            foreach (SticksHitObject hitObject in beatmap.HitObjects)
+                hitObject.ApplyDefaults(beatmap.ControlPointInfo, beatmap.Difficulty);
+
+            var healthProcessor = new TestSticksHealthProcessor(0);
+            healthProcessor.ApplyBeatmap(beatmap);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(healthProcessor.SimulatedGreatIncreases, Has.Count.EqualTo(4),
+                    "Health simulation queries each of the two accuracy components while applying and recording it.");
+                Assert.That(healthProcessor.SimulatedGreatIncreases,
+                    Has.All.EqualTo(0.015).Within(0.0000001),
+                    "The two half-weighted accuracy components must calibrate drain from standard's original 3% total gain.");
+            });
+        }
+
         private partial class TestSticksHitObjectContainer : SticksHitObjectContainer
         {
             public int CompareForTest(Drawable x, Drawable y) => Compare(x, y);
+        }
+
+        private partial class TestSticksHealthProcessor : SticksHealthProcessor
+        {
+            public readonly List<double> SimulatedGreatIncreases = new List<double>();
+
+            public TestSticksHealthProcessor(double drainStartTime)
+                : base(drainStartTime)
+            {
+            }
+
+            public double[] JudgementTimes(IBeatmap beatmap) =>
+                EnumerateHitObjects(beatmap).Select(hitObject => hitObject.GetEndTime()).ToArray();
+
+            public double HealthIncrease(SticksHitObject hitObject, HitResult result) =>
+                GetHealthIncreaseFor(new JudgementResult(hitObject, hitObject.CreateJudgement()) { Type = result });
+
+            protected override double GetHealthIncreaseFor(JudgementResult result)
+            {
+                double increase = base.GetHealthIncreaseFor(result);
+
+                if (IsSimulating && result.Type == HitResult.Great)
+                    SimulatedGreatIncreases.Add(increase);
+
+                return increase;
+            }
         }
 
         private partial class TestSticksSelectionBlueprint : SticksSelectionBlueprint

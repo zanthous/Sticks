@@ -229,12 +229,22 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             leftCursorFill.Colour = leftColour;
             rightCursorFill.Colour = rightColour;
-            leftTrail.SetPaletteColour(leftColour, leftColour == LEFT_COLOUR);
-            rightTrail.SetPaletteColour(rightColour, rightColour == RIGHT_COLOUR);
+            leftTrail.SetPaletteColour(leftColour, coloursMatchAtSettingsPrecision(leftColour, LEFT_COLOUR));
+            rightTrail.SetPaletteColour(rightColour, coloursMatchAtSettingsPrecision(rightColour, RIGHT_COLOUR));
             leftRelaxDirectionLine.Colour = leftColour;
             rightRelaxDirectionLine.Colour = rightColour;
             noteOverlapLayer.SetColour(overlapColour);
             radialPathBuffer.SetPalette(leftColour, rightColour, overlapColour);
+        }
+
+        private static bool coloursMatchAtSettingsPrecision(Color4 first, Color4 second)
+        {
+            // Colour settings are serialised through 8-bit hexadecimal values. Defaults such as
+            // 0.62 therefore return as 158/255 and must still select the untouched authored trail.
+            const float tolerance = 1f / byte.MaxValue + 0.000001f;
+            return Math.Abs(first.R - second.R) <= tolerance
+                   && Math.Abs(first.G - second.G) <= tolerance
+                   && Math.Abs(first.B - second.B) <= tolerance;
         }
 
         /// <summary>

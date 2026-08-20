@@ -166,11 +166,7 @@ namespace osu.Game.Rulesets.Sticks
 
             return new[]
             {
-                new StatisticItem("Performance Breakdown", () => new PerformanceBreakdownChart(score, playableBeatmap)
-                {
-                    RelativeSizeAxes = Axes.X,
-                    AutoSizeAxes = Axes.Y,
-                }),
+                new StatisticItem("Performance Breakdown", () => createPerformanceBreakdownChart(score, playableBeatmap)),
                 new StatisticItem("Timing Distribution", () => new HitEventTimingDistributionGraph(summary.TimingEvents)
                 {
                     RelativeSizeAxes = Axes.X,
@@ -246,6 +242,21 @@ namespace osu.Game.Rulesets.Sticks
         private static string formatDegrees(double? value) => value.HasValue ? $"{value.Value:0.0}°" : "N/A";
 
         private static string formatCompletion(int hits, int total) => total > 0 ? $"{(double)hits / total:P1}" : "N/A";
+
+        private static PerformanceBreakdownChart createPerformanceBreakdownChart(ScoreInfo score, IBeatmap playableBeatmap)
+        {
+            PerformanceBreakdownChart chart;
+
+#if STICKS_RULESET_API_2026_818
+            chart = new PerformanceBreakdownChart(score);
+#else
+            chart = new PerformanceBreakdownChart(score, playableBeatmap);
+#endif
+
+            chart.RelativeSizeAxes = Axes.X;
+            chart.AutoSizeAxes = Axes.Y;
+            return chart;
+        }
 
         public override IEnumerable<KeyBinding> GetDefaultKeyBindings(int variant = 0) => new[]
         {

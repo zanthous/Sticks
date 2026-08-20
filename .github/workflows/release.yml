@@ -95,15 +95,19 @@ jobs:
               ".\release\LICENSE.md",
               ".\release\THIRD_PARTY_NOTICES.md"
           )
+          $notes = "Download osu.Game.Rulesets.Sticks.dll below."
 
           gh release view $tag --json tagName *> $null
           $releaseExists = $LASTEXITCODE -eq 0
 
           if ($releaseExists) {
               gh release upload $tag @assets --clobber
+              if ($LASTEXITCODE -eq 0) {
+                  gh release edit $tag --title "Sticks $tag" --notes $notes
+              }
           }
           else {
-              gh release create $tag @assets --verify-tag --generate-notes --title "Sticks $tag"
+              gh release create $tag @assets --verify-tag --title "Sticks $tag" --notes $notes
           }
 
           if ($LASTEXITCODE -ne 0) {

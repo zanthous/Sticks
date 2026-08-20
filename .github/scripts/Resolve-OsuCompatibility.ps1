@@ -124,7 +124,7 @@ if ($targets.Count -eq 0) {
     Write-Host "Latest release $($sticksRelease.tag_name) already contains $lazerAsset and $tachyonAsset. No compatibility build is needed."
 }
 elseif ($isTagRelease) {
-    Write-Host "Compatibility build required for new tagged release $releaseTag: $($targets.tag -join ', ')"
+    Write-Host "Compatibility build required for new tagged release ${releaseTag}: $($targets.tag -join ', ')"
 }
 else {
     Write-Host "Compatibility build required for: $($targets.tag -join ', '). Next automatic release: $releaseTag"

@@ -4,6 +4,7 @@ param(
     [string] $Repository,
     [string] $GitHubToken,
     [bool] $Force = $false,
+    [string] $ReleaseTag,
     [Parameter(Mandatory = $true)]
     [string] $GitHubOutput
 )
@@ -63,6 +64,7 @@ if ($null -eq $lazerRelease -or $null -eq $tachyonRelease) {
 $lazerApi = Get-RulesetApiVersion $lazerRelease.tag_name
 $tachyonApi = Get-RulesetApiVersion $tachyonRelease.tag_name
 $sticksRelease = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Repository/releases/latest"
+$isTagRelease = -not [string]::IsNullOrWhiteSpace($ReleaseTag)
 $assetNames = @($sticksRelease.assets | ForEach-Object { $_.name })
 $lazerAsset = "osu.Game.Rulesets.Sticks-$($lazerRelease.tag_name).dll"
 $tachyonAsset = "osu.Game.Rulesets.Sticks-$($tachyonRelease.tag_name).dll"
@@ -90,16 +92,16 @@ if ($Force -or $assetNames -notcontains $tachyonAsset -or $assetNames -notcontai
     })
 }
 
-$tagMatch = [regex]::Match($sticksRelease.tag_name, '^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?<suffix>[a-z]*)$')
+$versionTag = if ($isTagRelease) { $ReleaseTag } else { $sticksRelease.tag_name }
+$tagMatch = [regex]::Match($versionTag, '^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?<suffix>[a-z]*)$')
 
 if (-not $tagMatch.Success) {
-    throw "Latest Sticks release tag does not support automatic letter versioning: $($sticksRelease.tag_name)"
+    throw "Sticks release tag does not contain a supported version: $versionTag"
 }
 
-$nextSuffix = Get-NextSuffix $tagMatch.Groups['suffix'].Value
 $baseVersion = "$($tagMatch.Groups['major'].Value).$($tagMatch.Groups['minor'].Value).$($tagMatch.Groups['patch'].Value)"
-$releaseTag = "v$baseVersion$nextSuffix"
-$rulesetVersion = "$baseVersion$nextSuffix"
+$releaseTag = if ($isTagRelease) { $ReleaseTag } else { "v$baseVersion$(Get-NextSuffix $tagMatch.Groups['suffix'].Value)" }
+$rulesetVersion = $releaseTag -replace '^v', ''
 $assemblyVersion = "$baseVersion.0"
 $matrix = @{ include = $targets.ToArray() } | ConvertTo-Json -Depth 5 -Compress
 $hasChanges = ($targets.Count -gt 0).ToString().ToLowerInvariant()
@@ -116,9 +118,13 @@ $hasChanges = ($targets.Count -gt 0).ToString().ToLowerInvariant()
 "tachyon_api=$tachyonApi" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 "lazer_asset=$lazerAsset" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 "tachyon_asset=$tachyonAsset" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
+"source_ref=$ReleaseTag" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 
 if ($targets.Count -eq 0) {
     Write-Host "Latest release $($sticksRelease.tag_name) already contains $lazerAsset and $tachyonAsset. No compatibility build is needed."
+}
+elseif ($isTagRelease) {
+    Write-Host "Compatibility build required for new tagged release $releaseTag: $($targets.tag -join ', ')"
 }
 else {
     Write-Host "Compatibility build required for: $($targets.tag -join ', '). Next automatic release: $releaseTag"

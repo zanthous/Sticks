@@ -1,6 +1,9 @@
 name: osu! release compatibility
 
 on:
+  push:
+    tags:
+      - "v*"
   schedule:
     - cron: "23 9 * * *"
   workflow_dispatch:
@@ -11,7 +14,7 @@ on:
         default: false
         type: boolean
       publish_release:
-        description: Publish the normal lettered release after successful builds
+        description: Publish release assets after successful builds
         required: false
         default: true
         type: boolean
@@ -20,8 +23,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: osu-compatibility-${{ github.ref }}
-  cancel-in-progress: true
+  group: osu-compatibility
+  cancel-in-progress: false
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
@@ -45,6 +48,7 @@ jobs:
       tachyon_api: ${{ steps.release_check.outputs.tachyon_api }}
       lazer_asset: ${{ steps.release_check.outputs.lazer_asset }}
       tachyon_asset: ${{ steps.release_check.outputs.tachyon_asset }}
+      source_ref: ${{ steps.release_check.outputs.source_ref }}
 
     steps:
       - name: Check out Sticks
@@ -55,8 +59,9 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
-        run: .\.github\scripts\Resolve-OsuCompatibility.ps1 -Repository $env:GITHUB_REPOSITORY -GitHubToken $env:GH_TOKEN -Force:($env:FORCE -eq "true") -GitHubOutput $env:GITHUB_OUTPUT
+          FORCE: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force) }}
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+        run: .\.github\scripts\Resolve-OsuCompatibility.ps1 -Repository $env:GITHUB_REPOSITORY -GitHubToken $env:GH_TOKEN -Force:($env:FORCE -eq "true") -ReleaseTag $env:RELEASE_TAG -GitHubOutput $env:GITHUB_OUTPUT
 
       - name: Reject obsolete compatibility branches
         shell: pwsh
@@ -78,6 +83,8 @@ jobs:
     steps:
       - name: Check out Sticks
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check_releases.outputs.source_ref || github.sha }}
 
       - name: Check out official osu! source
         uses: actions/checkout@v6
@@ -187,7 +194,7 @@ jobs:
           retention-days: 1
 
   publish_release:
-    name: Publish automatic compatibility release
+    name: Publish release
     needs:
       - check_releases
       - compatibility
@@ -200,6 +207,8 @@ jobs:
     steps:
       - name: Check out Sticks
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.check_releases.outputs.source_ref || github.sha }}
 
       - name: Download newly built DLLs
         uses: actions/download-artifact@v8
@@ -238,7 +247,13 @@ jobs:
           Copy-Item -LiteralPath ".\LICENSE.md" -Destination $output -Force
           Copy-Item -LiteralPath ".\THIRD_PARTY_NOTICES.md" -Destination $output -Force
 
-      - name: Create normal GitHub Release
+          $stableDll = Join-Path $output $env:LAZER_ASSET
+          $genericDll = Join-Path $output "osu.Game.Rulesets.Sticks.dll"
+          Copy-Item -LiteralPath $stableDll -Destination $genericDll -Force
+          $genericHash = (Get-FileHash -LiteralPath $genericDll -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$genericHash  osu.Game.Rulesets.Sticks.dll" | Set-Content -LiteralPath "$genericDll.sha256" -Encoding utf8NoBOM
+
+      - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -246,27 +261,25 @@ jobs:
           RULESET_VERSION: ${{ needs.check_releases.outputs.ruleset_version }}
           LAZER_TAG: ${{ needs.check_releases.outputs.lazer_tag }}
           TACHYON_TAG: ${{ needs.check_releases.outputs.tachyon_tag }}
+          SOURCE_REF: ${{ needs.check_releases.outputs.source_ref }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath ".\compatibility-release" -File | ForEach-Object { $_.FullName })
           $notes = @"
-          Automatic compatibility build for the newest official osu! releases:
+          Compatible builds:
 
-          - stable lazer: $env:LAZER_TAG
-          - Tachyon: $env:TACHYON_TAG
+          - Stable lazer ($env:LAZER_TAG): osu.Game.Rulesets.Sticks.dll
+          - Tachyon ($env:TACHYON_TAG): use the DLL ending in -tachyon.dll
 
           Download the DLL matching the osu! channel you use.
           "@
 
-          gh release view $env:RELEASE_TAG --json tagName *> $null
-          $releaseExists = $LASTEXITCODE -eq 0
-
-          if ($releaseExists) {
-              gh release upload $env:RELEASE_TAG @assets --clobber
+          if ($env:SOURCE_REF -eq $env:RELEASE_TAG) {
+              gh release create $env:RELEASE_TAG @assets --verify-tag --title "Sticks $env:RELEASE_TAG" --notes $notes --latest
           }
           else {
               gh release create $env:RELEASE_TAG @assets --target $env:GITHUB_SHA --title "Sticks $env:RELEASE_TAG" --notes $notes --latest
           }
 
           if ($LASTEXITCODE -ne 0) {
-              throw "Failed to publish automatic compatibility release $env:RELEASE_TAG."
+              throw "Failed to publish release $env:RELEASE_TAG."
           }

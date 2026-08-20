@@ -270,7 +270,7 @@ jobs:
           - Stable lazer ($env:LAZER_TAG): osu.Game.Rulesets.Sticks.dll
           - Tachyon ($env:TACHYON_TAG): use the DLL ending in -tachyon.dll
 
-          Download the DLL matching the osu! channel you use.
+          Download the DLL matching the osu! version you use
           "@
 
           if ($env:SOURCE_REF -eq $env:RELEASE_TAG) {

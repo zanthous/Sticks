@@ -9,14 +9,23 @@
     <Company>Zankai LLC</Company>
     <Copyright>Copyright (c) 2026 Zankai LLC</Copyright>
     <Version>0.1.0-dev</Version>
+    <OsuGameVersion Condition="'$(OsuGameVersion)' == ''">2026.730.0</OsuGameVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(SticksRulesetApi2026818)' == 'true'">
+    <DefineConstants>$(DefineConstants);STICKS_RULESET_API_2026_818</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="License" Value="PolyForm Noncommercial 1.0.0 with additional permissions" />
     <AssemblyMetadata Include="LicenseUrl" Value="https://polyformproject.org/licenses/noncommercial/1.0.0/" />
     <AssemblyMetadata Include="RequiredNotice" Value="Copyright (c) 2026 Zankai LLC." />
   </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="ppy.osu.Game" Version="2026.730.0" />
+  <ItemGroup Condition="'$(OsuSourceRoot)' == ''">
+    <PackageReference Include="ppy.osu.Game" Version="$(OsuGameVersion)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(OsuSourceRoot)' != ''">
+    <ProjectReference Include="$(OsuSourceRoot)\osu.Game\osu.Game.csproj">
+      <AdditionalProperties Condition="'$(OsuClientVersion)' != ''">Version=$(OsuClientVersion)</AdditionalProperties>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="osu.Game.Rulesets.Sticks.Tests" />

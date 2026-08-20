@@ -10,7 +10,12 @@ using osuTK;
 namespace osu.Game.Rulesets.Sticks.Edit
 {
     [Cached]
-    public partial class SticksHitObjectComposer : HitObjectComposer<SticksHitObject>
+    public partial class SticksHitObjectComposer :
+#if STICKS_RULESET_API_2026_818
+        HitObjectComposer<SticksHitObject, SticksAction>
+#else
+        HitObjectComposer<SticksHitObject>
+#endif
     {
         public SticksHitObjectComposer(SticksRuleset ruleset)
             : base(ruleset)

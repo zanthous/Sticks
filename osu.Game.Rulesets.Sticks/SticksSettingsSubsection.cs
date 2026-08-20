@@ -43,7 +43,9 @@ namespace osu.Game.Rulesets.Sticks
         [Resolved(CanBeNull = true)]
         private INotificationOverlay notifications { get; set; }
 
+#if !STICKS_RULESET_API_2026_818
         protected override LocalisableString Header => "Sticks";
+#endif
 
         public SticksSettingsSubsection(SticksRuleset ruleset)
             : base(ruleset)

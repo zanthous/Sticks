@@ -254,9 +254,7 @@ jobs:
           - stable lazer: $env:LAZER_TAG
           - Tachyon: $env:TACHYON_TAG
 
-          Download the DLL matching the osu! channel you use. This is a normal release; the letter suffix identifies an automatic compatibility build and numeric version changes remain reserved for ruleset updates.
-
-          A channel whose upstream tag did not change is carried forward from the previous tested release without rebuilding.
+          Download the DLL matching the osu! channel you use.
           "@
 
           gh release view $env:RELEASE_TAG --json tagName *> $null

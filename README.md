@@ -43,9 +43,11 @@ osu.Game.Rulesets.Sticks\bin\Release\net8.0\osu.Game.Rulesets.Sticks.dll
 
 Use **Settings → Open osu! folder** if you do not know where lazer's data folder is.
 
-## Tagged releases
+## Releases
 
-Pushing a tag beginning with `v` runs the full test suite and creates or updates the matching GitHub Release. The release contains the directly installable `osu.Game.Rulesets.Sticks.dll` and its SHA-256 checksum.
+Pushing a tag beginning with `v` runs the full test suite and creates or updates the matching normal GitHub Release. Numeric versions such as `v1.0.7` are reserved for ruleset updates. The daily compatibility workflow checks the newest official stable lazer and Tachyon tags before building; when either changes, it tests only the changed channel and publishes the next lettered normal release, such as `v1.0.6a` or `v1.0.6b`.
+
+Automatic compatibility releases contain a separately named DLL and SHA-256 checksum for each supported osu! channel. Download the DLL whose filename matches your lazer or Tachyon release. When only one upstream channel changes, the other channel's already-tested DLL is carried forward without rebuilding.
 
 ```powershell
 git tag v0.1.0

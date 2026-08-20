@@ -144,6 +144,24 @@ namespace osu.Game.Rulesets.Sticks
                     HintText = "Keep controller input for completed plays and failed plays you explicitly save. Scores are still saved when this is disabled.",
                     Current = config.GetBindable<bool>(SticksRulesetSetting.SaveReplays),
                 }),
+                new SettingsColour
+                {
+                    LabelText = "Left stick color",
+                    TooltipText = "Color used by the left stick, its notes, and its duration paths.",
+                    Current = config.GetBindable<Colour4>(SticksRulesetSetting.LeftStickColour),
+                },
+                new SettingsColour
+                {
+                    LabelText = "Right stick color",
+                    TooltipText = "Color used by the right stick, its notes, and its duration paths.",
+                    Current = config.GetBindable<Colour4>(SticksRulesetSetting.RightStickColour),
+                },
+                new SettingsColour
+                {
+                    LabelText = "Overlap color",
+                    TooltipText = "Color used where simultaneous left and right objects overlap.",
+                    Current = config.GetBindable<Colour4>(SticksRulesetSetting.OverlapColour),
+                },
                 contactEffects,
                 chordLinkPresentation,
                 stackedNotePresentationSetting,

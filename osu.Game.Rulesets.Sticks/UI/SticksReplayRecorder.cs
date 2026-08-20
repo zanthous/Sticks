@@ -43,6 +43,10 @@ namespace osu.Game.Rulesets.Sticks.UI
         private SticksReplayFrame captureFrame(double time) => new SticksReplayFrame(
             time,
             playfield.PhysicalStickVector(StickSide.Left),
-            playfield.PhysicalStickVector(StickSide.Right));
+            playfield.PhysicalStickVector(StickSide.Right),
+            playfield.TriggerPressed(StickSide.Left),
+            playfield.TriggerPressed(StickSide.Right),
+            playfield.ShoulderPressed(StickSide.Left),
+            playfield.ShoulderPressed(StickSide.Right));
     }
 }

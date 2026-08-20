@@ -137,6 +137,7 @@ namespace osu.Game.Rulesets.Sticks
                 new SticksModDoubleTime(),
             },
             ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust() },
+            ModType.Fun => new Mod[] { new SticksModStrum() },
             _ => Array.Empty<Mod>(),
         };
 

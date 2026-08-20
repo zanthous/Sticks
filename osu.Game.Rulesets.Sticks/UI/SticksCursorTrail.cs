@@ -32,12 +32,15 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly TrailPart[] parts = new TrailPart[max_parts];
         private readonly string textureName;
         private int currentIndex;
+        private IShader authoredShader;
+        private IShader tintedShader;
         private IShader shader;
         private Texture texture;
         private Vector2 partScale = Vector2.One;
         private Vector2? lastPosition;
         private double timeOffset;
         private float time;
+        private bool preserveAuthoredColour = true;
 
         public SticksCursorTrail(string textureName)
         {
@@ -57,8 +60,25 @@ namespace osu.Game.Rulesets.Sticks.UI
         private void load(IRenderer renderer, ShaderManager shaders, TextureStore textures)
         {
             texture = textures.Get(textureName) ?? renderer.WhitePixel;
-            shader = shaders.Load(@"CursorTrail", FragmentShaderDescriptor.TEXTURE);
+            authoredShader = shaders.Load(@"CursorTrail", FragmentShaderDescriptor.TEXTURE);
+            tintedShader = shaders.Load(@"CursorTrail", @"SticksCursorTrail");
+            shader = preserveAuthoredColour ? authoredShader : tintedShader;
             partScale = Vector2.One;
+        }
+
+        /// <summary>
+        /// Uses the authored sprite pixels unchanged for the default palette, or treats the
+        /// sprite as a glow mask when a custom stick colour must be applied.
+        /// </summary>
+        public void SetPaletteColour(Color4 colour, bool preserveAuthored)
+        {
+            preserveAuthoredColour = preserveAuthored;
+            Colour = preserveAuthored ? Color4.White : colour;
+
+            if (authoredShader != null && tintedShader != null)
+                shader = preserveAuthored ? authoredShader : tintedShader;
+
+            Invalidate(Invalidation.DrawNode);
         }
 
         protected override void LoadComplete()

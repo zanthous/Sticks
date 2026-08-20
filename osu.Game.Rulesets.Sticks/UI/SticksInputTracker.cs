@@ -4,6 +4,25 @@ using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.UI
 {
+    internal sealed class SticksStrumButtonState
+    {
+        private bool initialised;
+
+        public bool Pressed { get; private set; }
+
+        /// <summary>
+        /// Returns one edge for each physical press while ignoring a button which was already
+        /// held when gameplay began.
+        /// </summary>
+        public bool Update(bool pressed)
+        {
+            bool risingEdge = initialised && pressed && !Pressed;
+            Pressed = pressed;
+            initialised = true;
+            return risingEdge;
+        }
+    }
+
     public sealed class SticksInputTracker
     {
         public const float MIN_ACTIVATION_THRESHOLD = 0.85f;
@@ -14,6 +33,12 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly TrackedStick left = new TrackedStick();
         private readonly TrackedStick right = new TrackedStick();
         private float activationThreshold = DEFAULT_ACTIVATION_THRESHOLD;
+
+        /// <summary>
+        /// Whether moving outwards creates gestures. Strum mode disables this and creates the
+        /// same gesture records from trigger or shoulder-button presses instead.
+        /// </summary>
+        public bool FlickGesturesEnabled { get; set; } = true;
 
         /// <summary>
         /// Gameplay-radius boundary which an armed stick must cross outwards to create a flick.
@@ -92,6 +117,22 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
 
         /// <summary>
+        /// Creates a gesture from a strum-button press while the aimed stick is already beyond the
+        /// configured gameplay activation boundary.
+        /// </summary>
+        internal bool TriggerStrum(StickSide side, double time)
+        {
+            TrackedStick stick = tracked(side);
+            if (stick.Vector.Length < ActivationThreshold)
+                return false;
+
+            float angle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Vector.Y, stick.Vector.X) * 180 / MathF.PI);
+            stick.Sequence++;
+            stick.LastFlick = new FlickEvent(stick.Sequence, time, angle);
+            return true;
+        }
+
+        /// <summary>
         /// Updates a stick using its physical controller position for neutral charging and its
         /// mapped gameplay position for edge crossing. The recharge boundary remains a physical
         /// stick distance even when a difficulty setting remaps the playfield edge.
@@ -107,7 +148,10 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (physicalMagnitude <= RechargeThreshold)
                 stick.NeutralReady = true;
 
-            if (stick.NeutralReady && stick.PreviousGameplayMagnitude < ActivationThreshold && gameplayMagnitude >= ActivationThreshold)
+            if (FlickGesturesEnabled
+                && stick.NeutralReady
+                && stick.PreviousGameplayMagnitude < ActivationThreshold
+                && gameplayMagnitude >= ActivationThreshold)
             {
                 float angle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Vector.Y, stick.Vector.X) * 180 / MathF.PI);
                 stick.Sequence++;

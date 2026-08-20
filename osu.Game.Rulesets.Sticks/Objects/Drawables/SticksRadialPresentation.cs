@@ -35,9 +35,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private StickSide displayedSide;
         private float displayedFillAlpha = 0.82f;
 
-        public SticksRadialTimelinePath(Color4 colour)
+        public SticksRadialTimelinePath(StickSide side)
         {
-            displayedSide = colour.B > colour.R ? StickSide.Left : StickSide.Right;
+            displayedSide = side;
             Size = new Vector2(SticksPlayfield.SIZE);
             AddInternal(shape = new RibbonShape
             {
@@ -53,7 +53,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 },
             });
 
-            applyColour(colour);
+            applySide(side);
         }
 
         public void SetSliderGeometry(SticksSlider slider, double now)
@@ -61,7 +61,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             setGeometry(slider.StartTime, slider.EndTime, slider.ApproachDuration, slider.PrimaryHitAngle, now, slider, slider.Angle);
 
             if (displayedSide != slider.Side)
-                applyColour(colourFor(slider.Side));
+                applySide(slider.Side);
         }
 
         /// <summary>
@@ -87,7 +87,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             setGeometry(hold.StartTime, hold.EndTime, hold.ApproachDuration, hold.PrimaryHitAngle, now, null, hold.Angle);
 
             if (displayedSide != hold.Side)
-                applyColour(colourFor(hold.Side));
+                applySide(hold.Side);
         }
 
         private void setGeometry(
@@ -143,9 +143,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             shape.SetGeometry(points, pointCount);
         }
 
-        private void applyColour(Color4 colour)
+        private void applySide(StickSide side)
         {
-            displayedSide = colour.B > colour.R ? StickSide.Left : StickSide.Right;
+            displayedSide = side;
             displayedFillAlpha = 0.82f;
             shape.SetStyle(displayedSide, displayedFillAlpha);
         }
@@ -374,9 +374,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             }
         }
 
-        private static Color4 colourFor(StickSide side) => side == StickSide.Left
-            ? SticksPlayfield.LEFT_COLOUR
-            : SticksPlayfield.RIGHT_COLOUR;
     }
 
     /// <summary>

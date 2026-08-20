@@ -9,7 +9,20 @@ layout(location = 2) in highp vec2 v_TexCoord;
 layout(set = 0, binding = 0) uniform lowp texture2D m_Texture;
 layout(set = 0, binding = 1) uniform lowp sampler m_Sampler;
 
+layout(std140, set = 1, binding = 0) uniform m_SticksPalette
+{
+    lowp vec4 g_LeftColour;
+    lowp vec4 g_RightColour;
+    lowp vec4 g_OverlapColour;
+};
+
 layout(location = 0) out vec4 o_Colour;
+
+lowp vec3 derivedHighlight(lowp vec3 colour)
+{
+    lowp vec3 boosted = min(vec3(1.0), colour * 1.25);
+    return mix(boosted, vec3(1.0), 0.15);
+}
 
 void main(void)
 {
@@ -30,17 +43,10 @@ void main(void)
     mediump float edgeCore = smoothstep(0.72, 0.98, mask.b);
     mediump float edgeLighting = clamp(0.435 * edgeFalloff + 0.565 * edgeCore, 0.0, 1.0);
 
-    const lowp vec3 BLUE_FILL = vec3(0.2, 0.62, 1.0);
-    const lowp vec3 RED_FILL = vec3(1.0, 0.25, 0.3);
-    const lowp vec3 BLUE_OUTLINE = vec3(0.439, 0.839, 1.0);   // #70D6FF
-    const lowp vec3 RED_OUTLINE = vec3(1.0, 0.408, 0.498);    // #FF687F
-    const lowp vec3 OVERLAP_FILL = vec3(0.722, 0.278, 1.0);    // #B847FF
-    const lowp vec3 OVERLAP_OUTLINE = vec3(0.914, 0.576, 1.0); // #E993FF
-
-    lowp vec3 singleFill = mix(BLUE_FILL, RED_FILL, redShare);
-    lowp vec3 singleOutline = mix(BLUE_OUTLINE, RED_OUTLINE, redShare);
+    lowp vec3 singleFill = mix(g_LeftColour.rgb, g_RightColour.rgb, redShare);
+    lowp vec3 singleOutline = mix(derivedHighlight(g_LeftColour.rgb), derivedHighlight(g_RightColour.rgb), redShare);
     lowp vec3 singleColour = mix(singleFill, singleOutline, edgeLighting);
-    lowp vec3 overlapColour = mix(OVERLAP_FILL, OVERLAP_OUTLINE, edgeLighting);
+    lowp vec3 overlapColour = mix(g_OverlapColour.rgb, derivedHighlight(g_OverlapColour.rgb), edgeLighting);
     lowp vec3 mappedColour = mix(singleColour, overlapColour, overlap);
 
     // Tracking raises the interior mask alpha from .82 to .90 in time with the local beat.

@@ -46,8 +46,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
 
-            if (marker.Side != HitObject.Side || marker.Direction != HitObject.DirectionAfter)
-                marker.SetLaneAndDirection(HitObject.Side, HitObject.DirectionAfter, colourFor(HitObject.Side));
+            marker.SetLaneAndDirection(HitObject.Side, HitObject.DirectionAfter, colourFor(HitObject.Side));
             marker.Presentation = playfield.NotePresentation;
             marker.TargetCircleScale = playfield.NoteCircleScale;
             marker.Angle = HitObject.Angle;
@@ -101,8 +100,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         protected override void UpdateHitStateTransforms(ArmedState state) => this.FadeOut(180).Expire();
 
-        private static osuTK.Graphics.Color4 colourFor(StickSide side) => side == StickSide.Left
+        private osuTK.Graphics.Color4 colourFor(StickSide side) => playfield?.ColourFor(side) ?? (side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
-            : SticksPlayfield.RIGHT_COLOUR;
+            : SticksPlayfield.RIGHT_COLOUR);
     }
 }

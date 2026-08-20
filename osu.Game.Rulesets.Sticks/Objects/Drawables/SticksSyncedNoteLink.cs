@@ -1,4 +1,5 @@
 using System;
+using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Lines;
@@ -46,6 +47,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private float displayedFirstAngle = float.NaN;
         private StickSide? displayedSecondSide;
         private float displayedSecondAngle = float.NaN;
+        private SticksPlayfield playfield;
+        private int displayedColourVersion = -1;
 
         public SticksSyncedNoteLink(
             StickSide firstSide,
@@ -58,6 +61,25 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Depth = 20;
 
             SetGeometry(firstSide, firstAngle, secondSide, secondAngle);
+        }
+
+        [BackgroundDependencyLoader]
+        private void load(SticksPlayfield sticksPlayfield)
+        {
+            playfield = sticksPlayfield;
+            displayedColourVersion = playfield.ColourVersion;
+            rebuildGeometry();
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            if (playfield == null || displayedColourVersion == playfield.ColourVersion)
+                return;
+
+            displayedColourVersion = playfield.ColourVersion;
+            rebuildGeometry();
         }
 
         public void SetGeometry(
@@ -110,8 +132,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 return;
             }
 
-            AddInternal(path(first, EndpointTowardCentre(first, centre, Presentation), ColourFor(firstSide)));
-            AddInternal(path(second, EndpointTowardCentre(second, centre, Presentation), ColourFor(secondSide)));
+            AddInternal(path(first, EndpointTowardCentre(first, centre, Presentation), displayColourFor(firstSide)));
+            AddInternal(path(second, EndpointTowardCentre(second, centre, Presentation), displayColourFor(secondSide)));
         }
 
         internal static Vector2 EndpointTowardCentre(Vector2 start, Vector2 centre, SticksChordLinkPresentation presentation) =>
@@ -129,7 +151,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             for (float offset = 0; offset < length; offset += dash_length + dash_gap)
             {
                 float dashEnd = Math.Min(length, offset + dash_length);
-                Color4 colour = ColourFor(dashIndex++ % 2 == 0 ? StickSide.Left : StickSide.Right);
+                Color4 colour = displayColourFor(dashIndex++ % 2 == 0 ? StickSide.Left : StickSide.Right);
                 AddInternal(path(start + direction * offset, start + direction * dashEnd, colour));
             }
         }
@@ -164,5 +186,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public static Color4 ColourFor(StickSide side) => side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
             : SticksPlayfield.RIGHT_COLOUR;
+
+        private Color4 displayColourFor(StickSide side) => playfield?.ColourFor(side) ?? ColourFor(side);
     }
 }

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using osu.Framework.Graphics;
 using osu.Framework.Configuration.Tracking;
 using osu.Framework.Extensions;
 using osu.Game.Configuration;
@@ -37,6 +38,9 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             SetDefault(SticksRulesetSetting.ShowCursorTrails, false);
             SetDefault(SticksRulesetSetting.DisableBeatmapHitsounds, false);
             SetDefault(SticksRulesetSetting.SaveReplays, true);
+            SetDefault(SticksRulesetSetting.LeftStickColour, (Colour4)SticksPlayfield.LEFT_COLOUR);
+            SetDefault(SticksRulesetSetting.RightStickColour, (Colour4)SticksPlayfield.RIGHT_COLOUR);
+            SetDefault(SticksRulesetSetting.OverlapColour, (Colour4)SticksPlayfield.OVERLAP_COLOUR);
             SetDefault(SticksRulesetSetting.NoteCircleScale,
                 SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE,
                 SticksPlayfield.MIN_NOTE_CIRCLE_SCALE,
@@ -101,6 +105,21 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks disable beatmap hitsounds",
                 value: disabled ? "enabled" : "disabled"
             )),
+            new TrackedSetting<Colour4>(SticksRulesetSetting.LeftStickColour, colour => new SettingDescription(
+                rawValue: colour,
+                name: "Sticks left stick color",
+                value: colour.ToHex()
+            )),
+            new TrackedSetting<Colour4>(SticksRulesetSetting.RightStickColour, colour => new SettingDescription(
+                rawValue: colour,
+                name: "Sticks right stick color",
+                value: colour.ToHex()
+            )),
+            new TrackedSetting<Colour4>(SticksRulesetSetting.OverlapColour, colour => new SettingDescription(
+                rawValue: colour,
+                name: "Sticks overlap color",
+                value: colour.ToHex()
+            )),
             new TrackedSetting<float>(SticksRulesetSetting.NoteCircleScale, scale => new SettingDescription(
                 rawValue: scale,
                 name: "Sticks note circle size",
@@ -134,6 +153,9 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         ShowCursorTrails,
         DisableBeatmapHitsounds,
         SaveReplays,
+        LeftStickColour,
+        RightStickColour,
+        OverlapColour,
     }
 
     public enum SticksChordLinkPresentation

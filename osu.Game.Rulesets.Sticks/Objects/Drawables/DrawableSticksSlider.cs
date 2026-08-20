@@ -149,7 +149,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             AddInternal(path = createArc(hitObject, path_half_thickness, 1, 5));
 
-            AddInternal(radialPath = new SticksRadialTimelinePath(colourFor(hitObject.Side))
+            AddInternal(radialPath = new SticksRadialTimelinePath(hitObject.Side)
             {
                 Alpha = 0,
                 Depth = 4,
@@ -329,10 +329,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             Color4 colour = colourFor(HitObject.Side);
 
+            headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
+            trackingMarker.SetLane(HitObject.Side, colour);
+            updateArcLane(path, HitObject.Side, path_half_thickness, colour, visualRadialOffset);
+            updateArcLane(reversalPathPreview, HitObject.Side, path_half_thickness, colour, visualRadialOffset);
+            updateArcLane(directionPreview, HitObject.Side, direction_preview_half_thickness, colour, visualRadialOffset);
+
             if (displayedSide != HitObject.Side)
             {
-                headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
-                trackingMarker.SetLane(HitObject.Side, colour);
                 displayedSide = HitObject.Side;
                 applyVisualRadialOffset(visualRadialOffset);
                 trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
@@ -707,7 +711,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Size = new Vector2(outerRadius * 2),
                 InnerRadius = 2 * halfThickness / outerRadius,
                 RoundedCaps = true,
-                Colour = colour ?? colourFor(slider.Side),
+                Colour = colour ?? defaultColourFor(slider.Side),
                 Alpha = alpha,
                 Depth = depth,
             };
@@ -739,7 +743,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             drawable.Progress = (float)(Math.Abs(segmentArcAngle) * (end - start) / 360);
         }
 
-        private static Color4 colourFor(StickSide side) => side == StickSide.Left
+        private Color4 colourFor(StickSide side) => playfield?.ColourFor(side) ?? defaultColourFor(side);
+
+        private static Color4 defaultColourFor(StickSide side) => side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
             : SticksPlayfield.RIGHT_COLOUR;
 

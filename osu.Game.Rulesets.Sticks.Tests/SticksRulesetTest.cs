@@ -51,6 +51,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(new SticksRuleset().Description, Is.EqualTo("Sticks"));
                 Assert.That(new SticksRuleset().ShortName, Is.EqualTo("sticks"));
                 Assert.That(new SticksRuleset().GetModsFor(ModType.Conversion).Single(), Is.TypeOf<SticksModDifficultyAdjust>());
+                Assert.That(new SticksRuleset().GetModsFor(ModType.Fun).Single(), Is.TypeOf<SticksModStrum>());
                 Mod[] automationMods = new SticksRuleset().GetModsFor(ModType.Automation).ToArray();
                 Assert.That(automationMods, Has.Exactly(1).TypeOf<SticksModAutoplay>());
                 Assert.That(automationMods, Has.Exactly(1).TypeOf<SticksModRelax>());
@@ -735,6 +736,97 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestStrumRequiresAimedStickAndDisablesOutwardFlicks()
+        {
+            var input = new SticksInputTracker { FlickGesturesEnabled = false };
+
+            input.Update(StickSide.Left, Vector2.Zero, Vector2.Zero, 900);
+            input.Update(StickSide.Left, Vector2.UnitY, Vector2.UnitY, 1000);
+
+            Assert.That(input.SequenceFor(StickSide.Left), Is.Zero,
+                "Moving outward must not create a note gesture while Strum is active.");
+            Assert.That(input.TriggerStrum(StickSide.Right, 1000), Is.False,
+                "The other trigger cannot strum a stick which has not been aimed outward.");
+            Assert.That(input.TriggerStrum(StickSide.Left, 1000), Is.True);
+
+            SticksInputTracker.FlickEvent strum = input.LastFlickFor(StickSide.Left);
+            Assert.Multiple(() =>
+            {
+                Assert.That(strum.Sequence, Is.EqualTo(1));
+                Assert.That(strum.Time, Is.EqualTo(1000));
+                Assert.That(strum.Angle, Is.EqualTo(90).Within(0.001));
+                Assert.That(input.TryConsumeFlick(StickSide.Left, strum.Sequence), Is.True);
+            });
+        }
+
+        [Test]
+        public void TestTriggerAndShoulderStrumsCanBeMixedFreely()
+        {
+            var trigger = new SticksStrumButtonState();
+            var shoulder = new SticksStrumButtonState();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(trigger.Update(false), Is.False);
+                Assert.That(shoulder.Update(false), Is.False);
+                Assert.That(trigger.Update(true), Is.True);
+                Assert.That(shoulder.Update(true), Is.True,
+                    "Pressing the shoulder while the trigger remains held must create its own strum.");
+                Assert.That(trigger.Update(true), Is.False);
+                Assert.That(shoulder.Update(true), Is.False);
+                Assert.That(trigger.Update(false), Is.False);
+                Assert.That(trigger.Update(true), Is.True,
+                    "The trigger must be reusable without requiring the shoulder to be released.");
+            });
+        }
+
+        [Test]
+        public void TestConfigurableGameplayColoursHaveOpaqueDerivedHighlights()
+        {
+            var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That((Color4)config.Get<Colour4>(SticksRulesetSetting.LeftStickColour), Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
+                Assert.That((Color4)config.Get<Colour4>(SticksRulesetSetting.RightStickColour), Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
+                Assert.That((Color4)config.Get<Colour4>(SticksRulesetSetting.OverlapColour), Is.EqualTo(SticksPlayfield.OVERLAP_COLOUR));
+
+                Color4 highlight = SticksPlayfield.DeriveHighlight(new Color4(0.2f, 0.4f, 0.8f, 0.2f));
+                Assert.That(highlight.R, Is.GreaterThan(0.2f));
+                Assert.That(highlight.G, Is.GreaterThan(0.4f));
+                Assert.That(highlight.B, Is.GreaterThan(0.8f));
+                Assert.That(highlight.A, Is.EqualTo(1));
+            });
+
+            var playfield = new SticksPlayfield();
+            var customLeft = new Color4(0.1f, 0.3f, 0.8f, 0.2f);
+            var customRight = new Color4(0.9f, 0.2f, 0.1f, 0.3f);
+            var customOverlap = new Color4(0.6f, 0.1f, 0.9f, 0.4f);
+            playfield.SetColours(customLeft, customRight, customOverlap);
+            var leftTrail = (SticksCursorTrail)typeof(SticksPlayfield).GetField("leftTrail", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(playfield)!;
+            var rightTrail = (SticksCursorTrail)typeof(SticksPlayfield).GetField("rightTrail", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(playfield)!;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(playfield.ColourFor(StickSide.Left), Is.EqualTo(new Color4(customLeft.R, customLeft.G, customLeft.B, 1)));
+                Assert.That(playfield.ColourFor(StickSide.Right), Is.EqualTo(new Color4(customRight.R, customRight.G, customRight.B, 1)));
+                Assert.That(playfield.OverlapColour, Is.EqualTo(new Color4(customOverlap.R, customOverlap.G, customOverlap.B, 1)));
+                Assert.That(leftTrail.Colour.AverageColour.SRGB, Is.EqualTo(playfield.ColourFor(StickSide.Left)));
+                Assert.That(rightTrail.Colour.AverageColour.SRGB, Is.EqualTo(playfield.ColourFor(StickSide.Right)));
+            });
+
+            playfield.SetColours(SticksPlayfield.LEFT_COLOUR, SticksPlayfield.RIGHT_COLOUR, SticksPlayfield.OVERLAP_COLOUR);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(leftTrail.Colour.AverageColour.SRGB, Is.EqualTo(Color4.White),
+                    "The default blue trail must render its authored sprite without a second tint.");
+                Assert.That(rightTrail.Colour.AverageColour.SRGB, Is.EqualTo(Color4.White),
+                    "The default red trail must render its authored sprite without a second tint.");
+            });
+        }
+
+        [Test]
         public void TestCenterOutTimingAndCursorThresholds()
         {
             Assert.Multiple(() =>
@@ -1181,6 +1273,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             setPrivateField(playfield, "leftY", -0.25f);
             setPrivateField(playfield, "rightX", -0.6f);
             setPrivateField(playfield, "rightY", 0.75f);
+            setPrivateField(playfield, "leftTrigger", 1f);
+            setPrivateField(playfield, "rightShoulderPressed", true);
 
             var recorder = new SticksReplayRecorder(new Score(), playfield);
             var frame = (SticksReplayFrame)typeof(SticksReplayRecorder)
@@ -1193,6 +1287,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(frame.LeftStick, Is.EqualTo(new Vector2(0.8f, -0.25f)),
                     "Replay capture must store raw travel; playback applies the 80% distance mapping once.");
                 Assert.That(frame.RightStick, Is.EqualTo(new Vector2(-0.6f, 0.75f)));
+                Assert.That(frame.LeftTrigger, Is.True);
+                Assert.That(frame.RightTrigger, Is.False);
+                Assert.That(frame.LeftShoulder, Is.False);
+                Assert.That(frame.RightShoulder, Is.True);
                 Assert.That(playfield.PhysicalStickVector(StickSide.Left), Is.EqualTo(frame.LeftStick));
                 Assert.That(playfield.PhysicalStickVector(StickSide.Right), Is.EqualTo(frame.RightStick));
             });
@@ -1392,6 +1490,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                   {
                                       playfield.PhysicalStickVector(StickSide.Left),
                                       playfield.PhysicalStickVector(StickSide.Right),
+                                      false,
+                                      false,
+                                      false,
+                                      false,
                                   });
 
             Assert.Multiple(() =>
@@ -1403,7 +1505,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             typeof(SticksPlayfield).GetMethod("reportPhysicalStickInput", BindingFlags.Instance | BindingFlags.NonPublic)!
-                                  .Invoke(playfield, new object[] { reportedLeft, reportedRight });
+                                  .Invoke(playfield, new object[] { reportedLeft, reportedRight, false, false, false, false });
             Assert.That(notifications, Is.EqualTo(1), "An unchanged controller sample must not generate a duplicate frame.");
         }
 

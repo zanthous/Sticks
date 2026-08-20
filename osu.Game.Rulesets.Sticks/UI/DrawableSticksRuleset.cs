@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
+using osu.Framework.Graphics;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
@@ -43,6 +44,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly BindableBool showCursorTrails = new BindableBool();
         private readonly BindableBool saveReplays = new BindableBool(true);
+        private readonly Bindable<Colour4> leftStickColour = new Bindable<Colour4>((Colour4)SticksPlayfield.LEFT_COLOUR);
+        private readonly Bindable<Colour4> rightStickColour = new Bindable<Colour4>((Colour4)SticksPlayfield.RIGHT_COLOUR);
+        private readonly Bindable<Colour4> overlapColour = new Bindable<Colour4>((Colour4)SticksPlayfield.OVERLAP_COLOUR);
         private readonly BindableFloat noteCircleScale = new BindableFloat(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE);
         private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
         private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
@@ -98,6 +102,12 @@ namespace osu.Game.Rulesets.Sticks.UI
             showCursorTrails.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).ShowCursorTrails = enabled.NewValue, true);
             Config.BindWith(SticksRulesetSetting.SaveReplays, saveReplays);
+            Config.BindWith(SticksRulesetSetting.LeftStickColour, leftStickColour);
+            Config.BindWith(SticksRulesetSetting.RightStickColour, rightStickColour);
+            Config.BindWith(SticksRulesetSetting.OverlapColour, overlapColour);
+            leftStickColour.BindValueChanged(_ => applyColours(), true);
+            rightStickColour.BindValueChanged(_ => applyColours(), true);
+            overlapColour.BindValueChanged(_ => applyColours(), true);
             Config.BindWith(SticksRulesetSetting.NoteCircleScale, noteCircleScale);
             noteCircleScale.BindValueChanged(scale =>
                 ((SticksPlayfield)Playfield).NoteCircleScale = scale.NewValue, true);
@@ -134,8 +144,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             // while lazer replaces or removes its replay handler.
             replayInputProvider.Deactivate();
 
-            if (replayScore != null && replayScore.Replay.Frames.Count == 0)
-                replayStore?.TryRestore(replayScore);
+            if (replayScore != null)
+                replayStore?.TryRestore(replayScore, replaceExisting: true);
 
             base.SetReplayScore(replayScore);
         }
@@ -203,6 +213,11 @@ namespace osu.Game.Rulesets.Sticks.UI
             foreach (DrawableHitObject nested in drawable.NestedHitObjects)
                 refreshApproachTransforms(nested);
         }
+
+        private void applyColours() => ((SticksPlayfield)Playfield).SetColours(
+            leftStickColour.Value,
+            rightStickColour.Value,
+            overlapColour.Value);
 
         internal static SticksNotePresentation NotePresentationForContext(
             SticksNotePresentation selectedPresentation,

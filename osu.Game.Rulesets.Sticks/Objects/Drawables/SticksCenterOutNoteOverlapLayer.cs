@@ -38,6 +38,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 AddInternal(overlaps[i] = new OverlapVisual());
         }
 
+        public void SetColour(Color4 colour)
+        {
+            foreach (OverlapVisual overlap in overlaps)
+                overlap.SetColour(colour);
+        }
+
         protected override void Update()
         {
             base.Update();
@@ -172,6 +178,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     firstTick = createTick(Color4.White, tick_half_length),
                     secondTick = createTick(Color4.White, tick_half_length),
                 });
+            }
+
+            public void SetColour(Color4 colour)
+            {
+                arc.Colour = colour;
+                leadingCap.Colour = colour;
+                trailingCap.Colour = colour;
             }
 
             public void SetGeometry(

@@ -131,7 +131,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 },
             });
 
-            AddInternal(radialPath = new SticksRadialTimelinePath(colourFor(hitObject.Side))
+            AddInternal(radialPath = new SticksRadialTimelinePath(hitObject.Side)
             {
                 Alpha = 0,
                 Depth = 4,
@@ -199,6 +199,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 ? Vector2.Zero
                 : new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * visualRadialOffset;
             refreshGeometry();
+            headMarker.SetLane(HitObject.Side, colourFor(HitObject.Side));
+            durationRail.Colour = colourFor(HitObject.Side);
 
             double now = Time.Current;
             updateEditorState(now);
@@ -639,8 +641,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 this.FadeColour(Color4.Gray, 100).FadeOut(240).Expire();
         }
 
-        private static Color4 colourFor(StickSide side) => side == StickSide.Left
+        private Color4 colourFor(StickSide side) => playfield?.ColourFor(side) ?? (side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
-            : SticksPlayfield.RIGHT_COLOUR;
+            : SticksPlayfield.RIGHT_COLOUR);
     }
 }

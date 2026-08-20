@@ -14,8 +14,12 @@ namespace osu.Game.Rulesets.Sticks.Replays
     internal sealed class SticksReplayStore
     {
         private const int magic = 0x53544B52;
-        private const int version = 1;
-        private const int bytes_per_frame = sizeof(double) + sizeof(float) * 4;
+        private const int version = 3;
+        private const int version_with_triggers = 2;
+        private const int version_without_buttons = 1;
+        private const int bytes_per_frame_v1 = sizeof(double) + sizeof(float) * 4;
+        private const int bytes_per_frame_v2 = bytes_per_frame_v1 + sizeof(bool) * 2;
+        private const int bytes_per_frame_v3 = bytes_per_frame_v2 + sizeof(bool) * 2;
         private const int maximum_frame_count = 10_000_000;
 
         private readonly Storage storage;
@@ -56,6 +60,10 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     writer.Write(frame.LeftStick.Y);
                     writer.Write(frame.RightStick.X);
                     writer.Write(frame.RightStick.Y);
+                    writer.Write(frame.LeftTrigger);
+                    writer.Write(frame.RightTrigger);
+                    writer.Write(frame.LeftShoulder);
+                    writer.Write(frame.RightShoulder);
                 }
 
                 return true;
@@ -104,9 +112,9 @@ namespace osu.Game.Rulesets.Sticks.Replays
             }
         }
 
-        public bool TryRestore(Score score)
+        public bool TryRestore(Score score, bool replaceExisting = false)
         {
-            if (score.Replay.Frames.Count != 0)
+            if (score.Replay.Frames.Count != 0 && !replaceExisting)
                 return true;
 
             string filename = filenameFor(score.ScoreInfo.ID);
@@ -118,14 +126,25 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 using Stream stream = storage.GetStream(filename, FileAccess.Read, FileMode.Open);
                 using var reader = new BinaryReader(stream);
 
-                if (stream.Length < sizeof(int) * 2 || reader.ReadInt32() != magic || reader.ReadInt32() != version)
+                if (stream.Length < sizeof(int) * 2 || reader.ReadInt32() != magic)
                     return false;
+
+                int storedVersion = reader.ReadInt32();
+                if (storedVersion is not version and not version_with_triggers and not version_without_buttons)
+                    return false;
+
+                int bytesPerFrame = storedVersion switch
+                {
+                    version => bytes_per_frame_v3,
+                    version_with_triggers => bytes_per_frame_v2,
+                    _ => bytes_per_frame_v1,
+                };
 
                 long payloadLength = stream.Length - stream.Position;
-                if (payloadLength < 0 || payloadLength % bytes_per_frame != 0)
+                if (payloadLength < 0 || payloadLength % bytesPerFrame != 0)
                     return false;
 
-                long frameCount = payloadLength / bytes_per_frame;
+                long frameCount = payloadLength / bytesPerFrame;
                 if (frameCount <= 0 || frameCount > maximum_frame_count)
                     return false;
 
@@ -137,7 +156,11 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     var frame = new SticksReplayFrame(
                         reader.ReadDouble(),
                         new Vector2(reader.ReadSingle(), reader.ReadSingle()),
-                        new Vector2(reader.ReadSingle(), reader.ReadSingle()));
+                        new Vector2(reader.ReadSingle(), reader.ReadSingle()),
+                        storedVersion >= version_with_triggers && reader.ReadBoolean(),
+                        storedVersion >= version_with_triggers && reader.ReadBoolean(),
+                        storedVersion >= version && reader.ReadBoolean(),
+                        storedVersion >= version && reader.ReadBoolean());
 
                     if (!isValid(frame) || frame.Time < previousTime)
                         return false;
@@ -145,6 +168,9 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     previousTime = frame.Time;
                     restored[i] = frame;
                 }
+
+                if (replaceExisting)
+                    score.Replay.Frames.Clear();
 
                 score.Replay.Frames.AddRange(restored);
                 score.Replay.HasReceivedAllFrames = true;

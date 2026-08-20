@@ -64,9 +64,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             if (marker.Side != HitObject.Side)
             {
-                marker.SetLane(HitObject.Side, colourFor(HitObject.Side));
                 observedSequence = playfield.FlickSequence(HitObject.Side);
             }
+            marker.SetLane(HitObject.Side, playfield.ColourFor(HitObject.Side));
             marker.Presentation = playfield.NotePresentation;
             marker.TargetCircleScale = playfield.NoteCircleScale;
             marker.Angle = HitObject.Angle;

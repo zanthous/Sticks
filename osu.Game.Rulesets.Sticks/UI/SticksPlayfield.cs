@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
@@ -9,6 +10,8 @@ using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Shaders;
+using osu.Framework.Graphics.Rendering;
+using osu.Framework.Graphics.Shaders.Types;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
 using osu.Game.Beatmaps;
@@ -48,6 +51,8 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly CircularContainer leftCursor;
         private readonly CircularContainer rightCursor;
+        private readonly Box leftCursorFill;
+        private readonly Box rightCursorFill;
         private readonly SticksCursorTrail leftTrail;
         private readonly SticksCursorTrail rightTrail;
         private readonly SmoothPath leftRelaxDirectionLine;
@@ -68,14 +73,31 @@ namespace osu.Game.Rulesets.Sticks.UI
         private float leftY;
         private float rightX;
         private float rightY;
+        private float leftTrigger;
+        private float rightTrigger;
+        private bool leftShoulderPressed;
+        private bool rightShoulderPressed;
+        private readonly SticksStrumButtonState leftTriggerButton = new SticksStrumButtonState();
+        private readonly SticksStrumButtonState rightTriggerButton = new SticksStrumButtonState();
+        private readonly SticksStrumButtonState leftShoulderButton = new SticksStrumButtonState();
+        private readonly SticksStrumButtonState rightShoulderButton = new SticksStrumButtonState();
         private Vector2 lastReportedPhysicalLeft;
         private Vector2 lastReportedPhysicalRight;
+        private bool lastReportedLeftTrigger;
+        private bool lastReportedRightTrigger;
+        private bool lastReportedLeftShoulder;
+        private bool lastReportedRightShoulder;
         private Vector2 relaxedLeftDirection;
         private Vector2 relaxedRightDirection;
         private float previousDisplayedLeftMagnitude;
         private float previousDisplayedRightMagnitude;
         private double leftCursorOutwardUntil = double.NegativeInfinity;
         private double rightCursorOutwardUntil = double.NegativeInfinity;
+        private Color4 leftColour = LEFT_COLOUR;
+        private Color4 rightColour = RIGHT_COLOUR;
+        private Color4 overlapColour = OVERLAP_COLOUR;
+
+        public int ColourVersion { get; private set; }
 
         public event Action<bool> PhysicalStickInputChanged;
 
@@ -122,6 +144,16 @@ namespace osu.Game.Rulesets.Sticks.UI
         public bool RelaxMode { get; set; }
 
         /// <summary>
+        /// Replaces outward flick detection with a trigger press made while the corresponding
+        /// stick is already aimed beyond the activation boundary.
+        /// </summary>
+        public bool StrumMode
+        {
+            get => !input.FlickGesturesEnabled;
+            set => input.FlickGesturesEnabled = !value;
+        }
+
+        /// <summary>
         /// The physical stick magnitude represented as full distance for gameplay, gesture detection,
         /// and the cursor.
         /// </summary>
@@ -159,6 +191,52 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public CircularContainer RightStickCursor => rightCursor;
 
+        public Color4 ColourFor(StickSide side) => side == StickSide.Left ? leftColour : rightColour;
+
+        public Color4 OverlapColour => overlapColour;
+
+        public Color4 HighlightColourFor(StickSide side) => DeriveHighlight(ColourFor(side));
+
+        public Color4 OverlapHighlightColour => DeriveHighlight(overlapColour);
+
+        public static Color4 DeriveHighlight(Color4 colour)
+        {
+            const float brightness = 1.25f;
+            const float whiteMix = 0.15f;
+            float r = Math.Min(1, colour.R * brightness);
+            float g = Math.Min(1, colour.G * brightness);
+            float b = Math.Min(1, colour.B * brightness);
+            return new Color4(
+                r + (1 - r) * whiteMix,
+                g + (1 - g) * whiteMix,
+                b + (1 - b) * whiteMix,
+                1);
+        }
+
+        public void SetColours(Color4 left, Color4 right, Color4 overlap)
+        {
+            left = left.Opacity(1f);
+            right = right.Opacity(1f);
+            overlap = overlap.Opacity(1f);
+
+            if (leftColour == left && rightColour == right && overlapColour == overlap)
+                return;
+
+            leftColour = left;
+            rightColour = right;
+            overlapColour = overlap;
+            ColourVersion++;
+
+            leftCursorFill.Colour = leftColour;
+            rightCursorFill.Colour = rightColour;
+            leftTrail.SetPaletteColour(leftColour, leftColour == LEFT_COLOUR);
+            rightTrail.SetPaletteColour(rightColour, rightColour == RIGHT_COLOUR);
+            leftRelaxDirectionLine.Colour = leftColour;
+            rightRelaxDirectionLine.Colour = rightColour;
+            noteOverlapLayer.SetColour(overlapColour);
+            radialPathBuffer.SetPalette(leftColour, rightColour, overlapColour);
+        }
+
         /// <summary>
         /// Returns the unmodified physical controller position. Replays must store this rather than
         /// <see cref="StickVector"/>, because gameplay distance mapping is reapplied during playback.
@@ -166,6 +244,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         public Vector2 PhysicalStickVector(StickSide side) => side == StickSide.Left
             ? new Vector2(leftX, leftY)
             : new Vector2(rightX, rightY);
+
+        public bool TriggerPressed(StickSide side) => side == StickSide.Left
+            ? isTriggerPressed(leftTrigger)
+            : isTriggerPressed(rightTrigger);
+
+        public bool ShoulderPressed(StickSide side) => side == StickSide.Left
+            ? leftShoulderPressed
+            : rightShoulderPressed;
 
         /// <summary>
         /// Duration objects remain trackable only while the physical stick is strictly outside
@@ -208,8 +294,8 @@ namespace osu.Game.Rulesets.Sticks.UI
                 judgementDisplay = new SticksJudgementDisplay(),
                 leftTrail = new SticksCursorTrail("Cursors/blue"),
                 rightTrail = new SticksCursorTrail("Cursors/red"),
-                leftCursor = cursor(LEFT_COLOUR),
-                rightCursor = cursor(RIGHT_COLOUR),
+                leftCursor = cursor(LEFT_COLOUR, out leftCursorFill),
+                rightCursor = cursor(RIGHT_COLOUR, out rightCursorFill),
             });
         }
 
@@ -246,7 +332,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             contactBurstLayer.Trigger(
                 angle,
                 hitSpan,
-                side == StickSide.Left ? LEFT_COLOUR : RIGHT_COLOUR,
+                ColourFor(side),
                 completion);
         }
 
@@ -594,11 +680,63 @@ namespace osu.Game.Rulesets.Sticks.UI
                     rightY = e.Axis.Value;
                     break;
 
+                case JoystickAxisSource.GamePadLeftTrigger:
+                    leftTrigger = e.Axis.Value;
+                    break;
+
+                case JoystickAxisSource.GamePadRightTrigger:
+                    rightTrigger = e.Axis.Value;
+                    break;
+
                 default:
                     return base.OnJoystickAxisMove(e);
             }
 
             return true;
+        }
+
+        protected override bool OnJoystickPress(JoystickPressEvent e)
+        {
+            if (!StrumMode)
+                return base.OnJoystickPress(e);
+
+            switch (e.Button)
+            {
+                case JoystickButton.GamePadLeftShoulder:
+                    leftShoulderPressed = true;
+                    return true;
+
+                case JoystickButton.GamePadRightShoulder:
+                    rightShoulderPressed = true;
+                    return true;
+
+                default:
+                    return base.OnJoystickPress(e);
+            }
+        }
+
+        protected override void OnJoystickRelease(JoystickReleaseEvent e)
+        {
+            if (!StrumMode)
+            {
+                base.OnJoystickRelease(e);
+                return;
+            }
+
+            switch (e.Button)
+            {
+                case JoystickButton.GamePadLeftShoulder:
+                    leftShoulderPressed = false;
+                    return;
+
+                case JoystickButton.GamePadRightShoulder:
+                    rightShoulderPressed = false;
+                    return;
+
+                default:
+                    base.OnJoystickRelease(e);
+                    break;
+            }
         }
 
         protected override void Update()
@@ -607,9 +745,13 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             var left = new Vector2(leftX, leftY);
             var right = new Vector2(rightX, rightY);
+            bool leftTriggerPressed = TriggerPressed(StickSide.Left);
+            bool rightTriggerPressed = TriggerPressed(StickSide.Right);
+            bool leftShoulder = ShoulderPressed(StickSide.Left);
+            bool rightShoulder = ShoulderPressed(StickSide.Right);
 
             if (replayInputProvider.Active)
-                (left, right) = replayInputProvider.Snapshot();
+                (left, right, leftTriggerPressed, rightTriggerPressed, leftShoulder, rightShoulder) = replayInputProvider.SnapshotWithButtons();
 
             Vector2 displayedLeft = MapStickDistance(left, PhysicalStickDistanceAtGameEdge);
             Vector2 displayedRight = MapStickDistance(right, PhysicalStickDistanceAtGameEdge);
@@ -623,9 +765,21 @@ namespace osu.Game.Rulesets.Sticks.UI
                 // over immediately rather than inheriting the replay's final held position.
                 input.Update(StickSide.Left, left, MapStickDistance(left, PhysicalStickDistanceAtGameEdge), Time.Current);
                 input.Update(StickSide.Right, right, MapStickDistance(right, PhysicalStickDistanceAtGameEdge), Time.Current);
+
+                if (StrumMode)
+                {
+                    if (leftTriggerButton.Update(leftTriggerPressed))
+                        input.TriggerStrum(StickSide.Left, Time.Current);
+                    if (rightTriggerButton.Update(rightTriggerPressed))
+                        input.TriggerStrum(StickSide.Right, Time.Current);
+                    if (leftShoulderButton.Update(leftShoulder))
+                        input.TriggerStrum(StickSide.Left, Time.Current);
+                    if (rightShoulderButton.Update(rightShoulder))
+                        input.TriggerStrum(StickSide.Right, Time.Current);
+                }
             }
 
-            reportPhysicalStickInput(left, right);
+            reportPhysicalStickInput(left, right, leftTriggerPressed, rightTriggerPressed, leftShoulder, rightShoulder);
             bool leftCursorVisible = updateCursor(
                 leftCursor,
                 displayedLeft,
@@ -754,21 +908,38 @@ namespace osu.Game.Rulesets.Sticks.UI
             return false;
         }
 
-        private void reportPhysicalStickInput(Vector2 left, Vector2 right)
+        private void reportPhysicalStickInput(Vector2 left, Vector2 right,
+                                              bool leftTriggerPressed, bool rightTriggerPressed,
+                                              bool leftShoulder, bool rightShoulder)
         {
-            if (left == lastReportedPhysicalLeft && right == lastReportedPhysicalRight)
+            if (left == lastReportedPhysicalLeft
+                && right == lastReportedPhysicalRight
+                && leftTriggerPressed == lastReportedLeftTrigger
+                && rightTriggerPressed == lastReportedRightTrigger
+                && leftShoulder == lastReportedLeftShoulder
+                && rightShoulder == lastReportedRightShoulder)
                 return;
 
             bool important = RelaxMode
+                             || leftTriggerPressed != lastReportedLeftTrigger
+                             || rightTriggerPressed != lastReportedRightTrigger
+                             || leftShoulder != lastReportedLeftShoulder
+                             || rightShoulder != lastReportedRightShoulder
                              || crossesGestureBoundary(lastReportedPhysicalLeft, left)
                              || crossesGestureBoundary(lastReportedPhysicalRight, right);
             lastReportedPhysicalLeft = left;
             lastReportedPhysicalRight = right;
+            lastReportedLeftTrigger = leftTriggerPressed;
+            lastReportedRightTrigger = rightTriggerPressed;
+            lastReportedLeftShoulder = leftShoulder;
+            lastReportedRightShoulder = rightShoulder;
 
             // Joystick X and Y arrive as separate framework events. Publishing here, after the
             // input event batch has completed, prevents recording a new X with the previous Y.
             PhysicalStickInputChanged?.Invoke(important);
         }
+
+        private static bool isTriggerPressed(float value) => value >= 0.5f;
 
         private bool crossesGestureBoundary(Vector2 previous, Vector2 current)
         {
@@ -871,8 +1042,16 @@ namespace osu.Game.Rulesets.Sticks.UI
             Depth = 10,
         };
 
-        private static CircularContainer cursor(Color4 colour) => new CircularContainer
+        private static CircularContainer cursor(Color4 colour, out Box fill)
         {
+            fill = new Box
+            {
+                RelativeSizeAxes = Axes.Both,
+                Colour = colour,
+            };
+
+            return new CircularContainer
+            {
             Anchor = Anchor.TopLeft,
             Origin = Anchor.Centre,
             Size = new Vector2(24),
@@ -888,12 +1067,9 @@ namespace osu.Game.Rulesets.Sticks.UI
                 Hollow = true,
             },
             Depth = -20,
-            Child = new Box
-            {
-                RelativeSizeAxes = Axes.Both,
-                Colour = colour,
-            },
-        };
+                Child = fill,
+            };
+        }
 
         private static SticksHitObject headHitObjectFor(DrawableHitObject drawable) => drawable switch
         {
@@ -922,6 +1098,10 @@ namespace osu.Game.Rulesets.Sticks.UI
         private partial class SticksRibbonBuffer : BufferedContainer, ITexturedShaderDrawable
         {
             private IShader compositeShader = null!;
+            private PaletteShader paletteShader;
+            private Color4 leftColour = LEFT_COLOUR;
+            private Color4 rightColour = RIGHT_COLOUR;
+            private Color4 overlapColour = OVERLAP_COLOUR;
 
             IShader ITexturedShaderDrawable.TextureShader => compositeShader;
 
@@ -930,10 +1110,87 @@ namespace osu.Game.Rulesets.Sticks.UI
             {
             }
 
-            [BackgroundDependencyLoader]
-            private void load(ShaderManager shaders)
+            public void SetPalette(Color4 left, Color4 right, Color4 overlap)
             {
-                compositeShader = shaders.Load(VertexShaderDescriptor.TEXTURE_2, "SticksRibbonComposite");
+                leftColour = left;
+                rightColour = right;
+                overlapColour = overlap;
+                paletteShader?.SetPalette(left, right, overlap);
+            }
+
+            [BackgroundDependencyLoader]
+            private void load(IRenderer renderer, ShaderManager shaders)
+            {
+                IShader shader = shaders.Load(VertexShaderDescriptor.TEXTURE_2, "SticksRibbonComposite");
+                compositeShader = paletteShader = new PaletteShader(renderer, shader);
+                paletteShader.SetPalette(leftColour, rightColour, overlapColour);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                if (isDisposing)
+                    paletteShader?.Dispose();
+
+                base.Dispose(isDisposing);
+            }
+
+            private sealed class PaletteShader : IShader
+            {
+                private readonly IRenderer renderer;
+                private readonly IShader shader;
+                private IUniformBuffer<PaletteParameters> parameters;
+                private readonly object sync = new object();
+                private PaletteParameters palette;
+
+                public bool IsLoaded => shader.IsLoaded;
+
+                public bool IsBound => shader.IsBound;
+
+                public PaletteShader(IRenderer renderer, IShader shader)
+                {
+                    this.renderer = renderer;
+                    this.shader = shader;
+                }
+
+                public void SetPalette(Color4 left, Color4 right, Color4 overlap)
+                {
+                    lock (sync)
+                    {
+                        palette = new PaletteParameters
+                        {
+                            LeftColour = new Vector4(left.R, left.G, left.B, 1),
+                            RightColour = new Vector4(right.R, right.G, right.B, 1),
+                            OverlapColour = new Vector4(overlap.R, overlap.G, overlap.B, 1),
+                        };
+                    }
+                }
+
+                public void Bind()
+                {
+                    // GPU resources may only be created on the draw thread. This wrapper is
+                    // constructed during asynchronous loading, while Bind() runs during drawing.
+                    parameters ??= renderer.CreateUniformBuffer<PaletteParameters>();
+
+                    lock (sync)
+                        parameters.Data = palette;
+
+                    shader.Bind();
+                    shader.BindUniformBlock("m_SticksPalette", parameters);
+                }
+
+                public void Unbind() => shader.Unbind();
+
+                public void BindUniformBlock(string blockName, IUniformBuffer buffer) => shader.BindUniformBlock(blockName, buffer);
+
+                public void Dispose() => parameters?.Dispose();
+            }
+
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            private record struct PaletteParameters
+            {
+                public UniformVector4 LeftColour;
+                public UniformVector4 RightColour;
+                public UniformVector4 OverlapColour;
             }
         }
 

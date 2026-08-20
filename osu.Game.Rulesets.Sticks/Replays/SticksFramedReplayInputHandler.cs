@@ -36,7 +36,11 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 // never occurred in the recorded play.
                 inputProvider.Update(
                     HasFrames ? StartFrame.LeftStick : Vector2.Zero,
-                    HasFrames ? StartFrame.RightStick : Vector2.Zero);
+                    HasFrames ? StartFrame.RightStick : Vector2.Zero,
+                    HasFrames && StartFrame.LeftTrigger,
+                    HasFrames && StartFrame.RightTrigger,
+                    HasFrames && StartFrame.LeftShoulder,
+                    HasFrames && StartFrame.RightShoulder);
                 return;
             }
 
@@ -44,7 +48,11 @@ namespace osu.Game.Rulesets.Sticks.Replays
             float activationThreshold = flickActivationThreshold();
             inputProvider.Update(
                 InterpolateStick(StartFrame.LeftStick, EndFrame.LeftStick, CurrentTime, StartFrame.Time, EndFrame.Time, edgeDistance, activationThreshold),
-                InterpolateStick(StartFrame.RightStick, EndFrame.RightStick, CurrentTime, StartFrame.Time, EndFrame.Time, edgeDistance, activationThreshold));
+                InterpolateStick(StartFrame.RightStick, EndFrame.RightStick, CurrentTime, StartFrame.Time, EndFrame.Time, edgeDistance, activationThreshold),
+                CurrentTime < EndFrame.Time ? StartFrame.LeftTrigger : EndFrame.LeftTrigger,
+                CurrentTime < EndFrame.Time ? StartFrame.RightTrigger : EndFrame.RightTrigger,
+                CurrentTime < EndFrame.Time ? StartFrame.LeftShoulder : EndFrame.LeftShoulder,
+                CurrentTime < EndFrame.Time ? StartFrame.RightShoulder : EndFrame.RightShoulder);
         }
 
         /// <summary>

@@ -24,8 +24,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestCustomScoreReplayRoundTripsThroughPrivateStorage()
         {
             var original = new Score();
-            original.Replay.Frames.Add(new SticksReplayFrame(900, Vector2.Zero, new Vector2(0.25f, -0.5f)));
-            original.Replay.Frames.Add(new SticksReplayFrame(1000, new Vector2(0.8f, 0.6f), new Vector2(-1, 0)));
+            original.Replay.Frames.Add(new SticksReplayFrame(900, Vector2.Zero, new Vector2(0.25f, -0.5f), leftTrigger: true, rightShoulder: true));
+            original.Replay.Frames.Add(new SticksReplayFrame(1000, new Vector2(0.8f, 0.6f), new Vector2(-1, 0), rightTrigger: true, leftShoulder: true));
 
             var store = new SticksReplayStore(storage);
             Assert.That(store.Save(original), Is.True);
@@ -43,9 +43,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(first.Time, Is.EqualTo(900));
                 Assert.That(first.LeftStick, Is.EqualTo(Vector2.Zero));
                 Assert.That(first.RightStick, Is.EqualTo(new Vector2(0.25f, -0.5f)));
+                Assert.That(first.LeftTrigger, Is.True);
+                Assert.That(first.RightTrigger, Is.False);
+                Assert.That(first.LeftShoulder, Is.False);
+                Assert.That(first.RightShoulder, Is.True);
                 Assert.That(second.Time, Is.EqualTo(1000));
                 Assert.That(second.LeftStick, Is.EqualTo(new Vector2(0.8f, 0.6f)));
                 Assert.That(second.RightStick, Is.EqualTo(new Vector2(-1, 0)));
+                Assert.That(second.LeftTrigger, Is.False);
+                Assert.That(second.RightTrigger, Is.True);
+                Assert.That(second.LeftShoulder, Is.True);
+                Assert.That(second.RightShoulder, Is.False);
             });
         }
 

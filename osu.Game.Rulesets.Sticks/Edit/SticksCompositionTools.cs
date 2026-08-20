@@ -2,12 +2,17 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Game.Graphics;
 using osu.Game.Rulesets.Edit;
-using osu.Game.Rulesets.Edit.Tools;
 using osu.Game.Rulesets.Sticks.Edit.Blueprints;
+
+#if STICKS_RULESET_API_2026_818
+using SticksCompositionTool = osu.Game.Rulesets.Edit.Tools.CompositionTool<osu.Game.Rulesets.Sticks.SticksAction>;
+#else
+using SticksCompositionTool = osu.Game.Rulesets.Edit.Tools.CompositionTool;
+#endif
 
 namespace osu.Game.Rulesets.Sticks.Edit
 {
-    public class SticksFlickCompositionTool : CompositionTool
+    public class SticksFlickCompositionTool : SticksCompositionTool
     {
         public SticksFlickCompositionTool()
             : base("Flick")
@@ -20,7 +25,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksFlickPlacementBlueprint();
     }
 
-    public class SticksHoldCompositionTool : CompositionTool
+    public class SticksHoldCompositionTool : SticksCompositionTool
     {
         public SticksHoldCompositionTool()
             : base("Hold")
@@ -33,7 +38,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksHoldPlacementBlueprint();
     }
 
-    public class SticksSliderCompositionTool : CompositionTool
+    public class SticksSliderCompositionTool : SticksCompositionTool
     {
         public SticksSliderCompositionTool()
             : base("Slider")

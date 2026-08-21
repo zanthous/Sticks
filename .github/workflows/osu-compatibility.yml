@@ -182,9 +182,6 @@ jobs:
               throw "Compatibility DLL informational version '$informationalVersion' does not match '$env:RULESET_VERSION'."
           }
 
-          $hash = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $env:ASSET_NAME" | Set-Content -LiteralPath "$dll.sha256" -Encoding utf8NoBOM
-
       - name: Transfer compatible DLL to release job
         uses: actions/upload-artifact@v6
         with:
@@ -237,10 +234,6 @@ jobs:
                       throw "Could not carry $assetName forward from $env:PREVIOUS_RELEASE_TAG."
                   }
 
-                  gh release download $env:PREVIOUS_RELEASE_TAG --pattern "$assetName.sha256" --dir $output
-                  if ($LASTEXITCODE -ne 0) {
-                      throw "Could not carry $assetName.sha256 forward from $env:PREVIOUS_RELEASE_TAG."
-                  }
               }
           }
 

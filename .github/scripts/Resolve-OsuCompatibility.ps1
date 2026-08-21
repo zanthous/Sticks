@@ -70,7 +70,7 @@ $lazerAsset = "osu.Game.Rulesets.Sticks-$($lazerRelease.tag_name).dll"
 $tachyonAsset = "osu.Game.Rulesets.Sticks-$($tachyonRelease.tag_name).dll"
 $targets = [Collections.Generic.List[object]]::new()
 
-if ($Force -or $assetNames -notcontains $lazerAsset -or $assetNames -notcontains "$lazerAsset.sha256") {
+if ($Force -or $assetNames -notcontains $lazerAsset) {
     $targets.Add([ordered]@{
         name = "Latest stable lazer"
         channel = "lazer"
@@ -81,7 +81,7 @@ if ($Force -or $assetNames -notcontains $lazerAsset -or $assetNames -notcontains
     })
 }
 
-if ($Force -or $assetNames -notcontains $tachyonAsset -or $assetNames -notcontains "$tachyonAsset.sha256") {
+if ($Force -or $assetNames -notcontains $tachyonAsset) {
     $targets.Add([ordered]@{
         name = "Latest Tachyon canary"
         channel = "tachyon"

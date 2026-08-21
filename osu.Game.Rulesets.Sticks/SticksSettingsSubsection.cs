@@ -58,6 +58,9 @@ namespace osu.Game.Rulesets.Sticks
             var config = (SticksRulesetConfigManager)Config;
             var stackedNotePresentation = config.GetBindable<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation);
             var notePresentation = config.GetBindable<SticksNotePresentation>(SticksRulesetSetting.NotePresentation);
+            var flickActivationThreshold = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
+            var leftStickColour = config.GetBindable<Colour4>(SticksRulesetSetting.LeftStickColour);
+            var rightStickColour = config.GetBindable<Colour4>(SticksRulesetSetting.RightStickColour);
             if (notePresentation.Value is SticksNotePresentation.ApproachCircles or SticksNotePresentation.FillingArcs)
                 notePresentation.Value = SticksNotePresentation.CenterOut;
 
@@ -110,7 +113,7 @@ namespace osu.Game.Rulesets.Sticks
                 new SettingsItemV2(new FormSliderBar<float>
                 {
                     Caption = "Flick activation",
-                    Current = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold),
+                    Current = flickActivationThreshold,
                     KeyboardStep = 0.01f,
                     LabelFormat = value =>
                         $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
@@ -169,6 +172,14 @@ namespace osu.Game.Rulesets.Sticks
                 radialApproachSpeed,
                 new SettingsButtonV2
                 {
+                    Text = "Test controller stick speed",
+                    TooltipText = "Measure physical return-to-neutral speed and average press-to-edge speed for each stick.",
+                    Keywords = new[] { "controller", "gamepad", "stick", "speed", "return", "neutral", "test" },
+                    BackgroundColour = Colour4.FromHex("EEAA00"),
+                    Action = () => openControllerTest(flickActivationThreshold.Value, leftStickColour.Value, rightStickColour.Value),
+                },
+                new SettingsButtonV2
+                {
                     Text = "Create blank Sticks difficulty",
                     TooltipText = "Copy the selected osu!standard song's timing and resources, clear its objects, and open the Sticks editor.",
                     Keywords = new[] { "editor", "map", "compose", "blank", "timing" },
@@ -213,6 +224,19 @@ namespace osu.Game.Rulesets.Sticks
 
             stackedNotePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
             notePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
+        }
+
+        private void openControllerTest(float activationThreshold, Colour4 leftColour, Colour4 rightColour)
+        {
+            if (screenRunner == null)
+            {
+                postError("The Sticks controller test is unavailable on this screen.");
+                return;
+            }
+
+            screenRunner.PerformFromScreen(
+                screen => screen.Push(new SticksControllerTestScreen(activationThreshold, leftColour, rightColour)),
+                new[] { typeof(SongSelect), typeof(MainMenu) });
         }
 
         private void restoreAuthoredDifficulty()

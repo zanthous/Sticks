@@ -247,12 +247,6 @@ jobs:
           Copy-Item -LiteralPath ".\LICENSE.md" -Destination $output -Force
           Copy-Item -LiteralPath ".\THIRD_PARTY_NOTICES.md" -Destination $output -Force
 
-          $stableDll = Join-Path $output $env:LAZER_ASSET
-          $genericDll = Join-Path $output "osu.Game.Rulesets.Sticks.dll"
-          Copy-Item -LiteralPath $stableDll -Destination $genericDll -Force
-          $genericHash = (Get-FileHash -LiteralPath $genericDll -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$genericHash  osu.Game.Rulesets.Sticks.dll" | Set-Content -LiteralPath "$genericDll.sha256" -Encoding utf8NoBOM
-
       - name: Create GitHub release
         shell: pwsh
         env:
@@ -261,14 +255,16 @@ jobs:
           RULESET_VERSION: ${{ needs.check_releases.outputs.ruleset_version }}
           LAZER_TAG: ${{ needs.check_releases.outputs.lazer_tag }}
           TACHYON_TAG: ${{ needs.check_releases.outputs.tachyon_tag }}
+          LAZER_ASSET: ${{ needs.check_releases.outputs.lazer_asset }}
+          TACHYON_ASSET: ${{ needs.check_releases.outputs.tachyon_asset }}
           SOURCE_REF: ${{ needs.check_releases.outputs.source_ref }}
         run: |
           $assets = @(Get-ChildItem -LiteralPath ".\compatibility-release" -File | ForEach-Object { $_.FullName })
           $notes = @"
           Compatible builds:
 
-          - Stable lazer ($env:LAZER_TAG): osu.Game.Rulesets.Sticks.dll
-          - Tachyon ($env:TACHYON_TAG): use the DLL ending in -tachyon.dll
+          - Stable lazer ($env:LAZER_TAG): $env:LAZER_ASSET
+          - Tachyon ($env:TACHYON_TAG): $env:TACHYON_ASSET
 
           Download the DLL matching the osu! version you use
           "@

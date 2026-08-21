@@ -8,27 +8,31 @@ See [LICENSE.md](LICENSE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md
 # Sticks for osu!lazer
 Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 
-- Left stick: blue outer ring.
-- Right stick: red inner ring.
-- Flick notes require returning to neutral, then crossing outward at the target angle near the hit time.
-- Circular sliders require continuously following the displayed angular path with the assigned stick.
-- Directional holds require acquiring an angle and sustaining it; blue duration rails extend outward and red duration rails extend toward the center.
-- Flick and hold/slider heads grade timing and angle equally. Their combined `300 / 200 / 175 / 100 / 75 / miss` grade appears as a single colored circle at screen center; failing either required component is a miss.
+- The left stick is blue and the right stick is red.
+- Notes, sliders, and holds travel from the center toward the circular judgment line.
+- Flick notes require entering the recharge zone, then crossing outward at the target angle near the hit time.
+- Sliders require hitting the head and continuously following the displayed angular path with the assigned stick.
+- Directional holds require hitting an angle and sustaining it while the hold progresses toward the judgment line.
+- Flick and hold/slider heads grade timing and angle equally. Their combined `300 / 200 / 175 / 100 / 75 / miss` grade appears as a thin colored bar along the bottom of the playfield; failing either required component is a miss, and misses use audio feedback without drawing the bar.
 - Holds use slider-style independent head, beat tick, and tail checkpoints. Leaving the target loses only checkpoints crossed while away, and tracking/audio resume on return.
 - Standard circles convert to flicks. Standard sliders and other duration objects convert to generated circular slider patterns.
 - Source hold notes and spinners convert to directional holds.
 
-Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. The default is AR 7.5 / 825 ms. Map AR does not affect this setting.
+The optional Brackets presentation style has one judgment circle per stick color, and notes pop in in-place. The editor currently uses this style regardless of the gameplay presentation selected in settings.
 
-The ruleset provides Easy, Hard Rock, No Fail, Sudden Death, Perfect, Half Time, Double Time, Autoplay, and Difficulty Adjust. Circle Size controls the primary angular grading band using the current anchor curve: `45°` at CS 0, `35°` at CS 3, `27.5°` at CS 4, `22.5°` at CS 5, `20°` at CS 5.4, and `15°` at CS 10. Near misses within half of this angle get partial credit. Difficulty Adjust can override both angle bands, playback speed, reversal conversion, and physical stick travel.
+Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. F3/F4 changes AR by 0.5, while Shift+F3/F4 changes it by 0.1. The default is AR 7.5 / 825 ms. Map AR does not affect this setting.
+
+The ruleset provides Easy, Hard Rock, No Fail, Sudden Death, Perfect, Half Time, Double Time, Autoplay, Relax, Difficulty Adjust, and Strum. Strum replaces outward flick activation with trigger or shoulder-button presses while the corresponding stick is aimed outward. Circle Size controls the primary angular grading band using the current anchor curve: `45°` at CS 0, `35°` at CS 3, `27.5°` at CS 4, `22.5°` at CS 5, `20°` at CS 5.4, and `15°` at CS 10. Near misses within half of this angle get partial credit. Difficulty Adjust can override the primary angle, playback speed, reversal conversion, and whether 80% physical stick travel reaches the playfield edge; the secondary angle remains half of the primary angle.
 
 Star difficulty separately models same-stick neutral-reset speed, angular reading complexity, continuous slider/hold control, and two-stick coordination. Per-object strain is aggregated with diminishing standard-style weighting, so sustained patterns matter without scaling linearly with map length. CS uses the grading bands actually applied to the objects, OD contributes through timing windows and a mild accuracy factor, and player AR is intentionally excluded.
+
+Star difficulty is NOT currently well calibrated and needs significant work to be improved. For this to happen, a pool of user created maps will likely be needed.
 
 The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Converted sliders use consistent, speed-limited circular arcs chosen from their duration and source pattern.
 
 ## Build and install
 
-Requirements: .NET 8 SDK and an osu!lazer installation compatible with ruleset API 2026.730.0.
+Requirements for the default local build are the .NET 8 SDK and ruleset API 2026.730.0. Published releases provide separately named DLLs for the supported stable lazer and Tachyon versions; install the DLL matching the osu! version you use.
 
 ```powershell
 dotnet restore .\osu.Game.Rulesets.Sticks.sln
@@ -68,13 +72,16 @@ Use the left editor toolbox (or number keys) to select Flick, Hold, or Slider:
 - Flick: click the blue outer lane for the left stick or red inner lane for the right stick.
 - Hold: press on a lane, drag radially in the displayed duration direction, and release.
 - Slider: press on a lane, trace the circular arc, and release.
-- Selected hold/slider: Ctrl + wheel changes duration by the active beat snap.
-- Selected slider: Shift + wheel changes the repeat count.
+- Selected hold/slider: drag its endpoint on the timeline to change duration.
+- Selected slider: drag the tail to move its final point; hold Shift while dragging to snap the angle to 15° increments.
+- At a selected slider's endpoint, use `+` to place another reversal point or `−` to remove the final point. Right-click cancels point placement.
 - Drag selected objects around the ring to change their angle. A single object may also cross between the two stick lanes; grouped selections preserve their angular pattern.
 
 Normal editor save, Ctrl+S, undo/redo, dirty-state warnings, timing, setup, timeline, test-play, copy, and paste remain available. Same-time objects only replace an existing object on the same stick, so opposite-stick chords can be authored normally.
 
 Authored gameplay data is versioned inside ordinary mode-0 carrier objects. The Sticks converter reconstructs angles, sides, durations, slider arcs, and repeats exactly when the difficulty is reopened or shared; unmarked standard maps continue to use procedural conversion. This provides editor persistence without patching osu!lazer.
+
+The ruleset settings can restore an Sticks difficulty after lazer's external-edit flow changes its displayed mode, or export the selected difficulty as an `.osz` with its song and resources.
 
 Completed plays retain their Sticks replay automatically. Failed plays retain a replay only when explicitly saved. Replay storage can be disabled for future plays under **Settings → Rulesets → Sticks** without disabling score saving.
 

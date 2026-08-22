@@ -24,12 +24,14 @@ namespace osu.Game.Rulesets.Sticks.Edit
             AddInternal(new SticksEditorGuide());
         }
 
+#if !STICKS_RULESET_API_2026_818
         protected override Drawable? CreateNewComboButton() => null;
 
         protected override IEnumerable<Drawable> CreateTernaryButtons()
         {
             yield break;
         }
+#endif
 
         protected override SelectionHandler<HitObject> CreateSelectionHandler() => new SticksSelectionHandler();
 

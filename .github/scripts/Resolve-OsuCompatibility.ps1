@@ -100,8 +100,8 @@ if (-not $tagMatch.Success) {
 }
 
 $baseVersion = "$($tagMatch.Groups['major'].Value).$($tagMatch.Groups['minor'].Value).$($tagMatch.Groups['patch'].Value)"
-$releaseTag = if ($isTagRelease) { $ReleaseTag } else { "v$baseVersion$(Get-NextSuffix $tagMatch.Groups['suffix'].Value)" }
-$rulesetVersion = $releaseTag -replace '^v', ''
+$resolvedReleaseTag = if ($isTagRelease) { $ReleaseTag } else { "v$baseVersion$(Get-NextSuffix $tagMatch.Groups['suffix'].Value)" }
+$rulesetVersion = $resolvedReleaseTag -replace '^v', ''
 $assemblyVersion = "$baseVersion.0"
 $matrix = @{ include = $targets.ToArray() } | ConvertTo-Json -Depth 5 -Compress
 $hasChanges = ($targets.Count -gt 0).ToString().ToLowerInvariant()
@@ -109,7 +109,7 @@ $hasChanges = ($targets.Count -gt 0).ToString().ToLowerInvariant()
 "has_changes=$hasChanges" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 "matrix=$matrix" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 "previous_release_tag=$($sticksRelease.tag_name)" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
-"release_tag=$releaseTag" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
+"release_tag=$resolvedReleaseTag" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 "ruleset_version=$rulesetVersion" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 "assembly_version=$assemblyVersion" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
 "lazer_tag=$($lazerRelease.tag_name)" | Out-File -FilePath $GitHubOutput -Encoding utf8 -Append
@@ -124,8 +124,8 @@ if ($targets.Count -eq 0) {
     Write-Host "Latest release $($sticksRelease.tag_name) already contains $lazerAsset and $tachyonAsset. No compatibility build is needed."
 }
 elseif ($isTagRelease) {
-    Write-Host "Compatibility build required for new tagged release ${releaseTag}: $($targets.tag -join ', ')"
+    Write-Host "Compatibility build required for new tagged release ${resolvedReleaseTag}: $($targets.tag -join ', ')"
 }
 else {
-    Write-Host "Compatibility build required for: $($targets.tag -join ', '). Next automatic release: $releaseTag"
+    Write-Host "Compatibility build required for: $($targets.tag -join ', '). Next automatic release: $resolvedReleaseTag"
 }

@@ -2,6 +2,8 @@ name: osu! release compatibility
 
 on:
   push:
+    branches:
+      - "compat/tachyon-2026.911-net10"
     tags:
       - "v*"
   schedule:
@@ -60,7 +62,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           FORCE: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.force) }}
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || '' }}
         run: .\.github\scripts\Resolve-OsuCompatibility.ps1 -Repository $env:GITHUB_REPOSITORY -GitHubToken $env:GH_TOKEN -Force:($env:FORCE -eq "true") -ReleaseTag $env:RELEASE_TAG -GitHubOutput $env:GITHUB_OUTPUT
 
       - name: Reject obsolete compatibility branches
@@ -208,7 +210,7 @@ jobs:
     needs:
       - check_releases
       - compatibility
-    if: ${{ always() && needs.check_releases.outputs.has_changes == 'true' && needs.compatibility.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.publish_release) }}
+    if: ${{ always() && needs.check_releases.outputs.has_changes == 'true' && needs.compatibility.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.publish_release) && (github.event_name != 'push' || github.ref_type == 'tag') }}
     permissions:
       contents: write
     runs-on: windows-latest

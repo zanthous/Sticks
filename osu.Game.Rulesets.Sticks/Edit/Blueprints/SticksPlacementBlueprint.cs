@@ -27,7 +27,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         protected SticksPlacementBlueprint(T hitObject)
             : base(hitObject)
         {
-            InternalChild = Piece = new SticksBlueprintPiece();
+            AddInternal(Piece = new SticksBlueprintPiece());
         }
 
         protected override void LoadComplete()

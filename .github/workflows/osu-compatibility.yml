@@ -138,7 +138,7 @@ jobs:
         run: |
           $properties = @(
               "-p:OsuSourceRoot=$env:GITHUB_WORKSPACE\upstream-osu"
-              "-p:TargetFramework=$env:STICKS_TARGET_FRAMEWORK"
+              "-p:SticksTargetFramework=$env:STICKS_TARGET_FRAMEWORK"
               "-p:OsuClientVersion=${{ matrix.client_version }}"
               "-p:AssemblyVersion=${{ needs.check_releases.outputs.assembly_version }}"
               "-p:FileVersion=${{ needs.check_releases.outputs.assembly_version }}"
@@ -156,7 +156,7 @@ jobs:
         run: |
           $properties = @(
               "-p:OsuSourceRoot=$env:GITHUB_WORKSPACE\upstream-osu"
-              "-p:TargetFramework=$env:STICKS_TARGET_FRAMEWORK"
+              "-p:SticksTargetFramework=$env:STICKS_TARGET_FRAMEWORK"
               "-p:OsuClientVersion=${{ matrix.client_version }}"
               "-p:AssemblyVersion=${{ needs.check_releases.outputs.assembly_version }}"
               "-p:FileVersion=${{ needs.check_releases.outputs.assembly_version }}"

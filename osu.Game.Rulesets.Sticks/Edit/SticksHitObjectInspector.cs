@@ -28,7 +28,15 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     AddValue($"{slider.SegmentCount} segment{(slider.SegmentCount == 1 ? string.Empty : "s")}");
                     AddValue($"{slider.TotalAngularDistance:0.###}° total");
                     AddValue($"End {SticksHitObject.NormaliseAngle(slider.SegmentStartAngleAt(slider.SegmentCount)):0.###}°");
-                    AddValue($"{slider.TotalAngularDistance / Math.Max(0.001, slider.Duration / 1000):0.##}°/s (constant)");
+                    if (slider.HasTimedSegments)
+                    {
+                        double[] speeds = Enumerable.Range(0, slider.SegmentCount)
+                                                    .Select(index => Math.Abs(slider.SegmentArcAngleAt(index)) / Math.Max(0.001, slider.SegmentDurationAt(index) / 1000))
+                                                    .ToArray();
+                        AddValue($"{speeds.Min():0.##}–{speeds.Max():0.##}°/s (timed segments)");
+                    }
+                    else
+                        AddValue($"{slider.TotalAngularDistance / Math.Max(0.001, slider.Duration / 1000):0.##}°/s (constant)");
                     AddHeader("Editor controls");
                     AddValue("Drag tail: final point");
                     AddValue("Shift + drag tail: snap 15°");

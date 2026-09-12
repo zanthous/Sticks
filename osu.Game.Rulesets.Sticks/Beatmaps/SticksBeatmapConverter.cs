@@ -16,7 +16,7 @@ using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Beatmaps
 {
-    public class SticksBeatmapConverter : BeatmapConverter<SticksHitObject>
+    public partial class SticksBeatmapConverter : BeatmapConverter<SticksHitObject>
     {
         public static readonly Vector2 STANDARD_CENTRE = new Vector2(256, 192);
 
@@ -47,6 +47,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         public bool DisableReversals { get; set; }
 
         /// <summary>
+        /// Optional procedural experiment. Authored Sticks carriers bypass these strategies.
+        /// </summary>
+        public SticksConversionMode ConversionMode { get; set; }
+
+        /// <summary>
         /// Whether procedural conversion should discard the source beatmap's hitsounds and use
         /// one full-volume normal hit sample instead. Authored Sticks carriers are unaffected.
         /// </summary>
@@ -63,9 +68,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             (isAuthoredCarrier, authoredCarrierError) = forceProceduralConversion
                 ? (false, null)
                 : preflightAuthoredCarrier(beatmap);
-
-            if (authoredCarrierError == null && !isAuthoredCarrier)
-                buildPlans(beatmap);
         }
 
         public string? AuthoredCarrierError => authoredCarrierError;
@@ -87,6 +89,21 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             if (authoredCarrierError != null)
                 throw new BeatmapInvalidForRulesetException(authoredCarrierError);
 
+            // Conversion mods are applied after construction. Build fresh plans here so both
+            // the selected experiment and repeated conversion on the same instance work.
+            if (!isAuthoredCarrier)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                plans.Clear();
+                generatedChordPartners.Clear();
+                generatedHoldSources.Clear();
+                generatedFlickHoldDurations.Clear();
+                generatedSliders.Clear();
+                duetDurationPartners.Clear();
+                clearDuetAccompaniment();
+                buildPlans(original, cancellationToken);
+            }
+
             Beatmap<SticksHitObject> converted = base.ConvertBeatmap(original, cancellationToken);
 
             // The base converter retains the source map's ruleset metadata. Sticks needs its own
@@ -94,9 +111,60 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             // while ordinary gameplay keeps the custom online ID (-1).
             converted.BeatmapInfo.Ruleset = targetRuleset.RulesetInfo.Clone();
 
+            if (!isAuthoredCarrier)
+            {
+                if (ConversionMode is SticksConversionMode.Duet or SticksConversionMode.ParityDuet)
+                {
+                    addDuetDurationPartners(converted);
+                    addDuetAccompaniment(converted);
+                }
+
+                // Apply parity to the complete duet, including added partners and accents.
+                if (ConversionMode is SticksConversionMode.Parity or SticksConversionMode.ParityDuet)
+                    SticksParityConversion.Apply(converted.HitObjects, original, cancellationToken);
+
+                // Independent accompaniment/parity angles can leave doubles almost coincident.
+                // Align their final heads before generating the shared visual link.
+                AlignNearbyChordHeads(converted.HitObjects);
+            }
+
             AssignSyncedNoteLinks(converted.HitObjects);
 
             return converted;
+        }
+
+        /// <summary>
+        /// Aligns nearly coincident procedural doubles at their circular midpoint. Each head
+        /// moves by at most 2.5 degrees; slider paths rotate with their heads without changing
+        /// their relative motion. Authored objects must bypass this conversion cleanup.
+        /// </summary>
+        internal static void AlignNearbyChordHeads(IEnumerable<SticksHitObject> hitObjects)
+        {
+            const float maximum_separation = 5;
+            SticksHitObject[] ordered = hitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
+
+            for (int groupStart = 0; groupStart < ordered.Length;)
+            {
+                int groupEnd = groupStart + 1;
+                while (groupEnd < ordered.Length && Math.Abs(ordered[groupEnd].StartTime - ordered[groupStart].StartTime) < 0.01)
+                    groupEnd++;
+
+                if (groupEnd - groupStart == 2)
+                {
+                    SticksHitObject first = ordered[groupStart];
+                    SticksHitObject second = ordered[groupStart + 1];
+                    float delta = SticksHitObject.DeltaAngle(first.Angle, second.Angle);
+
+                    if (first.Side != second.Side && Math.Abs(delta) <= maximum_separation)
+                    {
+                        float angle = SticksHitObject.NormaliseAngle(first.Angle + delta / 2);
+                        first.Angle = angle;
+                        second.Angle = angle;
+                    }
+                }
+
+                groupStart = groupEnd;
+            }
         }
 
         /// <summary>
@@ -146,9 +214,23 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
                 if (DisableReversals && authoredObject is SticksSlider { RepeatCount: > 0 } authoredSlider)
                 {
-                    float continuousArc = authoredSlider.InitialDirection * authoredSlider.TotalAngularDistance;
-                    authoredSlider.RepeatCount = 0;
-                    authoredSlider.ArcAngle = continuousArc;
+                    if (authoredSlider.HasTimedSegments)
+                    {
+                        // This setting removes direction changes, not the timing of source
+                        // anchors or pauses. Leave non-reversing timed paths untouched.
+                        if (Enumerable.Range(0, authoredSlider.SegmentCount - 1).Any(authoredSlider.SegmentEndsWithReversal))
+                        {
+                            int direction = authoredSlider.InitialDirection;
+                            authoredSlider.SetTimedSegments(authoredSlider.SegmentArcAngles.Select(arc => direction * Math.Abs(arc)),
+                                authoredSlider.SegmentDurationWeights);
+                        }
+                    }
+                    else
+                    {
+                        float continuousArc = authoredSlider.InitialDirection * authoredSlider.TotalAngularDistance;
+                        authoredSlider.RepeatCount = 0;
+                        authoredSlider.ArcAngle = continuousArc;
+                    }
                 }
 
                 yield return authoredObject!;
@@ -185,10 +267,17 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     Samples = conversionSamples(original),
                 };
 
-                // The source circles at the beginning and end remain the musical anchors for
-                // the generated slider's head and tail hitsounds.
-                slider.NodeSamples.Add(conversionSamples(original));
-                slider.NodeSamples.Add(conversionSamples(generatedSlider.TailAnchor));
+                if (generatedSlider.Path is DuetVoicePath path)
+                {
+                    slider.SetTimedSegments(path.Arcs, path.Durations);
+                    foreach (HitObject anchor in path.Anchors)
+                        slider.NodeSamples.Add(conversionSamples(anchor));
+                }
+                else
+                {
+                    slider.NodeSamples.Add(conversionSamples(original));
+                    slider.NodeSamples.Add(conversionSamples(generatedSlider.TailAnchor));
+                }
                 yield return slider;
                 yield break;
             }
@@ -359,7 +448,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             }
         }
 
-        private void buildPlans(IBeatmap beatmap)
+        private void buildPlans(IBeatmap beatmap, CancellationToken cancellationToken)
         {
             HitObject[] objects = beatmap.HitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
             var activeSliders = new List<(double endTime, StickSide side)>();
@@ -378,6 +467,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             for (int i = 0; i < objects.Length; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 HitObject current = objects[i];
 
                 if (double.IsNaN(currentTimestamp) || Math.Abs(current.StartTime - currentTimestamp) >= 0.01)
@@ -460,6 +550,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             applyRarePatterns(objects, beatmap);
             enforceRapidAlternation(objects);
             applyGeneratedSyncedChords(objects, beatmap);
+
+            // Duet extends the completed standard conversion. Existing generated chords,
+            // holds and slider phrases remain reserved while it considers new patterns.
+            if (ConversionMode is SticksConversionMode.Duet or SticksConversionMode.ParityDuet)
+                applyDuetPatterns(objects, beatmap, cancellationToken);
         }
 
         private void applyRarePatterns(HitObject[] objects, IBeatmap beatmap)
@@ -1197,6 +1292,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         private readonly record struct ConversionPlan(StickSide Side, float Angle, float ArcAngle, bool Emit);
 
-        private readonly record struct GeneratedSliderSpec(double Duration, float ArcAngle, HitObject TailAnchor);
+        private readonly record struct GeneratedSliderSpec(double Duration, float ArcAngle, HitObject TailAnchor, DuetVoicePath? Path = null);
     }
 }

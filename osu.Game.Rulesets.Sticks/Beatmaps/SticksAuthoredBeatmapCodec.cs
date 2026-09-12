@@ -23,6 +23,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         public const string MARKER_PREFIX = "sticks-v1~";
         public const string SEGMENT_MARKER_PREFIX = "sticks-v2~";
+        public const string TIMED_SEGMENT_MARKER_PREFIX = "sticks-v3~";
 
         public enum MarkerStatus
         {
@@ -41,6 +42,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             return hitObject switch
             {
+                SticksSlider { HasTimedSegments: true } slider =>
+                    $"{TIMED_SEGMENT_MARKER_PREFIX}s~{side}~{preciseNumber(SticksHitObject.NormaliseAngle(slider.Angle))}~{preciseNumber(slider.Duration)}~{string.Join('_', slider.SegmentArcAngles.Select(segment => preciseNumber(segment)))}~{string.Join('_', slider.SegmentDurationWeights.Select(preciseNumber))}.wav",
                 SticksSlider { HasCustomSegments: true } slider =>
                     $"{SEGMENT_MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{string.Join('_', slider.SegmentArcAngles.Select(segment => number(segment)))}.wav",
                 SticksSlider slider => $"{MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{number(slider.ArcAngle)}~{slider.RepeatCount}.wav",
@@ -111,7 +114,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             if (versionStatus == MarkerVersionParseStatus.Malformed)
                 return new MarkerInspection(MarkerStatus.MalformedSupported, 1, null, marker.Filename, null);
 
-            if (versionStatus == MarkerVersionParseStatus.Overflow || version is not 1 and not 2)
+            if (versionStatus == MarkerVersionParseStatus.Overflow || version is not 1 and not 2 and not 3)
                 return new MarkerInspection(MarkerStatus.UnsupportedVersion, 1, version, marker.Filename, null);
 
             SticksHitObject? decoded = tryDecodeSupportedMarker(source, marker);
@@ -142,7 +145,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             string[] parts = filename.Split('~');
             bool isV1 = string.Equals(parts[0], "sticks-v1", StringComparison.OrdinalIgnoreCase);
             bool isV2 = string.Equals(parts[0], "sticks-v2", StringComparison.OrdinalIgnoreCase);
-            if (parts.Length < 4 || (!isV1 && !isV2))
+            bool isV3 = string.Equals(parts[0], "sticks-v3", StringComparison.OrdinalIgnoreCase);
+            if (parts.Length < 4 || (!isV1 && !isV2 && !isV3))
                 return null;
 
             StickSide side = parts[2] switch
@@ -156,6 +160,61 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 return null;
 
             IList<HitSampleInfo> samples = decodedSamples(source, marker);
+
+            if (isV3)
+            {
+                if (parts[1] != "s" || parts.Length != 7
+                    || !parse(parts[4], out double timedDuration) || !hasValidDuration(source.StartTime, timedDuration))
+                    return null;
+
+                // Bound token allocation as well as the accepted path size. Timed spans retain
+                // source checkpoints, including sub-degree movement and deliberate dwell spans.
+                string[] encodedArcs = parts[5].Split('_', SticksSlider.MAX_SEGMENT_COUNT + 1);
+                string[] encodedWeights = parts[6].Split('_', SticksSlider.MAX_SEGMENT_COUNT + 1);
+                if (encodedArcs.Length > SticksSlider.MAX_SEGMENT_COUNT || encodedArcs.Length != encodedWeights.Length)
+                    return null;
+
+                var arcs = new List<float>(encodedArcs.Length);
+                var weights = new List<double>(encodedWeights.Length);
+                double totalWeight = 0;
+                for (int i = 0; i < encodedArcs.Length; i++)
+                {
+                    if (!parseFloat(encodedArcs[i], out float arc)
+                        || !parse(encodedWeights[i], out double weight) || weight <= 0)
+                        return null;
+
+                    arcs.Add(arc);
+                    weights.Add(weight);
+                    totalWeight += weight;
+                }
+
+                if (!double.IsFinite(totalWeight) || totalWeight <= 0 || !hasValidSliderPath(angle, arcs)
+                    || weights.Any(weight => timedDuration * (weight / totalWeight) <= 0))
+                    return null;
+
+                var timedSlider = new SticksSlider
+                {
+                    StartTime = source.StartTime,
+                    Duration = timedDuration,
+                    Side = side,
+                    Angle = SticksHitObject.NormaliseAngle(angle),
+                    Samples = samples,
+                };
+                try
+                {
+                    timedSlider.SetTimedSegments(arcs, weights);
+                }
+                catch (ArgumentException)
+                {
+                    return null;
+                }
+
+                if (Enumerable.Range(0, timedSlider.SegmentCount).Any(index =>
+                        !double.IsFinite(timedSlider.SegmentDurationAt(index)) || timedSlider.SegmentDurationAt(index) <= 0))
+                    return null;
+
+                return timedSlider;
+            }
 
             if (isV2)
             {
@@ -279,6 +338,12 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         }
 
         private static string number(double value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+        // Version 3 preserves the timing and geometry of every source checkpoint. Legacy
+        // markers retain their existing formatting so ordinary authored maps do not change.
+        private static string preciseNumber(double value) => value.ToString("R", CultureInfo.InvariantCulture);
+
+        private static string preciseNumber(float value) => value.ToString("R", CultureInfo.InvariantCulture);
 
         private static bool parse(string value, out double result) =>
             double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result) && double.IsFinite(result);

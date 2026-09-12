@@ -136,7 +136,7 @@ namespace osu.Game.Rulesets.Sticks
                 new MultiMod(new SticksModSuddenDeath(), new SticksModPerfect()),
                 new SticksModDoubleTime(),
             },
-            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust() },
+            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust(), new SticksModParity(), new SticksModDuet(), new SticksModParityDuet() },
             ModType.Fun => new Mod[] { new SticksModStrum() },
             _ => Array.Empty<Mod>(),
         };

@@ -16,6 +16,12 @@ internal static class Program
 
     public static int Main(string[] args)
     {
+        if (args.Contains("--audit-parity"))
+            return ParityAudit.Run(args);
+
+        if (args.Contains("--compare-converters"))
+            return ConverterComparison.Run(args);
+
         if (!tryParseArguments(args, out List<string> filesRoots, out bool showHelp, out bool showDiagnostics))
             return 2;
 
@@ -424,6 +430,8 @@ internal static class Program
 
     private static void printUsage()
     {
+        Console.WriteLine("Parity angle audit: --audit-parity <directory|file.osu|file.osz> --output audit.json");
+        Console.WriteLine("Converter comparison: --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-combined]");
         Console.WriteLine("Usage: dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -- [--files-root <lazer-files-directory>] [--diagnostics]");
         Console.WriteLine($"If --files-root is omitted, the usual lazer stores and {files_environment_variable} are checked.");
         Console.WriteLine("The files root is the lazer content-store directory named 'files', not the parent osu data directory.");

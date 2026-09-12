@@ -398,9 +398,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             reversalPathPreviewOutline.Alpha = 0;
             reversalPathPreviewOutline.Progress = 0;
 
-            int upcomingSegment = active ? HitObject.UpcomingSegmentIndexAt(now) : -1;
+            // Timed paths may continue in the same direction or dwell at an anchor. Their next
+            // movement still needs a preview, even when the boundary has no reversal judgement.
+            int upcomingSegment = active ? HitObject.UpcomingPathSegmentIndexAt(now) : -1;
             double previewProgress = upcomingSegment >= 0
-                ? HitObject.UpcomingSegmentPreviewProgressAt(now)
+                ? HitObject.UpcomingPathSegmentPreviewProgressAt(now)
                 : 0;
 
             if (previewProgress <= 0)

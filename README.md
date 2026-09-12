@@ -30,11 +30,21 @@ Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's
 
 The ruleset provides Easy, Hard Rock, No Fail, Sudden Death, Perfect, Half Time, Double Time, Autoplay, Relax, Difficulty Adjust, and Strum. Strum replaces outward flick activation with trigger or shoulder-button presses while the corresponding stick is aimed outward. Circle Size controls the primary angular grading band using the current anchor curve: `45°` at CS 0, `35°` at CS 3, `27.5°` at CS 4, `22.5°` at CS 5, `20°` at CS 5.4, and `15°` at CS 10. Near misses within half of this angle get partial credit. Difficulty Adjust can override the primary angle, playback speed, reversal conversion, and whether 80% physical stick travel reaches the playfield edge; the secondary angle remains half of the primary angle.
 
-Star difficulty separately models same-stick neutral-reset speed, angular reading complexity, continuous slider/hold control, and two-stick coordination. Per-object strain is aggregated with diminishing standard-style weighting, so sustained patterns matter without scaling linearly with map length. CS uses the grading bands actually applied to the objects, OD contributes through timing windows and a mild accuracy factor, and player AR is intentionally excluded.
+Star difficulty separately models same-stick neutral-reset speed, angular reading complexity, continuous slider/hold control, and two-stick coordination. Per-object strain is aggregated with diminishing standard-style weighting, so sustained patterns matter without scaling linearly with map length. OD contributes through timing windows and a mild accuracy factor, and player AR is intentionally excluded.
+
+CS scales the calibrated rating using the grading bands actually applied to the objects, including Difficulty Adjust overrides. With the usual secondary band at half the primary width, precision demand is `p = 27.5 / primary width`. Tighter windows (CS above 4) use the factor `1 + 0.606 * (p - 1)^1.28`; wider windows use `sqrt(p)`. CS 4 is neutral. The angular adjustment has no separate cap and scales proportionally to the map's base rating.
 
 Star difficulty is NOT currently well calibrated and needs significant work to be improved. For this to happen, a pool of user created maps will likely be needed.
 
 The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Converted sliders use consistent, speed-limited circular arcs chosen from their duration and source pattern.
+
+Three unranked experiments are available in the **Conversion** mod category for ordinary osu!standard maps. Select one at a time:
+
+- **Parity (PA)** expands each stick's original turns using a flexible 135° preference. Local rhythm and movement continuously adjust the strength; slider endpoints count, and two beats of rest start a new phrase.
+- **Duet (DU)** keeps the standard converter's existing two-stick patterns, then adds slider-head chords and independently aimed flicks at slider checkpoints or locally established half-beats. Unclaimed circle phrases can also become nested/interleaved sustains or chord phrases. Interleaved moving voices preserve source directions and their timing, including speed changes, pauses, and reversals, and isolated sliders can gain parallel or reflected partners.
+- **Parity + Duet (PD)** combines Duet's simultaneous patterns with Parity's angular separation. Parity runs after all Duet notes are added, keeping their timing, stick assignments, durations and slider shapes.
+
+All procedural converters align simultaneous opposite-stick heads within 5° to their circular midpoint, so nearly overlapping doubles render at exactly the same angle. All three experiments preserve authored Sticks maps and can be used with Difficulty Adjust or Autoplay. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
 
 ## Build and install
 

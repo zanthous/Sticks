@@ -24,8 +24,11 @@ coverage*
 *.pdb
 *.log
 *.tmp
+__pycache__/
 
 # Operating-system files
 .DS_Store
 Thumbs.db
 
+# Local beatmap references for converter experiments
+/mapreference/

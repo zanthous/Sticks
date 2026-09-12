@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -172,8 +173,16 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             dragArcAngle += SticksHitObject.DeltaAngle(lastDragPointerAngle, pointerAngle);
             lastDragPointerAngle = pointerAngle;
 
-            float adjusted = AdjustDraggedArcAngle(dragArcAngle, e.ShiftPressed);
+            float adjusted = slider.HasTimedSegments
+                ? e.ShiftPressed ? SticksEditorCoordinates.SnapAngleOffset(dragArcAngle) : dragArcAngle
+                : AdjustDraggedArcAngle(dragArcAngle, e.ShiftPressed);
             if (Math.Abs(slider.SegmentArcAngleAt(slider.SegmentCount - 1) - adjusted) < 0.001f)
+                return;
+
+            // A slider must retain some movement; do not turn a tail drag into an
+            // invalid entirely stationary path.
+            if (slider.HasTimedSegments && adjusted == 0
+                && Enumerable.Range(0, slider.SegmentCount - 1).All(index => slider.SegmentArcAngleAt(index) == 0))
                 return;
 
             slider.ReplaceFinalSegment(adjusted);
@@ -182,7 +191,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         private void endTailDrag(DragEndEvent e)
         {
-            if (HitObject is SticksSlider slider && Math.Abs(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) < 1)
+            if (HitObject is SticksSlider { HasTimedSegments: false } slider && Math.Abs(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) < 1)
             {
                 slider.ReplaceFinalSegment(MathF.CopySign(1, originalDragArcAngle));
                 editorBeatmap?.Update(slider);

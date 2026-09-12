@@ -52,7 +52,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(Activator.CreateInstance(rulesets.Single()), Is.TypeOf<SticksRuleset>());
                 Assert.That(new SticksRuleset().Description, Is.EqualTo("Sticks"));
                 Assert.That(new SticksRuleset().ShortName, Is.EqualTo("sticks"));
-                Assert.That(new SticksRuleset().GetModsFor(ModType.Conversion).Single(), Is.TypeOf<SticksModDifficultyAdjust>());
+                Assert.That(new SticksRuleset().GetModsFor(ModType.Conversion), Has.Exactly(1).TypeOf<SticksModDifficultyAdjust>());
                 Assert.That(new SticksRuleset().GetModsFor(ModType.Fun).Single(), Is.TypeOf<SticksModStrum>());
                 Mod[] automationMods = new SticksRuleset().GetModsFor(ModType.Automation).ToArray();
                 Assert.That(automationMods, Has.Exactly(1).TypeOf<SticksModAutoplay>());

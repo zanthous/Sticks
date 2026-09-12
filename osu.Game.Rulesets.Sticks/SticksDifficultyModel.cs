@@ -345,7 +345,9 @@ namespace osu.Game.Rulesets.Sticks
 
             for (int segment = 1; segment < slider.SegmentCount; segment++)
             {
-                if (Math.Sign(slider.SegmentArcAngleAt(segment - 1)) != Math.Sign(slider.SegmentArcAngleAt(segment)))
+                if (slider.HasTimedSegments
+                    ? slider.SegmentEndsWithReversal(segment - 1)
+                    : Math.Sign(slider.SegmentArcAngleAt(segment - 1)) != Math.Sign(slider.SegmentArcAngleAt(segment)))
                     reversalCount++;
             }
 

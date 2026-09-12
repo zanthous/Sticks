@@ -211,20 +211,147 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [Test]
-        public void TestCircleSizePrecisionHasBoundedThresholds()
+        [TestCase(0)]
+        [TestCase(3)]
+        [TestCase(5.4f)]
+        [TestCase(9)]
+        [TestCase(10)]
+        public void TestCircleSizeAdjustmentScalesProportionallyWithPatternDifficulty(float circleSize)
         {
-            double thirtyDegrees = rate(scatteredStream(), circleSize: 3);
-            double twentyDegrees = rate(scatteredStream(), circleSize: 4);
-            double fifteenDegrees = rate(scatteredStream(), circleSize: 5.4f);
+            double easierReference = rate(clusteredStream(12, 250));
+            double harderReference = rate(clusteredStream(48, 100));
+            double easierAdjusted = rate(clusteredStream(12, 250), circleSize: circleSize);
+            double harderAdjusted = rate(clusteredStream(48, 100), circleSize: circleSize);
 
             Assert.Multiple(() =>
             {
-                Assert.That(twentyDegrees, Is.GreaterThan(thirtyDegrees));
-                Assert.That(fifteenDegrees, Is.GreaterThan(twentyDegrees));
-                Assert.That(fifteenDegrees - twentyDegrees, Is.LessThanOrEqualTo(SticksDifficultyScaling.MAX_ANGULAR_STAR_INCREASE + 0.0001));
-                Assert.That(twentyDegrees - thirtyDegrees, Is.LessThanOrEqualTo(SticksDifficultyScaling.MAX_ANGULAR_STAR_DECREASE + 0.0001));
-                Assert.That(fifteenDegrees - thirtyDegrees, Is.LessThanOrEqualTo(0.6001));
+                Assert.That(harderReference, Is.GreaterThan(easierReference));
+                Assert.That(harderAdjusted / harderReference, Is.EqualTo(easierAdjusted / easierReference).Within(0.0000001),
+                    "Angular precision must scale with the pattern's difficulty instead of reaching a fixed star bonus or reduction.");
+                Assert.That(easierAdjusted, circleSize < 4 ? Is.LessThan(easierReference) : Is.GreaterThan(easierReference));
+            });
+        }
+
+        [Test]
+        public void TestCircleSizeContinuesIncreasingDifficultyAcrossTheFullRange()
+        {
+            float[] circleSizes = { 0, 1, 2, 3, 4, 5, 5.4f, 6, 7, 8, 9, 10 };
+            double[] stars = circleSizes.Select(circleSize => rate(
+                flicks(120, 160, i => i % 2 == 0 ? StickSide.Left : StickSide.Right, i => i * 47 % 360),
+                circleSize: circleSize)).ToArray();
+
+            Assert.Multiple(() =>
+            {
+                for (int i = 1; i < stars.Length; i++)
+                {
+                    Assert.That(stars[i], Is.GreaterThan(stars[i - 1]), $"Difficulty must keep increasing at CS {circleSizes[i]}.");
+                    Assert.That(double.IsFinite(stars[i]), Is.True);
+                    Assert.That(stars[i], Is.LessThan(30));
+                }
+
+                Assert.That(stars[10] / stars[6], Is.InRange(1.18, 1.20),
+                    "The agreed curve raises CS 9 by about 19% relative to CS 5.4.");
+            });
+        }
+
+        [TestCase(4)]
+        [TestCase(5.4f)]
+        public void TestCircleSizeCurveHasNoJumpAtReferenceOrWindowAnchor(float circleSize)
+        {
+            double below = rate(scatteredStream(), circleSize: circleSize - 0.001f);
+            double at = rate(scatteredStream(), circleSize: circleSize);
+            double above = rate(scatteredStream(), circleSize: circleSize + 0.001f);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(at, Is.GreaterThan(below));
+                Assert.That(above, Is.GreaterThan(at));
+                Assert.That(above - below, Is.LessThan(at * 0.001),
+                    "Crossing a curve branch or interpolation anchor must not abruptly change the rating.");
+            });
+        }
+
+        [TestCase(0)]
+        [TestCase(5.4f)]
+        [TestCase(9)]
+        [TestCase(10)]
+        public void TestCircleSizeChangesPrecisionWithoutChangingUnderlyingSkills(float circleSize)
+        {
+            SticksHitObject[] pattern() => scatteredStream().Concat(new SticksHitObject[]
+            {
+                slider(1400, 1000, StickSide.Left, 45, 180),
+                flick(1960, StickSide.Left, 270),
+            }).ToArray();
+
+            SticksDifficultyBreakdown reference = difficultyFor(pattern());
+            SticksDifficultyBreakdown adjusted = difficultyFor(pattern(), circleSize: circleSize);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(adjusted.StarRating, Is.Not.EqualTo(reference.StarRating));
+                Assert.That(adjusted.AngularPrecision, Is.Not.EqualTo(reference.AngularPrecision));
+                Assert.That(adjusted.Mechanical, Is.EqualTo(reference.Mechanical).Within(0.0000001));
+                Assert.That(adjusted.Reading, Is.EqualTo(reference.Reading).Within(0.0000001));
+                Assert.That(adjusted.Control, Is.EqualTo(reference.Control).Within(0.0000001));
+                Assert.That(adjusted.Coordination, Is.EqualTo(reference.Coordination).Within(0.0000001));
+                Assert.That(adjusted.TimingPrecision, Is.EqualTo(reference.TimingPrecision).Within(0.0000001));
+                Assert.That(adjusted.MechanicalDifficultStrainCount, Is.EqualTo(reference.MechanicalDifficultStrainCount).Within(0.0000001));
+                Assert.That(adjusted.ReadingDifficultStrainCount, Is.EqualTo(reference.ReadingDifficultStrainCount).Within(0.0000001));
+                Assert.That(adjusted.ControlDifficultStrainCount, Is.EqualTo(reference.ControlDifficultStrainCount).Within(0.0000001));
+                Assert.That(adjusted.CoordinationDifficultStrainCount, Is.EqualTo(reference.CoordinationDifficultStrainCount).Within(0.0000001));
+            });
+        }
+
+        [Test]
+        public void TestExtremeCircleSizeKeepsEmptyAndIsolatedMapsEasy()
+        {
+            double empty = rate(Array.Empty<SticksHitObject>(), circleSize: 10);
+            double isolated = rate(new[] { flick(1000, StickSide.Left, 0) }, circleSize: 10);
+            double developed = rate(scatteredStream(), circleSize: 10);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(empty, Is.Zero);
+                Assert.That(double.IsFinite(isolated), Is.True);
+                Assert.That(isolated, Is.InRange(0, 1));
+                Assert.That(isolated, Is.LessThan(developed));
+            });
+        }
+
+        [TestCase(20, 5.4f, 1.16, 1.18)]
+        [TestCase(15, 10, 1.47, 1.49)]
+        public void TestDifficultyAdjustUsesActualAngularWindows(float primaryHitAngle, float equivalentCircleSize, double minimumRatio, double maximumRatio)
+        {
+            var ruleset = new SticksRuleset();
+
+            FlatWorkingBeatmap workingBeatmap(float circleSize)
+            {
+                var source = new Beatmap<SticksHitObject>
+                {
+                    BeatmapInfo = new BeatmapInfo(ruleset.RulesetInfo, new BeatmapDifficulty
+                    {
+                        CircleSize = circleSize,
+                        OverallDifficulty = 5,
+                    }),
+                };
+                source.HitObjects.AddRange(scatteredStream());
+                return new FlatWorkingBeatmap(source);
+            }
+
+            Mod[] mods = { new SticksModDifficultyAdjust { PrimaryHitAngle = { Value = primaryHitAngle } } };
+            FlatWorkingBeatmap adjusted = workingBeatmap(4);
+            IBeatmap playable = adjusted.GetPlayableBeatmap(ruleset.RulesetInfo, mods, CancellationToken.None);
+            double normalStars = new SticksDifficultyCalculator(ruleset.RulesetInfo, workingBeatmap(4)).Calculate().StarRating;
+            double equivalentStars = new SticksDifficultyCalculator(ruleset.RulesetInfo, workingBeatmap(equivalentCircleSize)).Calculate().StarRating;
+            double adjustedStars = new SticksDifficultyCalculator(ruleset.RulesetInfo, adjusted).Calculate(mods).StarRating;
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(playable.Difficulty.CircleSize, Is.EqualTo(4), "An angle override does not change the map's nominal CS.");
+                Assert.That(playable.HitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(note =>
+                    note.PrimaryHitAngle == primaryHitAngle && note.SecondaryHitAngle == primaryHitAngle / 2));
+                Assert.That(adjustedStars, Is.EqualTo(equivalentStars).Within(0.0000001));
+                Assert.That(adjustedStars / normalStars, Is.InRange(minimumRatio, maximumRatio));
             });
         }
 
@@ -330,13 +457,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             }
         }
 
-        [Test]
-        public void TestTimedDifficultyMatchesIndependentPrefixesWithChordsAndOverlappingDurations()
+        [TestCase(4)]
+        [TestCase(9)]
+        public void TestTimedDifficultyMatchesIndependentPrefixesWithChordsAndOverlappingDurations(float circleSize)
         {
             var ruleset = new SticksRuleset();
             var difficulty = new BeatmapDifficulty
             {
-                CircleSize = 4,
+                CircleSize = circleSize,
                 OverallDifficulty = 6,
                 ApproachRate = 5,
                 SliderTickRate = 1,
@@ -395,6 +523,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(calculator.IncrementalObjectEvaluationCount, Is.EqualTo(10));
                 Assert.That(calculator.ProcessedDifficultyCheckpointCount, Is.EqualTo(beatmap.HitObjects.Count));
                 Assert.That(((SticksDifficultyAttributes)timed[^1].Attributes).MaxCombo, Is.EqualTo(fullAttributes.MaxCombo));
+                Assert.That(timed[^1].Attributes.StarRating, Is.EqualTo(fullAttributes.StarRating).Within(0.0000001));
             });
         }
 
@@ -955,7 +1084,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private static int noteCountFor(int seconds, double interval) => (int)(seconds * 1000 / interval);
 
         private static double rate(IEnumerable<SticksHitObject> hitObjects, float circleSize = 4,
-                                   float overallDifficulty = 5, float approachRate = 5)
+                                   float overallDifficulty = 5, float approachRate = 5) =>
+            difficultyFor(hitObjects, circleSize, overallDifficulty, approachRate).StarRating;
+
+        private static SticksDifficultyBreakdown difficultyFor(IEnumerable<SticksHitObject> hitObjects, float circleSize = 4,
+                                                               float overallDifficulty = 5, float approachRate = 5)
         {
             SticksHitObject[] objects = hitObjects.ToArray();
             var difficulty = new BeatmapDifficulty
@@ -970,7 +1103,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             foreach (SticksHitObject hitObject in objects)
                 hitObject.ApplyDefaults(controlPoints, difficulty);
 
-            return SticksDifficultyCalculator.CalculateStarRating(objects, overallDifficulty: overallDifficulty);
+            return SticksDifficultyCalculator.CalculateDifficulty(objects, overallDifficulty: overallDifficulty);
         }
 
         private sealed class PassthroughWorkingBeatmap : FlatWorkingBeatmap

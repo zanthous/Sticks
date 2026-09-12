@@ -15,8 +15,6 @@ namespace osu.Game.Rulesets.Sticks
     {
         public const float REFERENCE_CIRCLE_SIZE = 4;
         public const float REFERENCE_OVERALL_DIFFICULTY = 5;
-        public const double MAX_ANGULAR_STAR_INCREASE = 0.25;
-        public const double MAX_ANGULAR_STAR_DECREASE = 0.35;
         public const double STAR_RATING_CALIBRATION_EXPONENT = 1.376;
 
         private static readonly double reference_primary_angle = SticksHitObject.HitAngleForCircleSize(REFERENCE_CIRCLE_SIZE);
@@ -57,16 +55,19 @@ namespace osu.Game.Rulesets.Sticks
         }
 
         /// <summary>
-        /// Converts raw angular demand into a bounded star adjustment. The uncapped contribution
-        /// scales with the map's existing difficulty so trivial maps do not gain difficulty from
-        /// precision alone. The normal gameplay range can change a developed map by at most
-        /// -0.35 to +0.25 stars, rather than multiplying every strain skill.
+        /// Converts raw angular demand into an uncapped adjustment relative to CS 4.
+        /// Tighter windows use a 0.606 * (precision - 1)^1.28 proportional bonus; wider windows
+        /// retain a square-root reduction. With the usual secondary band at half the primary
+        /// width W, precision is 27.5 / W. Actual object bands also account for DA overrides.
         /// </summary>
         public static double AngularPrecisionStarAdjustment(double baseStars, double angularPrecisionMultiplier)
         {
-            double relativeAdjustment = Math.Max(0, baseStars)
-                                        * (Math.Sqrt(Math.Max(0.01, angularPrecisionMultiplier)) - 1);
-            return Math.Clamp(relativeAdjustment, -MAX_ANGULAR_STAR_DECREASE, MAX_ANGULAR_STAR_INCREASE);
+            double precision = Math.Max(0, angularPrecisionMultiplier);
+            double relativeAdjustment = precision > 1
+                ? 0.606 * Math.Pow(precision - 1, 1.28)
+                : Math.Sqrt(precision) - 1;
+
+            return Math.Max(0, baseStars) * relativeAdjustment;
         }
 
         /// <summary>
@@ -88,7 +89,7 @@ namespace osu.Game.Rulesets.Sticks
 
         /// <summary>
         /// Returns the timing multiplier applied after combining the independent Sticks skills.
-        /// Angular precision is applied separately as a bounded star adjustment, and approach rate
+        /// Angular precision is applied separately as a star adjustment, and approach rate
         /// is intentionally not part of this calculation.
         /// </summary>
         public static double StarRatingPrecisionMultiplier(IBeatmapDifficultyInfo difficulty) =>

@@ -1,6 +1,7 @@
 using System;
 using NUnit.Framework;
 using osu.Game.Beatmaps;
+using osu.Game.Rulesets.Sticks.Objects;
 
 namespace osu.Game.Rulesets.Sticks.Tests
 {
@@ -36,7 +37,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestAngularStarAdjustmentIsSmallAndBounded()
+        public void TestAngularStarAdjustmentScalesWithBaseDifficulty()
         {
             const double developed_map_stars = 7.5;
             const double trivial_map_stars = 0.5;
@@ -54,26 +55,85 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(easy, Is.EqualTo(-SticksDifficultyScaling.MAX_ANGULAR_STAR_DECREASE));
+                Assert.That(easy, Is.LessThan(-0.35), "Wide windows must not hit the old fixed reduction cap.");
                 Assert.That(reference, Is.Zero.Within(0.0001));
-                Assert.That(hard, Is.EqualTo(SticksDifficultyScaling.MAX_ANGULAR_STAR_INCREASE));
-                Assert.That(hard - easy, Is.EqualTo(0.6).Within(0.0001));
+                Assert.That(hard, Is.GreaterThan(0.25), "Tight windows must not hit the old fixed bonus cap.");
                 Assert.That(trivialEasy, Is.EqualTo(trivial_map_stars * (Math.Sqrt(11.0 / 14) - 1)).Within(0.0001));
-                Assert.That(trivialHard, Is.EqualTo(trivial_map_stars * (Math.Sqrt(11.0 / 8) - 1)).Within(0.0001));
-                Assert.That(SticksDifficultyScaling.AngularPrecisionStarAdjustment(developed_map_stars, 100),
-                    Is.EqualTo(SticksDifficultyScaling.MAX_ANGULAR_STAR_INCREASE));
-                Assert.That(SticksDifficultyScaling.AngularPrecisionStarAdjustment(developed_map_stars, 0.001),
-                    Is.EqualTo(-SticksDifficultyScaling.MAX_ANGULAR_STAR_DECREASE));
+                Assert.That(easy / developed_map_stars, Is.EqualTo(trivialEasy / trivial_map_stars).Within(0.0001));
+                Assert.That(hard / developed_map_stars, Is.EqualTo(trivialHard / trivial_map_stars).Within(0.0001));
+                Assert.That(trivialHard, Is.GreaterThan(0));
             });
+        }
+
+        [TestCase(4, 3.58)]
+        [TestCase(5, 3.90)]
+        [TestCase(5.4f, 4.20)]
+        [TestCase(6, 4.30)]
+        [TestCase(7, 4.49)]
+        [TestCase(8, 4.71)]
+        [TestCase(9, 4.98)]
+        [TestCase(10, 5.30)]
+        public void TestCircleSizeCurveMatchesAgreedRatings(float circleSize, double expectedStars)
+        {
+            // The reference map's calibrated rating before angular precision is applied.
+            const double base_stars = 3.5815894519875924;
+            Assert.That(adjustedStars(base_stars, SticksHitObject.HitAngleForCircleSize(circleSize)),
+                Is.EqualTo(expectedStars).Within(0.005));
+        }
+
+        [Test]
+        public void TestPrecisionAloneKeepsTrivialPatternsEasy()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(adjustedStars(0.5, 15), Is.LessThan(1), "Precision alone should not turn a trivial pattern into a difficult map.");
+                Assert.That(adjustedStars(0, 4), Is.Zero);
+            });
+        }
+
+        [TestCase(0.5)]
+        [TestCase(7.5)]
+        public void TestReferencePrecisionBoundaryIsContinuous(double baseStars)
+        {
+            const double step = 0.00001;
+            double boundary = SticksDifficultyScaling.AngularPrecisionMultiplier(27.5f, 13.75f);
+            double at = SticksDifficultyScaling.AngularPrecisionStarAdjustment(baseStars, boundary);
+            double below = SticksDifficultyScaling.AngularPrecisionStarAdjustment(baseStars, boundary - step);
+            double above = SticksDifficultyScaling.AngularPrecisionStarAdjustment(baseStars, boundary + step);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(at, Is.Zero);
+                Assert.That(below, Is.LessThan(0));
+                Assert.That(above, Is.GreaterThan(0));
+                Assert.That(Math.Abs(below), Is.LessThan(baseStars * step));
+                Assert.That(above, Is.LessThan(baseStars * step));
+            });
+        }
+
+        [Test]
+        public void TestDifficultyAdjustPrecisionContinuesBeyondCircleSizeTen()
+        {
+            float[] widths = { 90, 45, 35, 27.5f, 22.5f, 20, 15, 12, 10, 8, 6, 4 };
+            double previous = 0;
+
+            foreach (float width in widths)
+            {
+                double stars = adjustedStars(1, width);
+                Assert.That(double.IsFinite(stars), Is.True);
+                Assert.That(stars, Is.GreaterThan(previous), $"Narrowing the primary window to {width} degrees must increase stars.");
+                previous = stars;
+            }
         }
 
         [Test]
         public void TestAngularPrecisionInterpolationIsMonotonic()
         {
-            double previous = SticksDifficultyScaling.AngularPrecisionMultiplier(3);
+            double previous = SticksDifficultyScaling.AngularPrecisionMultiplier(0);
 
-            for (float circleSize = 3.05f; circleSize <= 5.4f; circleSize += 0.05f)
+            for (int step = 1; step <= 200; step++)
             {
+                float circleSize = step / 20f;
                 double current = SticksDifficultyScaling.AngularPrecisionMultiplier(circleSize);
                 Assert.That(current, Is.GreaterThan(previous), $"CS {circleSize} should increase angular precision demand.");
                 previous = current;
@@ -138,5 +198,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(35, 15), Is.EqualTo(Math.Sqrt(363.0 / 560)).Within(0.0001));
             });
         }
+
+        private static double adjustedStars(double baseStars, float primaryAngle) => baseStars
+            + SticksDifficultyScaling.AngularPrecisionStarAdjustment(baseStars,
+                SticksDifficultyScaling.AngularPrecisionMultiplier(primaryAngle, primaryAngle / 2));
     }
 }

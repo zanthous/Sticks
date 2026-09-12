@@ -36,7 +36,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Checks
                     if (!double.IsFinite(next.StartTime) || next.StartTime > currentEnd + time_leniency)
                         break;
 
-                    if (current.Side == next.Side)
+                    if (current.Side == next.Side && (current is SticksClick) == (next is SticksClick))
                         yield return new IssueTemplateSameStickOverlap(this).Create(current, next);
                 }
             }

@@ -136,13 +136,16 @@ namespace osu.Game.Rulesets.Sticks
                 new MultiMod(new SticksModSuddenDeath(), new SticksModPerfect()),
                 new SticksModDoubleTime(),
             },
-            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust(), new SticksModParity(), new SticksModDuet(), new SticksModParityDuet() },
+            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust(), new SticksModParity(), new SticksModEncore() },
             ModType.Fun => new Mod[] { new SticksModStrum() },
+            ModType.System => new Mod[] { new SticksModDuet(), new SticksModParityDuet() },
             _ => Array.Empty<Mod>(),
         };
 
         public override IEnumerable<HitResult> GetValidHitResults() => new[]
         {
+            HitResult.Perfect,
+            HitResult.Good,
             HitResult.Great,
             HitResult.Ok,
             HitResult.Meh,

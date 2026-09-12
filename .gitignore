@@ -32,3 +32,7 @@ Thumbs.db
 
 # Local beatmap references for converter experiments
 /mapreference/
+
+# Local note design concepts
+/Design/new-note-concepts/
+/Design/stacked-note-concepts/

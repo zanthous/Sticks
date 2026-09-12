@@ -47,6 +47,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             playfield.TriggerPressed(StickSide.Left),
             playfield.TriggerPressed(StickSide.Right),
             playfield.ShoulderPressed(StickSide.Left),
-            playfield.ShoulderPressed(StickSide.Right));
+            playfield.ShoulderPressed(StickSide.Right),
+            playfield.StickPressed(StickSide.Left),
+            playfield.StickPressed(StickSide.Right));
     }
 }

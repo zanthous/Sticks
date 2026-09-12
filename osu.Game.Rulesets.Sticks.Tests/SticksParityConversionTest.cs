@@ -331,18 +331,18 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestParityModAppliesAfterConverterConstructionAndKeepsStandardDefault()
+        public void TestParityModAppliesAfterConverterConstructionAndKeepsTwoStickDefault()
         {
             Beatmap<HitObject> beatmap = source();
             beatmap.HitObjects.Add(new PositionedHitObject { StartTime = 1000, Position = new Vector2(512, 192) });
             beatmap.HitObjects.Add(new PositionedHitObject { StartTime = 1500, Position = new Vector2(512, 192) });
             var converter = new SticksBeatmapConverter(beatmap, new SticksRuleset());
 
-            Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.Standard));
+            Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.Duet));
             SticksHitObject[] standard = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             new SticksModParity().ApplyToBeatmapConverter(converter);
             SticksHitObject[] parity = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            converter.ConversionMode = SticksConversionMode.Standard;
+            converter.ConversionMode = SticksConversionMode.Duet;
             SticksHitObject[] standardAgain = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.Multiple(() =>
@@ -409,23 +409,22 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestExperimentalModsAreRegisteredUnrankedAndMutuallyExclusive()
+        public void TestConversionSelectorRetainsParityAndEncoreAndRetiresDuetMods()
         {
             Mod[] mods = new SticksRuleset().GetModsFor(ModType.Conversion).ToArray();
             var parity = mods.OfType<SticksModParity>().Single();
-            var duet = mods.OfType<SticksModDuet>().Single();
             var converter = new SticksBeatmapConverter(source(), new SticksRuleset());
-            duet.ApplyToBeatmapConverter(converter);
+            parity.ApplyToBeatmapConverter(converter);
 
             Assert.Multiple(() =>
             {
                 Assert.That(parity.Acronym, Is.EqualTo("PA"));
-                Assert.That(duet.Acronym, Is.EqualTo("DU"));
                 Assert.That(parity.Ranked, Is.False);
-                Assert.That(duet.Ranked, Is.False);
-                Assert.That(parity.IncompatibleMods, Does.Contain(typeof(SticksModDuet)));
-                Assert.That(duet.IncompatibleMods, Does.Contain(typeof(SticksModParity)));
-                Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.Duet));
+                Assert.That(mods.Select(mod => mod.GetType()), Is.EqualTo(new[]
+                {
+                    typeof(SticksModDifficultyAdjust), typeof(SticksModParity), typeof(SticksModEncore),
+                }));
+                Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.ParityDuet));
             });
         }
 

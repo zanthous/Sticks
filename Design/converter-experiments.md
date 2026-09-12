@@ -1,16 +1,43 @@
 # Converter experiments
 
-The Parity (`PA`) and Duet (`DU`) modifiers let us compare two separate procedural
-conversion ideas with the existing converter. They are experiments, not claims
-that either approach is a better default. Authored Sticks carrier maps retain their
-authored objects; the reference maps below are examples to study and play directly,
-not inputs from which to judge a new procedural conversion.
+As of 2026-09-13, the former Duet conversion is the default. Parity (`PA`) applies
+its angle changes to that complete output, including slider partners and
+accompaniment. The separate Duet (`DU`) and Parity + Duet (`PD`) selections are
+retired. The Conversion category now contains Difficulty Adjust, Parity and Encore.
+Encore remains opt-in for additional note types. Authored Sticks maps retain their
+authored objects.
 
-Parity + Duet (`PD`) combines both experiments: it builds the complete Duet output,
-including added slider partners and accompaniment, then applies Parity to every
-gesture. Timings, stick assignments, chords, durations and relative slider arcs
-stay as Duet generated them. A final cleanup aligns nearly coincident chord heads,
-then synced-note links use those final angles.
+The observations and dated comparisons below retain their original mode names:
+historical “Standard” means the converter before Duet became the default, and
+historical “Parity” means Parity on that older base. These names describe the
+measurements at the time, rather than the current mod selection.
+
+## Encore click placement — 2026-09-13
+
+Clicks remain opt-in through Encore. They replace isolated flicks at source
+accent hitsounds or bar starts, retaining the source time and samples. They do
+not split double heads or add a button press inside a sustain. Both the source
+rhythm and the complete converted gestures must provide space before and after
+the click; earlier holds and sliders count through their ends.
+
+At source OD 3 or below, surrounding clearance is at least 500 ms and one local
+beat, and clicks are separated by at least eight seconds and 16 local beats.
+These requirements decrease continuously up to OD 7, where they become 150 ms
+and 0.45 beats of surrounding clearance, and four seconds and eight beats between
+clicks. The larger of each time/beat pair applies. The 0.45-beat value leaves room
+for rounded half-beat timestamps on harder maps. Hitsounds cannot bypass spacing.
+OD expresses intended difficulty here; actual source and converted spacing still
+decide whether any individual accent is suitable. A map can receive no clicks.
+
+Verification used the same 43-map local corpus and a saved pre-promotion ruleset
+DLL. Default and Parity each match all 32,985 heads and star ratings of the former
+Duet and Parity + Duet outputs respectively. Encore clicks fall from 2,431 to 411
+across the corpus; in the five OD ≤4 maps they fall from 107 to 15, with at least
+600 ms of clearance to any other occupied gesture in that sample. There are no
+remaining click overlaps with directional gestures, and Parity leaves click times
+and hand assignments identical. These are corpus observations, not a guarantee of
+the same counts on every map. Local exports and summary are in
+`mapreference/default-promotion/`; the testbed README documents reproduction.
 
 ## Authored reference observations
 

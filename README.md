@@ -17,9 +17,11 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 - The left stick is blue and the right stick is red.
 - Notes, sliders, and holds travel from the center toward the circular judgment line.
 - Flick notes require entering the recharge zone, then crossing outward at the target angle near the hit time.
+- Click notes are unfilled coloured halos approaching the ring. Press L1/L2/L3 for left or R1/R2/R3 for right; Strum restricts clicks to L3/R3. Stick angle and position do not matter. Clicks can be placed alongside holds or sliders and use timing-only 300/100/50 scoring.
 - Sliders require hitting the head and continuously following the displayed angular path with the assigned stick.
 - Directional holds require hitting an angle and sustaining it while the hold progresses toward the judgment line.
-- Flick and hold/slider heads grade timing and angle equally. Their combined `300 / 200 / 175 / 100 / 75 / miss` grade appears as a thin colored bar along the bottom of the playfield; failing either required component is a miss, and misses use audio feedback without drawing the bar.
+- Flick and hold/slider heads grade timing and angle equally. Non-perfect hits show a colored dot just outside the ring at the note's angle: green for `200`, lime for `175`, yellow for `100`, and orange for `75`. Each dot starts fading immediately and disappears after 600 ms; left-stick dots sit slightly farther out so stacked doubles remain distinct. Perfect `300` hits show no dot. Failing either required component is a miss, with audio feedback.
+- Each complete head has 300 accuracy weight (150 timing + 150 aim), tracking ticks and reversals have 30, and slider/hold tails have 150. Timing carries the head's full 300-point combo contribution with one combo increment; aim adds no extra combo. These weights are normalized to a 1,000,000 maximum before mod multipliers. Previously saved scores retain their stored values; replay recalculation uses the current weights.
 - Holds use slider-style independent head, beat tick, and tail checkpoints. Leaving the target loses only checkpoints crossed while away, and tracking/audio resume on return.
 - Standard circles convert to flicks. Standard sliders and other duration objects convert to generated circular slider patterns.
 - Source hold notes and spinners convert to directional holds.
@@ -38,13 +40,14 @@ Star difficulty is NOT currently well calibrated and needs significant work to b
 
 The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Converted sliders use consistent, speed-limited circular arcs chosen from their duration and source pattern.
 
-Three unranked experiments are available in the **Conversion** mod category for ordinary osu!standard maps. Select one at a time:
+The default converter builds coordinated two-stick patterns, including slider-head chords, independent accompaniment, interleaved sustains and paired sliders. Moving voices preserve source directions and timing, including speed changes, pauses and reversals.
 
-- **Parity (PA)** expands each stick's original turns using a flexible 135° preference. Local rhythm and movement continuously adjust the strength; slider endpoints count, and two beats of rest start a new phrase.
-- **Duet (DU)** keeps the standard converter's existing two-stick patterns, then adds slider-head chords and independently aimed flicks at slider checkpoints or locally established half-beats. Unclaimed circle phrases can also become nested/interleaved sustains or chord phrases. Interleaved moving voices preserve source directions and their timing, including speed changes, pauses, and reversals, and isolated sliders can gain parallel or reflected partners.
-- **Parity + Duet (PD)** combines Duet's simultaneous patterns with Parity's angular separation. Parity runs after all Duet notes are added, keeping their timing, stick assignments, durations and slider shapes.
+The **Conversion** category contains **Difficulty Adjust**, **Parity** and **Encore**:
 
-All procedural converters align simultaneous opposite-stick heads within 5° to their circular midpoint, so nearly overlapping doubles render at exactly the same angle. All three experiments preserve authored Sticks maps and can be used with Difficulty Adjust or Autoplay. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
+- **Parity (PA)** expands each stick's original turns using a flexible 135° preference. It operates on the complete default conversion, preserving timing, stick assignments and slider shapes. Local rhythm and movement adjust its strength; slider endpoints count, and two beats of rest start a new phrase.
+- **Encore (EN)** enables additional note types during conversion. It can be combined with Parity or Difficulty Adjust.
+
+Both conversion mods preserve authored Sticks maps. Procedural conversion aligns simultaneous opposite-stick heads within 5° to their circular midpoint, so nearly overlapping doubles render at exactly the same angle. In Center Out, exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
 
 ## Build and install
 
@@ -83,9 +86,10 @@ Sticks has a circular editor inside osu!lazer. To start from an imported song:
 3. Choose **Create blank Sticks difficulty** to keep the song, metadata, and timing but map from scratch, or **Create editable converted Sticks difficulty** to use the converter as a starting point.
 4. The new database-backed Sticks difficulty opens directly in lazer's editor.
 
-Use the left editor toolbox (or number keys) to select Flick, Hold, or Slider:
+Use the left editor toolbox (or number keys) to select Flick, Click, Hold, or Slider:
 
 - Flick: click the blue outer lane for the left stick or red inner lane for the right stick.
+- Click: select the Click tool and place a halo on the blue outer lane (left hand) or red inner lane (right hand). The placement angle does not affect gameplay.
 - Hold: press on a lane, drag radially in the displayed duration direction, and release.
 - Slider: press on a lane, trace the circular arc, and release.
 - Selected hold/slider: drag its endpoint on the timeline to change duration.

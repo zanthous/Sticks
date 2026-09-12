@@ -78,7 +78,7 @@ namespace osu.Game.Rulesets.Sticks
             private readonly RollbackableRankedValues controlStrains = RollbackableRankedValues.CreateStrains();
             private readonly RollbackableRankedValues coordinationStrains = RollbackableRankedValues.CreateStrains();
 
-            private readonly Dictionary<StickSide, PreviousSideObject> previousBySide = new Dictionary<StickSide, PreviousSideObject>();
+            private readonly Dictionary<(StickSide Side, bool Click), PreviousSideObject> previousBySide = new Dictionary<(StickSide Side, bool Click), PreviousSideObject>();
             private readonly List<ActiveTrackingObject> activeTracking = new List<ActiveTrackingObject>();
             private readonly List<PatternGroup> readingHistory = new List<PatternGroup>();
             private readonly RollbackableRankedValues angularPrecisionValues = RollbackableRankedValues.CreateAscending();
@@ -203,7 +203,7 @@ namespace osu.Game.Rulesets.Sticks
                 if (coordinationImpulse > 0)
                     coordinationStrains.Add(coordination.Process(timestamp, coordinationImpulse));
 
-                foreach (IGrouping<StickSide, SticksHitObject> sideGroup in group.GroupBy(hitObject => hitObject.Side))
+                foreach (var sideGroup in group.GroupBy(hitObject => (hitObject.Side, Click: hitObject is SticksClick)))
                 {
                     SticksHitObject latestEnding = sideGroup.OrderByDescending(endTimeOf).First();
                     previousBySide[sideGroup.Key] = new PreviousSideObject(endTimeOf(latestEnding));
@@ -224,11 +224,13 @@ namespace osu.Game.Rulesets.Sticks
 
                 readingHistory.Add(new PatternGroup(
                     timestamp,
-                    group.Select(hitObject => hitObject.Angle).ToArray(),
+                    group.Where(hitObject => hitObject is not SticksClick).Select(hitObject => hitObject.Angle).ToArray(),
                     group.Select(kindOf).ToArray()));
 
                 foreach (SticksHitObject hitObject in group)
                 {
+                    if (hitObject is SticksClick)
+                        continue;
                     angularPrecisionValues.Add(
                         SticksDifficultyScaling.AngularPrecisionMultiplier(hitObject.PrimaryHitAngle, hitObject.SecondaryHitAngle));
                 }
@@ -246,7 +248,7 @@ namespace osu.Game.Rulesets.Sticks
                 controlStrains.Checkpoint,
                 coordinationStrains.Checkpoint,
                 angularPrecisionValues.Checkpoint,
-                new Dictionary<StickSide, PreviousSideObject>(previousBySide),
+                new Dictionary<(StickSide Side, bool Click), PreviousSideObject>(previousBySide),
                 activeTracking.ToArray(),
                 readingHistory.ToArray());
 
@@ -263,7 +265,7 @@ namespace osu.Game.Rulesets.Sticks
                 angularPrecisionValues.RollbackTo(checkpoint.AngularPrecisionCount);
 
                 previousBySide.Clear();
-                foreach ((StickSide side, PreviousSideObject previous) in checkpoint.PreviousBySide)
+                foreach (var (side, previous) in checkpoint.PreviousBySide)
                     previousBySide.Add(side, previous);
 
                 activeTracking.Clear();
@@ -282,18 +284,18 @@ namespace osu.Game.Rulesets.Sticks
                 int ControlStrainCount,
                 int CoordinationStrainCount,
                 int AngularPrecisionCount,
-                Dictionary<StickSide, PreviousSideObject> PreviousBySide,
+                Dictionary<(StickSide Side, bool Click), PreviousSideObject> PreviousBySide,
                 ActiveTrackingObject[] ActiveTracking,
                 PatternGroup[] ReadingHistory);
         }
 
         private static double mechanicalImpulse(SticksHitObject current, double timestamp,
-                                                IReadOnlyDictionary<StickSide, PreviousSideObject> previousBySide,
+                                                IReadOnlyDictionary<(StickSide Side, bool Click), PreviousSideObject> previousBySide,
                                                 double fullGreatWindow, double clockRate)
         {
             double impulse;
 
-            if (!previousBySide.TryGetValue(current.Side, out PreviousSideObject previous))
+            if (!previousBySide.TryGetValue((current.Side, current is SticksClick), out PreviousSideObject previous))
             {
                 impulse = 0.35;
             }
@@ -376,9 +378,9 @@ namespace osu.Game.Rulesets.Sticks
             double jumpDemand = 0;
             double novelty = 0;
 
-            if (previous.HasValue)
+            if (previous.HasValue && previous.Value.Angles.Length > 0)
             {
-                foreach (SticksHitObject current in group)
+                foreach (SticksHitObject current in group.Where(current => current is not SticksClick))
                 {
                     float signedStep = nearestSignedStep(previous.Value.Angles, current.Angle);
                     double objectJumpDemand = Math.Pow(Math.Abs(signedStep) / 180, 0.7);
@@ -390,7 +392,7 @@ namespace osu.Game.Rulesets.Sticks
                         objectNovelty *= 0.65;
                     }
 
-                    if (twoBack.HasValue)
+                    if (twoBack.HasValue && twoBack.Value.Angles.Length > 0)
                     {
                         float priorStep = nearestSignedStep(twoBack.Value.Angles, previous.Value.Angles[0]);
                         if (Math.Abs(Math.Abs(signedStep) - Math.Abs(priorStep)) <= 15)
@@ -431,7 +433,7 @@ namespace osu.Game.Rulesets.Sticks
                              * density
                              * spatialSearchMultiplier;
 
-            bool followsActiveSliderArc = group.Any(current => activeTracking.Any(active =>
+            bool followsActiveSliderArc = group.Any(current => current is not SticksClick && activeTracking.Any(active =>
                 active.Object is SticksSlider activeSlider
                 && active.Object.Side != current.Side
                 && Math.Abs(SticksHitObject.DeltaAngle(activeSlider.AngleAt(timestamp), current.Angle)) <= 30));
@@ -466,7 +468,7 @@ namespace osu.Game.Rulesets.Sticks
             if (group.Select(kindOf).Distinct().Count() > 1)
                 impulse += 0.15;
 
-            foreach (IGrouping<StickSide, SticksHitObject> sideGroup in group.GroupBy(current => current.Side))
+            foreach (var sideGroup in group.GroupBy(current => (current.Side, Click: current is SticksClick)))
             {
                 if (sideGroup.Count() > 1)
                     impulse += 2 * (sideGroup.Count() - 1);
@@ -476,7 +478,7 @@ namespace osu.Game.Rulesets.Sticks
             {
                 foreach (ActiveTrackingObject active in activeTracking)
                 {
-                    if (active.Object.Side == current.Side)
+                    if (active.Object.Side == current.Side && current is not SticksClick)
                     {
                         impulse += 2.5;
                         continue;
@@ -485,7 +487,7 @@ namespace osu.Game.Rulesets.Sticks
                     if (active.Object is SticksSlider activeSlider)
                     {
                         double overlap = 0.35 + 0.1 * Math.Min(2, active.AngularVelocity / 120);
-                        if (Math.Abs(SticksHitObject.DeltaAngle(activeSlider.AngleAt(timestamp), current.Angle)) <= 30)
+                        if (current is not SticksClick && Math.Abs(SticksHitObject.DeltaAngle(activeSlider.AngleAt(timestamp), current.Angle)) <= 30)
                             overlap *= 0.85;
 
                         impulse += overlap;
@@ -519,6 +521,7 @@ namespace osu.Game.Rulesets.Sticks
 
         private static ObjectKind kindOf(SticksHitObject hitObject) => hitObject switch
         {
+            SticksClick => ObjectKind.Click,
             SticksSlider => ObjectKind.Slider,
             SticksHold => ObjectKind.Hold,
             _ => ObjectKind.Flick,
@@ -527,6 +530,7 @@ namespace osu.Game.Rulesets.Sticks
         private enum ObjectKind
         {
             Flick,
+            Click,
             Slider,
             Hold,
         }

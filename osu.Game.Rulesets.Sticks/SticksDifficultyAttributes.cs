@@ -21,7 +21,7 @@ namespace osu.Game.Rulesets.Sticks
         public double TimingPrecision { get; set; } = 1;
 
         /// <summary>
-        /// Number of top-level objects which award the paired timing and angle judgements.
+        /// Number of scored note heads, including timing-only clicks.
         /// </summary>
         public int AccuracyObjectCount { get; set; }
 

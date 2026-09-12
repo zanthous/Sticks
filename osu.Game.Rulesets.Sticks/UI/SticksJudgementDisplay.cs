@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Extensions.Color4Extensions;
@@ -5,7 +6,6 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Rulesets.Judgements;
-using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Scoring;
@@ -15,16 +15,21 @@ using osuTK.Graphics;
 namespace osu.Game.Rulesets.Sticks.UI
 {
     /// <summary>
-    /// A compact last-judgement display. Each result replaces the previous one in a thin bar at
-    /// the bottom of the playfield instead of accumulating multiple judgement drawables.
+    /// Brief coloured dots outside the ring identify non-perfect hits at their note angles.
+    /// A bounded pool keeps simultaneous results independent without allocating visuals per hit.
     /// </summary>
     public partial class SticksJudgementDisplay : Container
     {
-        public const float BAR_HEIGHT = 4;
-        public const double DISPLAY_DURATION = 420;
-        public const double FADE_DURATION = 100;
+        public const float DOT_DIAMETER = 10;
+        public const float DOT_RADIUS = SticksPlayfield.GUIDE_RADIUS + 22;
+        public const float STICK_SEPARATION = 14;
+        public const double DISPLAY_DURATION = 0;
+        public const double FADE_DURATION = 600;
+        internal const int MAX_DOTS = 32;
 
-        private readonly Box fill;
+        private readonly Circle[] dots = new Circle[MAX_DOTS];
+        private readonly double[] shownAt = new double[MAX_DOTS];
+        private int nextDot;
         private readonly Dictionary<SticksAngleComponent, HitResult> pendingTimingResults = new Dictionary<SticksAngleComponent, HitResult>();
         private readonly Dictionary<SticksAngleComponent, HitResult> pendingAngleResults = new Dictionary<SticksAngleComponent, HitResult>();
 
@@ -34,16 +39,20 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             Anchor = Anchor.TopLeft;
             Origin = Anchor.TopLeft;
-            Position = new Vector2(0, SticksPlayfield.SIZE - BAR_HEIGHT);
-            Size = new Vector2(SticksPlayfield.SIZE, BAR_HEIGHT);
+            Size = new Vector2(SticksPlayfield.SIZE);
             Alpha = 0;
             AlwaysPresent = true;
             Depth = -10;
 
-            Child = fill = new Box
+            for (int i = 0; i < dots.Length; i++)
             {
-                RelativeSizeAxes = Axes.Both,
-            };
+                Add(dots[i] = new Circle
+                {
+                    Origin = Anchor.Centre,
+                    Size = new Vector2(DOT_DIAMETER),
+                    Alpha = 0,
+                });
+            }
         }
 
         /// <summary>
@@ -53,13 +62,20 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// </summary>
         public void Process(JudgementResult result)
         {
-            if (result.HitObject is not ISticksAccuracyComponent component)
+            if (result.HitObject is SticksClick click)
             {
-                if (isActionCheckpoint(result.HitObject))
-                    displayResult(result.Type.IsHit() ? HitResult.Perfect : result.Type);
-
+                // Halos have no aim location. Use a stable side-specific point for timing feedback.
+                displayResult(click, result.Type switch
+                {
+                    HitResult.Good => HitResult.Ok,
+                    HitResult.Ok => HitResult.Meh,
+                    _ => result.Type,
+                });
                 return;
             }
+
+            if (result.HitObject is not ISticksAccuracyComponent component)
+                return;
 
             if (component.AccuracyComponent == SticksAccuracyComponent.Timing)
             {
@@ -68,7 +84,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                     return;
 
                 if (pendingAngleResults.Remove(angleComponent, out HitResult angleResult))
-                    Display(result.Type, angleResult);
+                    displayResult(angleComponent, CombinedResult(result.Type, angleResult));
                 else
                     pendingTimingResults[angleComponent] = result.Type;
 
@@ -79,56 +95,62 @@ namespace osu.Game.Rulesets.Sticks.UI
                 return;
 
             if (pendingTimingResults.Remove(angleHitObject, out HitResult timingResult))
-                Display(timingResult, result.Type);
+                displayResult(angleHitObject, CombinedResult(timingResult, result.Type));
             else
                 pendingAngleResults[angleHitObject] = result.Type;
         }
 
         public void Revert(JudgementResult result)
         {
-            SticksAngleComponent angleComponent = result.HitObject switch
-            {
-                SticksAngleComponent angle => angle,
-                ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Timing } =>
-                    result.HitObject.NestedHitObjects.OfType<SticksAngleComponent>().SingleOrDefault(),
-                _ => null,
-            };
-
-            if (angleComponent != null)
-            {
-                pendingTimingResults.Remove(angleComponent);
-                pendingAngleResults.Remove(angleComponent);
-            }
-
+            // A rewind invalidates both the visible feedback and any half-finished pairs.
             ResetDisplay();
         }
 
-        public void Display(HitResult timingResult, HitResult angleResult)
+        private void displayResult(SticksHitObject source, HitResult result)
         {
-            displayResult(CombinedResult(timingResult, angleResult));
-        }
-
-        private void displayResult(HitResult result)
-        {
-            // Misses already have audio feedback. Keeping them out of this display prevents a
-            // red flash from obscuring the next useful accuracy colour during dense patterns.
-            if (!result.IsHit())
+            // Successful action checkpoints and perfect heads need no accuracy correction.
+            // Misses retain their existing audio feedback rather than adding a dot.
+            if (result == HitResult.Perfect || !result.IsHit())
                 return;
 
             LastResult = result;
-            fill.Colour = ColourForResult(result);
-
-            ClearTransforms();
+            Circle dot = dots[nextDot];
+            // Keep both hands outside the ring, with the left hand slightly farther out
+            // (matching its outer lane) so exact doubles cannot overwrite each other.
+            dot.Position = SticksPlayfield.PointAt(source is SticksClick ? (source.Side == StickSide.Left ? 180 : 0) : source.Angle, DOT_RADIUS + (source.Side == StickSide.Left ? STICK_SEPARATION : 0));
+            dot.Colour = ColourForResult(result);
+            dot.Alpha = 1;
+            shownAt[nextDot] = Time.Current;
+            nextDot = (nextDot + 1) % dots.Length;
             Alpha = 1;
-            this.Delay(DISPLAY_DURATION).FadeOut(FADE_DURATION);
         }
 
-        private static bool isActionCheckpoint(HitObject hitObject) => hitObject is
-            SticksSliderTail or SticksHoldTail or SticksSliderRepeat or SticksSliderExtension;
+        protected override void Update()
+        {
+            base.Update();
+            bool anyVisible = false;
+
+            for (int i = 0; i < dots.Length; i++)
+            {
+                Circle dot = dots[i];
+                if (dot.Alpha == 0)
+                    continue;
+
+                dot.Alpha = (float)(1 - Math.Clamp((Time.Current - shownAt[i] - DISPLAY_DURATION) / FADE_DURATION, 0, 1));
+                anyVisible |= dot.Alpha > 0;
+            }
+
+            Alpha = anyVisible ? 1 : 0;
+        }
 
         public void ResetDisplay()
         {
-            ClearTransforms();
+            foreach (Circle dot in dots)
+                dot.Alpha = 0;
+
+            pendingTimingResults.Clear();
+            pendingAngleResults.Clear();
+            nextDot = 0;
             Alpha = 0;
             LastResult = null;
         }

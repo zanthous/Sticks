@@ -40,6 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             new SticksFlickCompositionTool(),
             new SticksHoldCompositionTool(),
             new SticksSliderCompositionTool(),
+            new SticksClickCompositionTool(),
         };
 
         protected override ComposeBlueprintContainer CreateBlueprintContainer() => new SticksBlueprintContainer(this);

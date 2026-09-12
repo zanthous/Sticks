@@ -37,7 +37,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            var slider = (SticksSlider)converted[2];
+            SticksSlider slider = converted.OfType<SticksSlider>().Single();
             slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
             var tail = slider.NestedHitObjects.OfType<SticksSliderTail>().Single();
             SticksSliderTick[] ticks = slider.NestedHitObjects.OfType<SticksSliderTick>().ToArray();
@@ -46,7 +46,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(converted, Has.Length.EqualTo(4));
+                Assert.That(converted, Has.Length.EqualTo(6));
+                Assert.That(converted.Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1000, 2000, 2500, 3000, 3500 }));
                 Assert.That(converted.Take(2), Has.All.TypeOf<SticksFlick>());
                 Assert.That(converted[0].Side, Is.Not.EqualTo(converted[1].Side));
                 Assert.That(slider.Duration, Is.EqualTo(2000));
@@ -61,7 +62,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(tail.Side, Is.EqualTo(slider.Side));
                 Assert.That(tail.Angle, Is.EqualTo(slider.AngleAt(slider.EndTime)).Within(0.001));
                 Assert.That(drawableSlider.AttachedNestedObjects, Is.EqualTo(5));
-                Assert.That(converted[3].Side, Is.Not.EqualTo(slider.Side));
+                Assert.That(converted.OfType<SticksFlick>().Where(note => note.StartTime >= slider.StartTime),
+                    Has.All.Matches<SticksFlick>(note => note.Side != slider.Side));
                 Assert.That(converted, Has.All.Matches<SticksHitObject>(hitObject => hitObject.Samples.Count > 0));
             });
         }
@@ -127,28 +129,33 @@ namespace osu.Game.Rulesets.Sticks.Tests
             sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 53) });
             source.HitObjects.Add(sourceSlider);
 
-            var converted = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
-            converted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
-
-            HitObject[] audibleNested = converted.NestedHitObjects
-                                                  .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
-                                                  .ToArray();
-
-            Assert.Multiple(() =>
+            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            Assert.That(sliders, Has.Length.EqualTo(2));
+            Assert.That(sliders.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
+            foreach (SticksSlider converted in sliders)
             {
-                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
-                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(24));
-                Assert.That(converted.NodeSamples.Select(samples => samples.Single().Name),
-                    Is.EqualTo(new[] { HitSampleInfo.HIT_WHISTLE, HitSampleInfo.HIT_CLAP, HitSampleInfo.HIT_WHISTLE }));
-                Assert.That(converted.NodeSamples.Select(samples => samples.Single().Volume), Is.EqualTo(new[] { 31, 42, 53 }));
-                Assert.That(converted.NestedHitObjects.OfType<SticksSliderTick>().SelectMany(tick => tick.Samples),
-                    Has.All.Matches<HitSampleInfo>(sample => sample.Name == "slidertick" && sample.Volume == 24));
-                Assert.That(converted.NestedHitObjects.OfType<SticksSliderRepeat>().Single().Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_CLAP));
-                Assert.That(converted.NestedHitObjects.OfType<SticksSliderRepeat>().Single().Samples.Single().Volume, Is.EqualTo(42));
-                Assert.That(converted.NestedHitObjects.OfType<SticksSliderTail>().Single().Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_WHISTLE));
-                Assert.That(converted.NestedHitObjects.OfType<SticksSliderTail>().Single().Samples.Single().Volume, Is.EqualTo(53));
-                Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples), Is.Not.Empty);
-            });
+                converted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+                HitObject[] audibleNested = converted.NestedHitObjects
+                                                      .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
+                                                      .ToArray();
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
+                    Assert.That(converted.Samples.Single().Volume, Is.EqualTo(24));
+                    Assert.That(converted.NodeSamples.Select(samples => samples.Single().Name),
+                        Is.EqualTo(new[] { HitSampleInfo.HIT_WHISTLE, HitSampleInfo.HIT_CLAP, HitSampleInfo.HIT_WHISTLE }));
+                    Assert.That(converted.NodeSamples.Select(samples => samples.Single().Volume), Is.EqualTo(new[] { 31, 42, 53 }));
+                    Assert.That(converted.NestedHitObjects.OfType<SticksSliderTick>().SelectMany(tick => tick.Samples),
+                        Has.All.Matches<HitSampleInfo>(sample => sample.Name == "slidertick" && sample.Volume == 24));
+                    Assert.That(converted.NestedHitObjects.OfType<SticksSliderRepeat>().Single().Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_CLAP));
+                    Assert.That(converted.NestedHitObjects.OfType<SticksSliderRepeat>().Single().Samples.Single().Volume, Is.EqualTo(42));
+                    Assert.That(converted.NestedHitObjects.OfType<SticksSliderTail>().Single().Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_WHISTLE));
+                    Assert.That(converted.NestedHitObjects.OfType<SticksSliderTail>().Single().Samples.Single().Volume, Is.EqualTo(53));
+                    Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples), Is.Not.Empty);
+                });
+            }
         }
 
         [Test]
@@ -169,25 +176,30 @@ namespace osu.Game.Rulesets.Sticks.Tests
             sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 53) });
             source.HitObjects.Add(sourceSlider);
 
-            var converted = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset())
             {
                 DisableBeatmapHitsounds = true,
-            }.Convert().HitObjects.Single();
-            converted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
-
-            HitObject[] audibleNested = converted.NestedHitObjects
-                                                  .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
-                                                  .ToArray();
-
-            Assert.Multiple(() =>
+            }.Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            Assert.That(sliders, Has.Length.EqualTo(2));
+            Assert.That(sliders.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
+            foreach (SticksSlider converted in sliders)
             {
-                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
-                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
-                Assert.That(converted.NodeSamples, Is.Empty);
-                Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples),
-                    Has.All.Matches<HitSampleInfo>(sample =>
-                        (sample.Name == HitSampleInfo.HIT_NORMAL || sample.Name == "slidertick") && sample.Volume == 100));
-            });
+                converted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+
+                HitObject[] audibleNested = converted.NestedHitObjects
+                                                      .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
+                                                      .ToArray();
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
+                    Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
+                    Assert.That(converted.NodeSamples, Is.Empty);
+                    Assert.That(audibleNested.SelectMany(hitObject => hitObject.Samples),
+                        Has.All.Matches<HitSampleInfo>(sample =>
+                            (sample.Name == HitSampleInfo.HIT_NORMAL || sample.Name == "slidertick") && sample.Volume == 100));
+                });
+            }
         }
 
         [Test]
@@ -211,7 +223,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(converted, Has.Exactly(1).TypeOf<SticksFlick>());
-                Assert.That(converted, Has.Exactly(1).TypeOf<SticksSlider>());
+                Assert.That(converted, Has.Exactly(2).TypeOf<SticksSlider>());
                 Assert.That(converted, Has.Exactly(1).TypeOf<SticksHold>());
                 Assert.That(allObjects, Has.All.Matches<SticksHitObject>(hitObject =>
                     hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 10));
@@ -462,8 +474,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [Test]
-        public void TestOfficialTutorialConversionRemainsBeginnerDifficulty()
+        [TestCase(SticksConversionMode.Standard)]
+        [TestCase(SticksConversionMode.Duet)]
+        public void TestOfficialTutorialRetainsHistoricalCalibrationAndPromotedPatternBehaviour(SticksConversionMode mode)
         {
             const string beatmapText = """
                                        osu file format v14
@@ -529,14 +542,52 @@ namespace osu.Game.Rulesets.Sticks.Tests
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(beatmapText));
             using var reader = new LineBufferedReader(stream);
             Beatmap source = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader);
-            IBeatmap converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert();
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            if (mode == SticksConversionMode.Standard)
+                converter.ConversionMode = mode;
+            IBeatmap converted = converter.Convert();
             SticksDifficultyBreakdown difficulty = SticksDifficultyCalculator.CalculateDifficulty(
                 converted.HitObjects.Cast<SticksHitObject>(),
                 overallDifficulty: converted.Difficulty.OverallDifficulty);
             string sliderSummary = string.Join(", ", converted.HitObjects.OfType<SticksSlider>()
                 .Select(slider => $"{slider.Duration:0}ms/{slider.TotalAngularDistance / (slider.Duration / 1000):0}deg-s"));
 
-            Assert.That(difficulty.StarRating, Is.LessThan(2), $"The official tutorial difficulty was {difficulty}. Sliders: {sliderSummary}");
+            if (mode == SticksConversionMode.Standard)
+            {
+                // Retain the original calibration for the historical converter. Promotion does
+                // not tune the additional two-stick patterns to this old star-rating target.
+                Assert.That(difficulty.StarRating, Is.LessThan(2), $"The historical tutorial difficulty was {difficulty}. Sliders: {sliderSummary}");
+            }
+            else
+            {
+                SticksHitObject[] previousDuet = new SticksBeatmapConverter(source, new SticksRuleset())
+                {
+                    ConversionMode = SticksConversionMode.Duet,
+                }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+                System.Func<SticksHitObject, string> shape = note =>
+                    $"{note.GetType().Name}:{note.StartTime}:{note.Side}:{note.Angle}:"
+                    + (note is SticksSlider slider ? $"{slider.Duration}:{slider.RepeatCount}:{string.Join(",", slider.SegmentArcAngles)}" : string.Empty);
+                Assert.That(converted.HitObjects.Cast<SticksHitObject>().Select(shape), Is.EqualTo(previousDuet.Select(shape)));
+                Assert.That(difficulty.StarRating, Is.EqualTo(SticksDifficultyCalculator.CalculateDifficulty(
+                    previousDuet, overallDifficulty: source.Difficulty.OverallDifficulty).StarRating));
+            }
+
+            Assert.That(converted.HitObjects.OfType<SticksSlider>(), Is.Not.Empty);
+            foreach (SticksSlider slider in converted.HitObjects.OfType<SticksSlider>())
+            {
+                for (int segment = 0; segment < slider.SegmentCount; segment++)
+                    Assert.That(System.Math.Abs(slider.SegmentArcAngleAt(segment)) / slider.SegmentDurationAt(segment) * 1000,
+                        Is.LessThanOrEqualTo(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001));
+            }
+            foreach (var voice in converted.HitObjects.Cast<SticksHitObject>().GroupBy(note => note.Side))
+            {
+                SticksHitObject[] notes = voice.OrderBy(note => note.StartTime).ToArray();
+                for (int i = 1; i < notes.Length; i++)
+                {
+                    double previousEnd = notes[i - 1] is IHasDuration duration ? duration.EndTime : notes[i - 1].StartTime;
+                    Assert.That(notes[i].StartTime, Is.GreaterThan(previousEnd), "Each stick must finish its previous gesture before starting the next.");
+                }
+            }
         }
 
         [Test]
@@ -1022,10 +1073,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD,
                     Is.EqualTo(260), "Physical alternation spacing must remain independent of broad miss windows.");
-                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(converted, Has.Length.EqualTo(3));
+                Assert.That(converted.Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1250, 1750 }));
                 Assert.That(converted[0], Is.TypeOf<SticksFlick>());
                 Assert.That(converted[1], Is.TypeOf<SticksSlider>());
-                Assert.That(converted[0].Side, Is.Not.EqualTo(converted[1].Side));
+                Assert.That(converted.OfType<SticksFlick>(),
+                    Has.All.Matches<SticksFlick>(note => note.Side != converted[1].Side));
             });
         }
 
@@ -1070,10 +1123,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(converted, Has.Length.EqualTo(4));
+                Assert.That(converted.Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1000, 1500, 2000 }));
                 Assert.That(converted[0], Is.TypeOf<SticksSlider>());
-                Assert.That(converted[1], Is.TypeOf<SticksFlick>());
-                Assert.That(converted[1].Side, Is.Not.EqualTo(converted[0].Side));
+                Assert.That(converted[^1], Is.TypeOf<SticksFlick>());
+                Assert.That(converted.OfType<SticksFlick>(),
+                    Has.All.Matches<SticksFlick>(note => note.Side != converted[0].Side));
             });
         }
 
@@ -1142,8 +1197,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(converted, Has.Length.EqualTo(3));
-                Assert.That(converted.OfType<SticksFlick>().Single().StartTime, Is.EqualTo(2200));
+                Assert.That(converted.OfType<SticksSlider>().Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1600 }));
+                Assert.That(converted.OfType<SticksFlick>().Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 2200 }));
             });
         }
 
@@ -1176,7 +1231,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(flicks, Has.Length.EqualTo(1));
+                Assert.That(flicks.Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1500, 2000 }));
+                Assert.That(converted.Any(note => note.StartTime == 1750), Is.False);
+                Assert.That(flicks.Zip(flicks.Skip(1)), Has.All.Matches<(SticksFlick First, SticksFlick Second)>(pair =>
+                    pair.Second.StartTime - pair.First.StartTime > SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD));
                 Assert.That(flicks, Has.All.Matches<SticksFlick>(flick => flick.Side != slider.Side));
             });
         }
@@ -1438,7 +1496,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestRareSliderAccompanimentFollowsArc()
+        public void TestHistoricalSliderAccompanimentFollowsArc()
         {
             var source = new Beatmap<HitObject>();
             source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
@@ -1446,7 +1504,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             source.HitObjects.Add(new TestPositionedHitObject { StartTime = 1500, Position = new Vector2(0, 192) });
             source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(256, 0) });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            // This checks the historical accompaniment; the current base can add independent accents.
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             var slider = (SticksSlider)converted[0];
             SticksFlick[] taps = converted.OfType<SticksFlick>().ToArray();
@@ -1505,30 +1564,35 @@ namespace osu.Game.Rulesets.Sticks.Tests
             sourceSlider.NodeSamples.Add(new List<HitSampleInfo>());
             source.HitObjects.Add(sourceSlider);
 
-            var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
-            slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
-            SticksSliderRepeat[] repeats = slider.NestedHitObjects.OfType<SticksSliderRepeat>().ToArray();
-            SticksSliderTick[] ticks = slider.NestedHitObjects.OfType<SticksSliderTick>().ToArray();
-            SticksSliderTail tail = slider.NestedHitObjects.OfType<SticksSliderTail>().Single();
-
-            Assert.Multiple(() =>
+            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            Assert.That(sliders, Has.Length.EqualTo(2));
+            Assert.That(sliders.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
+            foreach (SticksSlider slider in sliders)
             {
-                Assert.That(slider.RepeatCount, Is.EqualTo(2));
-                Assert.That(slider.SpanCount, Is.EqualTo(3));
-                Assert.That(slider.SpanDuration, Is.EqualTo(1000));
-                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(1000), slider.Angle), Is.EqualTo(0).Within(0.001));
-                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(2000), slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
-                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(3000), slider.Angle), Is.EqualTo(0).Within(0.001));
-                Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(4000), slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
-                Assert.That(repeats.Select(repeat => repeat.StartTime), Is.EqualTo(new[] { 2000, 3000 }));
-                Assert.That(repeats, Has.All.Matches<SticksSliderRepeat>(repeat => repeat.DisplayPreempt == slider.SpanDuration));
-                Assert.That(repeats[0].DirectionAfter, Is.EqualTo(-repeats[1].DirectionAfter));
-                Assert.That(repeats, Has.All.Matches<SticksSliderRepeat>(repeat => repeat.Samples.Count > 0));
-                Assert.That(ticks.Select(tick => tick.StartTime), Is.EqualTo(new[] { 1500, 2500, 3500 }));
-                Assert.That(tail.StartTime, Is.EqualTo(4000));
-                Assert.That(SticksHitObject.DeltaAngle(tail.Angle, slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
-                Assert.That(tail.Samples, Is.Not.Empty);
-            });
+                slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+                SticksSliderRepeat[] repeats = slider.NestedHitObjects.OfType<SticksSliderRepeat>().ToArray();
+                SticksSliderTick[] ticks = slider.NestedHitObjects.OfType<SticksSliderTick>().ToArray();
+                SticksSliderTail tail = slider.NestedHitObjects.OfType<SticksSliderTail>().Single();
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(slider.RepeatCount, Is.EqualTo(2));
+                    Assert.That(slider.SpanCount, Is.EqualTo(3));
+                    Assert.That(slider.SpanDuration, Is.EqualTo(1000));
+                    Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(1000), slider.Angle), Is.EqualTo(0).Within(0.001));
+                    Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(2000), slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
+                    Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(3000), slider.Angle), Is.EqualTo(0).Within(0.001));
+                    Assert.That(SticksHitObject.DeltaAngle(slider.AngleAt(4000), slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
+                    Assert.That(repeats.Select(repeat => repeat.StartTime), Is.EqualTo(new[] { 2000, 3000 }));
+                    Assert.That(repeats, Has.All.Matches<SticksSliderRepeat>(repeat => repeat.DisplayPreempt == slider.SpanDuration));
+                    Assert.That(repeats[0].DirectionAfter, Is.EqualTo(-repeats[1].DirectionAfter));
+                    Assert.That(repeats, Has.All.Matches<SticksSliderRepeat>(repeat => repeat.Samples.Count > 0));
+                    Assert.That(ticks.Select(tick => tick.StartTime), Is.EqualTo(new[] { 1500, 2500, 3500 }));
+                    Assert.That(tail.StartTime, Is.EqualTo(4000));
+                    Assert.That(SticksHitObject.DeltaAngle(tail.Angle, slider.Angle + slider.ArcAngle), Is.EqualTo(0).Within(0.001));
+                    Assert.That(tail.Samples, Is.Not.Empty);
+                });
+            }
         }
 
         [Test]
@@ -1544,7 +1608,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksSlider slider = converted.OfType<SticksSlider>().Single();
+            SticksFlick companion = converted.OfType<SticksFlick>().Single();
+            Assert.That(companion.StartTime, Is.EqualTo(1100), "The first source repeat remains a musical accent on the free stick.");
+            Assert.That(companion.Side, Is.Not.EqualTo(slider.Side));
             slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
 
             Assert.Multiple(() =>
@@ -1617,13 +1685,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
 
             Assert.Multiple(() =>
             {
-                Assert.That(System.Math.Abs(slider.ArcAngle), Is.EqualTo(180).Within(0.001));
-                Assert.That(System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000,
-                    Is.LessThan(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY));
+                Assert.That(sliders, Has.Length.EqualTo(2));
+                Assert.That(sliders.Select(slider => slider.Side).Distinct().Count(), Is.EqualTo(2));
+                Assert.That(sliders, Has.All.Matches<SticksSlider>(slider =>
+                    System.Math.Abs(System.Math.Abs(slider.ArcAngle) - 180) < 0.001
+                    && System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000 < SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY));
             });
         }
 
@@ -1665,19 +1735,24 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            var normal = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            SticksSlider[] normal = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
             var mod = new SticksModDifficultyAdjust { DisableReversals = { Value = true } };
             mod.ApplyToBeatmapConverter(converter);
-            var adjusted = (SticksSlider)converter.Convert().HitObjects.Single();
-            adjusted.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
-
-            Assert.Multiple(() =>
+            SticksSlider[] adjusted = converter.Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            Assert.That(normal, Has.Length.EqualTo(2));
+            Assert.That(adjusted.Select(slider => slider.Side), Is.EquivalentTo(normal.Select(slider => slider.Side)));
+            foreach (SticksSlider slider in adjusted)
             {
-                Assert.That(adjusted.RepeatCount, Is.Zero);
-                Assert.That(adjusted.ArcAngle, Is.EqualTo(normal.ArcAngle * 3).Within(0.001));
-                Assert.That(adjusted.NestedHitObjects.OfType<SticksSliderRepeat>(), Is.Empty);
-            });
+                slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
+                SticksSlider original = normal.Single(note => note.Side == slider.Side);
+                Assert.Multiple(() =>
+                {
+                    Assert.That(slider.RepeatCount, Is.Zero);
+                    Assert.That(slider.ArcAngle, Is.EqualTo(original.ArcAngle * 3).Within(0.001));
+                    Assert.That(slider.NestedHitObjects.OfType<SticksSliderRepeat>(), Is.Empty);
+                });
+            }
         }
 
         private class TestPositionedHitObject : HitObject, IHasPosition

@@ -51,8 +51,16 @@ namespace osu.Game.Rulesets.Sticks.Replays
             left.Freeze();
             right.Freeze();
 
-            foreach (double time in left.Times.Concat(right.Times).Distinct().OrderBy(time => time))
-                Frames.Add(new SticksReplayFrame(time, left.ValueAt(time), right.ValueAt(time)));
+            // Button tracks are independent: a click must never move or release a held stick.
+            var clicks = Beatmap.HitObjects.OfType<SticksClick>().ToArray();
+            double[] starts = clicks.Select(click => click.StartTime).Distinct().OrderBy(time => time).ToArray();
+            double[] clickTimes = starts.SelectMany(time => new[] { time - 1, time, time + 1 })
+                                       .Concat(starts.Zip(starts.Skip(1), (a, b) => a + (b - a) / 2)).ToArray();
+            var leftPresses = clicks.Where(click => click.Side == StickSide.Left).Select(click => click.StartTime).ToHashSet();
+            var rightPresses = clicks.Where(click => click.Side == StickSide.Right).Select(click => click.StartTime).ToHashSet();
+            foreach (double time in left.Times.Concat(right.Times).Concat(clickTimes).Distinct().OrderBy(time => time))
+                Frames.Add(new SticksReplayFrame(time, left.ValueAt(time), right.ValueAt(time),
+                    leftStickButton: leftPresses.Contains(time), rightStickButton: rightPresses.Contains(time)));
         }
 
         private static void addFlick(StickTrack track, SticksFlick flick)

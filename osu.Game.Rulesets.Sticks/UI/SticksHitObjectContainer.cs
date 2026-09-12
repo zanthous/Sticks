@@ -21,6 +21,8 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public bool RadialStackedNoteSpacing { get; set; } = true;
 
+        internal IEnumerable<DrawableHitObject> VisibleObjects => AliveEntries.Values;
+
         internal float HeadStackOffsetFor(DrawableHitObject drawable)
         {
             if (!RadialStackedNoteSpacing)
@@ -149,6 +151,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             if (x is DrawableHitObject xObject && y is DrawableHitObject yObject)
             {
+                bool xIsClick = xObject.HitObject is SticksClick;
+                bool yIsClick = yObject.HitObject is SticksClick;
+
+                // A full halo must remain behind every directional head, regardless of
+                // timestamps or insertion order. Keep ordinary ordering between halos.
+                if (xIsClick != yIsClick)
+                    return xIsClick ? -1 : 1;
+
                 bool xIsDurationBody = xObject.HitObject is SticksSlider or SticksHold;
                 bool yIsDurationBody = yObject.HitObject is SticksSlider or SticksHold;
 

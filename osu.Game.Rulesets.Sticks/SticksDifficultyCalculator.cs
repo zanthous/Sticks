@@ -24,8 +24,8 @@ namespace osu.Game.Rulesets.Sticks
 {
     public class SticksDifficultyCalculator : DifficultyCalculator
     {
-        // Recalculate cached ratings after aligning nearly coincident converted chord heads.
-        public override int Version => 202609122;
+        // Recalculate after promoting two-stick conversion and revising Encore's click placement.
+        public override int Version => 202609131;
 
         private SticksDifficultyModel.IncrementalState incrementalState;
         private IBeatmap incrementalBeatmap;

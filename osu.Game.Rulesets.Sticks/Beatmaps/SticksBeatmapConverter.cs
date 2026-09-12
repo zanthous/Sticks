@@ -47,9 +47,17 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         public bool DisableReversals { get; set; }
 
         /// <summary>
-        /// Optional procedural experiment. Authored Sticks carriers bypass these strategies.
+        /// Procedural strategy. The coordinated two-stick conversion is the default;
+        /// the older strategies remain available for comparison tooling.
+        /// Authored Sticks carriers bypass these strategies.
         /// </summary>
-        public SticksConversionMode ConversionMode { get; set; }
+        public SticksConversionMode ConversionMode { get; set; } = SticksConversionMode.Duet;
+
+        /// <summary>
+        /// Adds button accents to procedural conversion only.
+        /// This can accompany any of the angle/pattern conversion strategies.
+        /// </summary>
+        public bool AddClickNotes { get; set; }
 
         /// <summary>
         /// Whether procedural conversion should discard the source beatmap's hitsounds and use
@@ -89,11 +97,16 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             if (authoredCarrierError != null)
                 throw new BeatmapInvalidForRulesetException(authoredCarrierError);
 
+            cancellationToken.ThrowIfCancellationRequested();
+            // The framework passes existing Sticks objects through without converting them.
+            // Native editor/in-memory maps need the same procedural bypass as saved carriers,
+            // otherwise the later pattern and angle passes can rewrite authored objects.
+            bool procedural = !isAuthoredCarrier && original.HitObjects.Any(hitObject => hitObject is not SticksHitObject);
+
             // Conversion mods are applied after construction. Build fresh plans here so both
             // the selected experiment and repeated conversion on the same instance work.
-            if (!isAuthoredCarrier)
+            if (procedural)
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 plans.Clear();
                 generatedChordPartners.Clear();
                 generatedHoldSources.Clear();
@@ -111,7 +124,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             // while ordinary gameplay keeps the custom online ID (-1).
             converted.BeatmapInfo.Ruleset = targetRuleset.RulesetInfo.Clone();
 
-            if (!isAuthoredCarrier)
+            if (procedural)
             {
                 if (ConversionMode is SticksConversionMode.Duet or SticksConversionMode.ParityDuet)
                 {
@@ -126,6 +139,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 // Independent accompaniment/parity angles can leave doubles almost coincident.
                 // Align their final heads before generating the shared visual link.
                 AlignNearbyChordHeads(converted.HitObjects);
+
+                if (AddClickNotes && original.HitObjects.All(hitObject => hitObject is not SticksHitObject))
+                    applyEncoreObjects(converted, original, cancellationToken);
             }
 
             AssignSyncedNoteLinks(converted.HitObjects);
@@ -155,7 +171,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     SticksHitObject second = ordered[groupStart + 1];
                     float delta = SticksHitObject.DeltaAngle(first.Angle, second.Angle);
 
-                    if (first.Side != second.Side && Math.Abs(delta) <= maximum_separation)
+                    if (first is not SticksClick && second is not SticksClick
+                        && first.Side != second.Side && Math.Abs(delta) <= maximum_separation)
                     {
                         float angle = SticksHitObject.NormaliseAngle(first.Angle + delta / 2);
                         first.Angle = angle;
@@ -192,7 +209,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     SticksHitObject owner = ordered[groupStart];
                     SticksHitObject partner = ordered[groupStart + 1];
 
-                    if (owner.Side != partner.Side)
+                    if (owner is not SticksClick && partner is not SticksClick
+                        && owner.Side != partner.Side)
                     {
                         owner.SyncedNoteSide = partner.Side;
                         owner.SyncedNoteAngle = partner.Angle;

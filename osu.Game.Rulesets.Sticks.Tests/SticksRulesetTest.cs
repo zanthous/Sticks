@@ -65,6 +65,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(new SticksJudgement().MaxResult, Is.EqualTo(HitResult.Great));
                 Assert.That(new SticksRuleset().GetValidHitResults(), Is.EqualTo(new[]
                 {
+                    HitResult.Perfect,
+                    HitResult.Good,
                     HitResult.Great,
                     HitResult.Ok,
                     HitResult.Meh,
@@ -1508,6 +1510,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                       false,
                                       false,
                                       false,
+                                      false,
+                                      false,
                                   });
 
             Assert.Multiple(() =>
@@ -1519,7 +1523,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             typeof(SticksPlayfield).GetMethod("reportPhysicalStickInput", BindingFlags.Instance | BindingFlags.NonPublic)!
-                                  .Invoke(playfield, new object[] { reportedLeft, reportedRight, false, false, false, false });
+                                  .Invoke(playfield, new object[] { reportedLeft, reportedRight, false, false, false, false, false, false });
             Assert.That(notifications, Is.EqualTo(1), "An unchanged controller sample must not generate a duplicate frame.");
         }
 

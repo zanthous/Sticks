@@ -72,7 +72,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         public void UpdateFrom(SticksHitObject hitObject)
         {
-            int kind = hitObject is SticksSlider ? 2 : hitObject is SticksHold ? 1 : 0;
+            int kind = hitObject is SticksClick ? 3 : hitObject is SticksSlider ? 2 : hitObject is SticksHold ? 1 : 0;
             int segmentSignature = hitObject is SticksSlider sliderValue ? segmentHash(sliderValue) : 0;
             bool durationAffectsGeometry = hitObject is SticksHold;
             double duration = hitObject switch
@@ -102,7 +102,10 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             Vector2 head = SticksPlayfield.PointAt(hitObject.Angle, radius);
 
             headArc.Colour = colour;
-            headArc.Vertices = arcVertices(radius, hitObject.Angle - SticksHitObject.VISIBLE_ARC_SPAN / 2, SticksHitObject.VISIBLE_ARC_SPAN);
+            headArc.Vertices = hitObject is SticksClick
+                ? arcVertices(radius, 0, 360)
+                : arcVertices(radius, hitObject.Angle - SticksHitObject.VISIBLE_ARC_SPAN / 2, SticksHitObject.VISIBLE_ARC_SPAN);
+            centreTick.Alpha = hitObject is SticksClick ? 0 : 1;
             centreTick.Vertices = radialTick(hitObject.Angle, radius, 8);
             selectionMarker.Position = head;
             tailFill.Colour = colour;
@@ -150,6 +153,8 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         public bool ReceiveAt(Vector2 screenSpacePosition)
         {
             Vector2 local = ToLocalSpace(screenSpacePosition);
+            if (displayedKind == 3)
+                return Math.Abs((local - new Vector2(SticksPlayfield.SIZE / 2)).Length - SticksPlayfield.RadiusFor(displayedSide)) <= 12;
             return (local - selectionMarker.Position).Length <= 24;
         }
 

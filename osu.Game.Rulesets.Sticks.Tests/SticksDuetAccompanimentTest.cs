@@ -8,7 +8,6 @@ using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Sticks.Beatmaps;
-using osu.Game.Rulesets.Sticks.Mods;
 using osu.Game.Rulesets.Sticks.Objects;
 using osuTK;
 
@@ -71,9 +70,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
             native.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 42) });
             native.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 63) });
             Beatmap<HitObject> source = map(native, circle(1000, 90));
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { DisableBeatmapHitsounds = disableHitsounds };
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset())
+            {
+                ConversionMode = SticksConversionMode.Standard,
+                DisableBeatmapHitsounds = disableHitsounds,
+            };
             SticksHitObject[] baseline = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            new SticksModDuet().ApplyToBeatmapConverter(converter);
+            converter.ConversionMode = SticksConversionMode.Duet;
             SticksHitObject[] duet = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksFlick accent = added(baseline, duet).OfType<SticksFlick>().Single();
 
@@ -112,7 +115,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 DisableReversals = disableReversals,
             };
-            new SticksModDuet().ApplyToBeatmapConverter(converter);
             SticksHitObject[] duet = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider primary = duet.OfType<SticksSlider>().Single();
             SticksFlick interior = duet.OfType<SticksFlick>().Single(note => note.StartTime == 1300);
@@ -160,9 +162,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestReusingConverterClearsAccompanimentBetweenModes()
         {
             Beatmap<HitObject> source = map(slider(1000, 500));
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard };
             string[] baseline = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(signature).ToArray();
-            new SticksModDuet().ApplyToBeatmapConverter(converter);
+            converter.ConversionMode = SticksConversionMode.Duet;
             string[] first = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(signature).ToArray();
             string[] repeated = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(signature).ToArray();
             converter.ConversionMode = SticksConversionMode.Standard;
@@ -204,8 +206,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private static SticksHitObject[] convert(Beatmap<HitObject> source, bool duet)
         {
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
-            if (duet)
-                new SticksModDuet().ApplyToBeatmapConverter(converter);
+            if (!duet)
+                converter.ConversionMode = SticksConversionMode.Standard;
             return converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
         }
 

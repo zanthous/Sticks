@@ -9,7 +9,6 @@ using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Sticks.Beatmaps;
-using osu.Game.Rulesets.Sticks.Mods;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osuTK;
@@ -140,11 +139,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [TestCase(SticksConversionMode.Standard)]
-        [TestCase(SticksConversionMode.Parity)]
-        [TestCase(SticksConversionMode.Duet)]
-        [TestCase(SticksConversionMode.ParityDuet)]
-        public void TestGameplayConversionAlignsChordBeforeNestedHeadsAndSharedLinkAreCreated(SticksConversionMode mode)
+        [TestCase("")]
+        [TestCase("PA")]
+        [TestCase("DU")]
+        [TestCase("PD")]
+        public void TestGameplayConversionAlignsChordBeforeNestedHeadsAndSharedLinkAreCreated(string acronym)
         {
             // A slider and a simultaneous circle retain their source directions during
             // normal chord planning, reproducing an almost-shared head in every mode.
@@ -152,15 +151,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
             source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
             source.HitObjects.Add(new SourceSlider { StartTime = 1000, Duration = 500, Position = position(15) });
             source.HitObjects.Add(new SourceCircle { StartTime = 1000, Position = position(19) });
-            Mod[] mods = mode switch
-            {
-                SticksConversionMode.Parity => new Mod[] { new SticksModParity() },
-                SticksConversionMode.Duet => new Mod[] { new SticksModDuet() },
-                SticksConversionMode.ParityDuet => new Mod[] { new SticksModParityDuet() },
-                _ => Array.Empty<Mod>(),
-            };
+            var ruleset = new SticksRuleset();
+            Mod[] mods = acronym.Length == 0 ? Array.Empty<Mod>() : new[] { ruleset.CreateModFromAcronym(acronym) };
             SticksHitObject[] chord = new FlatWorkingBeatmap(source)
-                .GetPlayableBeatmap(new SticksRuleset().RulesetInfo, mods, CancellationToken.None)
+                .GetPlayableBeatmap(ruleset.RulesetInfo, mods, CancellationToken.None)
                 .HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.That(chord, Has.Length.EqualTo(2));

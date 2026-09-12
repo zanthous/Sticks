@@ -31,7 +31,7 @@ internal static class ConverterComparison
         var inputs = new List<string>();
         string? output = null;
         bool parity = false;
-        bool combined = false;
+        bool legacyDuetBase = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -45,16 +45,19 @@ internal static class ConverterComparison
                     output = args[++i];
                     break;
 
+                // Kept as an alias for older command lines. Public Parity now already includes
+                // the former combined strategy, so both flags request the same comparison.
                 case "--include-parity":
+                case "--include-combined":
                     parity = true;
                     break;
 
-                case "--include-combined":
-                    combined = true;
+                case "--legacy-duet-base":
+                    legacyDuetBase = true;
                     break;
 
                 default:
-                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-combined].");
+                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--legacy-duet-base].");
                     return 2;
             }
         }
@@ -62,7 +65,7 @@ internal static class ConverterComparison
         if (inputs.Count == 0)
             return 2;
 
-        var report = new ComparisonReport();
+        var report = new ComparisonReport { UsesExplicitDuetBaseline = legacyDuetBase };
         var hashes = new HashSet<string>(StringComparer.Ordinal);
         try
         {
@@ -195,16 +198,23 @@ internal static class ConverterComparison
                 Title = source.Metadata.Title,
                 Difficulty = source.BeatmapInfo.DifficultyName,
                 Creator = source.Metadata.Author.Username,
+                OverallDifficulty = source.Difficulty.OverallDifficulty,
+                CircleSize = source.Difficulty.CircleSize,
                 SourceObjects = source.HitObjects.Count,
                 SourceDurationObjects = source.HitObjects.Count(note => note is IHasDuration { Duration: > 0 }),
                 SourceDurationMs = source.HitObjects.OfType<IHasDuration>().Sum(note => note.Duration),
             };
 
-            var modes = new List<SticksConversionMode> { SticksConversionMode.Standard, SticksConversionMode.Duet };
+            var modes = new List<(string Name, bool Parity, bool Encore)>
+            {
+                ("Default", false, false),
+                ("Encore", false, true),
+            };
             if (parity)
-                modes.Add(SticksConversionMode.Parity);
-            if (combined)
-                modes.Add(SticksConversionMode.ParityDuet);
+            {
+                modes.Add(("Parity", true, false));
+                modes.Add(("ParityEncore", true, true));
+            }
             var ruleset = new SticksRuleset();
             var working = new FlatWorkingBeatmap(source);
             var preflight = new SticksBeatmapConverter(source, ruleset);
@@ -212,21 +222,27 @@ internal static class ConverterComparison
                 throw new InvalidDataException(preflight.AuthoredCarrierError ?? "Cannot convert source.");
             result.Conversion = preflight.IsAuthoredCarrier ? "authored-bypass" : "procedural";
 
-            foreach (SticksConversionMode mode in modes)
+            foreach (var mode in modes)
             {
-                Mod[] mods = mode switch
+                var selectedMods = new List<Mod>();
+                if (legacyDuetBase)
                 {
-                    SticksConversionMode.Duet => new Mod[] { new SticksModDuet() },
-                    SticksConversionMode.Parity => new Mod[] { new SticksModParity() },
-                    SticksConversionMode.ParityDuet => new Mod[] { new SticksModParityDuet() },
-                    _ => Array.Empty<Mod>(),
-                };
+                    // A saved pre-promotion DLL defaults to the older single-stick strategy.
+                    // Override it explicitly when comparing click changes against that build.
+                    selectedMods.Add(ReferenceConversionMod.Create(mode.Parity ? SticksConversionMode.ParityDuet : SticksConversionMode.Duet));
+                }
+                else if (mode.Parity)
+                    selectedMods.Add(new SticksModParity());
+
+                if (mode.Encore)
+                    selectedMods.Add(new SticksModEncore());
+                Mod[] mods = selectedMods.ToArray();
                 // WorkingBeatmap executes the same mod -> converter -> processor -> defaults
                 // pipeline as gameplay, including applying IApplicableToBeatmapConverter mods.
                 IBeatmap converted = working.GetPlayableBeatmap(ruleset.RulesetInfo, mods);
                 SticksHitObject[] notes = converted.HitObjects.Cast<SticksHitObject>().ToArray();
                 double stars = new SticksDifficultyCalculator(ruleset.RulesetInfo, working).Calculate(mods).StarRating;
-                result.Modes.Add(new ModeComparison(mode.ToString(), stars, measure(notes), validate(notes, preflight.IsAuthoredCarrier), notes.Select(describe).ToArray()));
+                result.Modes.Add(new ModeComparison(mode.Name, stars, measure(notes), validate(notes, preflight.IsAuthoredCarrier), notes.Select(describe).ToArray()));
             }
 
             ModeComparison standard = result.Modes[0];
@@ -244,7 +260,8 @@ internal static class ConverterComparison
             {
                 Counts counts = mode.Counts;
                 string change = mode.Difference == null ? string.Empty : $"; changed {mode.Difference.ChangedHeadFraction:P1} ({mode.Difference.RemovedOrChangedHeads} removed/changed, {mode.Difference.AddedOrChangedHeads} added/changed)";
-                Console.WriteLine($"  {mode.Mode,-8} {mode.Stars:0.000} stars heads={counts.Heads} F/H/S={counts.Flicks}/{counts.Holds}/{counts.Sliders} chords={counts.Chords} dual-sustain={counts.DualSustainOverlapMs / 1000:0.###}s opposite-flicks={counts.SustainWithOppositeFlicks}{change}");
+                string clearance = counts.MinimumClickClearanceMs is double minimum ? $"{minimum:0.#}ms" : "n/a";
+                Console.WriteLine($"  {mode.Mode,-12} {mode.Stars:0.000} stars heads={counts.Heads} F/H/S/C={counts.Flicks}/{counts.Holds}/{counts.Sliders}/{counts.Clicks} click-clearance-min={clearance} chords={counts.Chords} dual-sustain={counts.DualSustainOverlapMs / 1000:0.###}s opposite-flicks={counts.SustainWithOppositeFlicks}{change}");
                 foreach (ExampleWindow example in mode.Examples)
                     Console.WriteLine($"    compare {formatTime(example.StartTime)}-{formatTime(example.EndTime)} ({example.ChangedHeads} differing heads)");
                 foreach (string issue in mode.Validation.Issues.Take(5))
@@ -322,7 +339,24 @@ internal static class ConverterComparison
 
         int oppositeFlicks = ordered.OfType<SticksFlick>().Count(flick => durations.Any(sustain =>
             sustain.Side != flick.Side && flick.StartTime > sustain.StartTime + epsilon && flick.StartTime < endTime(sustain) - epsilon));
-        return new Counts(notes.Length, groups, notes.OfType<SticksFlick>().Count(), notes.OfType<SticksHold>().Count(), notes.OfType<SticksSlider>().Count(), chords, dualTime, oppositeFlicks);
+        SticksClick[] clicks = ordered.OfType<SticksClick>().ToArray();
+        // Measure the distance to the entire occupied interval of every other note, on either
+        // hand. A click during a slider or alongside a head has zero clearance even if that
+        // other gesture's head was far away. Other clicks count as nearby notes too.
+        double[] clearances = clicks.Select(click => ordered.Where(note => note != click)
+                                                           .Select(note => Math.Max(0, Math.Max(note.StartTime - click.StartTime, click.StartTime - endTime(note))))
+                                                           .DefaultIfEmpty(double.PositiveInfinity).Min())
+                                    .Where(double.IsFinite).Order().ToArray();
+        int overlappingClicks = clicks.Count(click => ordered.Any(note => note is not SticksClick
+            && click.StartTime >= note.StartTime - epsilon && click.StartTime <= endTime(note) + epsilon));
+        double durationMs = ordered.Length > 1 ? ordered.Max(endTime) - ordered[0].StartTime : 0;
+        double? medianClearance = clearances.Length == 0 ? null
+            : (clearances[(clearances.Length - 1) / 2] + clearances[clearances.Length / 2]) / 2;
+
+        return new Counts(notes.Length, groups, notes.OfType<SticksFlick>().Count(), notes.OfType<SticksHold>().Count(), notes.OfType<SticksSlider>().Count(),
+            clicks.Length, notes.Length == 0 ? 0 : clicks.Length / (double)notes.Length, durationMs > 0 ? clicks.Length * 60000 / durationMs : 0,
+            clearances.Length == 0 ? null : clearances[0], medianClearance, overlappingClicks,
+            chords, dualTime, oppositeFlicks);
     }
 
     private static ValidationResult validate(SticksHitObject[] notes, bool authored)
@@ -339,14 +373,19 @@ internal static class ConverterComparison
                 result.Issues.Add($"Nonfinite head at {note.StartTime}ms.");
             if (note is IHasDuration duration && (!double.IsFinite(duration.Duration) || duration.Duration <= 0))
                 result.Issues.Add($"Invalid duration at {note.StartTime}ms.");
-            double occupiedUntil = previousEnd.GetValueOrDefault(note.Side, double.NegativeInfinity);
-            if (note.StartTime < occupiedUntil - epsilon)
+            // Button presses do not occupy the stick's directional input. Their overlap with
+            // an existing sustain is supported gameplay, measured separately as click clearance.
+            if (note is not SticksClick)
             {
-                result.SameSideDurationOverlaps++;
-                if (!authored)
-                    result.Issues.Add($"{note.Side} head at {note.StartTime}ms overlaps sustain ending at {occupiedUntil}ms.");
+                double occupiedUntil = previousEnd.GetValueOrDefault(note.Side, double.NegativeInfinity);
+                if (note.StartTime < occupiedUntil - epsilon)
+                {
+                    result.SameSideDurationOverlaps++;
+                    if (!authored)
+                        result.Issues.Add($"{note.Side} head at {note.StartTime}ms overlaps sustain ending at {occupiedUntil}ms.");
+                }
+                previousEnd[note.Side] = Math.Max(occupiedUntil, endTime(note));
             }
-            previousEnd[note.Side] = Math.Max(occupiedUntil, endTime(note));
 
             if (note is SticksSlider slider)
             {
@@ -408,9 +447,11 @@ internal static class ConverterComparison
 
     private sealed class ComparisonReport
     {
-        public int SchemaVersion { get; } = 1;
+        public int SchemaVersion { get; } = 2;
         public string ConverterAssemblySha256 { get; } = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(SticksBeatmapConverter).Assembly.Location))).ToLowerInvariant();
-        public string ChangedHeadFractionDefinition { get; } = "1 - matching / multiset-union of Standard and experimental objects; equality includes kind, start/end time, side, angle and slider arcs rounded to 0.001, plus exact timed segment weights.";
+        public bool UsesExplicitDuetBaseline { get; init; }
+        public string ChangedHeadFractionDefinition { get; } = "1 - matching / multiset-union of Default and compared objects; equality includes kind, start/end time, side, angle and slider arcs rounded to 0.001, plus exact timed segment weights.";
+        public string ClickClearanceDefinition { get; } = "Minimum distance in milliseconds from each click to any other note's occupied start-to-end interval, on either hand, including other clicks. Simultaneous or sustaining gestures give zero; absent finite measurements give null.";
         public List<MapComparison> Maps { get; } = new();
         public List<InputMessage> Skipped { get; } = new();
         public List<InputMessage> Errors { get; } = new();
@@ -426,6 +467,8 @@ internal static class ConverterComparison
         public string Title { get; init; } = string.Empty;
         public string Difficulty { get; init; } = string.Empty;
         public string Creator { get; init; } = string.Empty;
+        public float OverallDifficulty { get; init; }
+        public float CircleSize { get; init; }
         public string Conversion { get; set; } = string.Empty;
         public int SourceObjects { get; init; }
         public int SourceDurationObjects { get; init; }
@@ -447,7 +490,10 @@ internal static class ConverterComparison
     }
 
     private sealed record InputMessage(string Source, string Reason);
-    private sealed record Counts(int Heads, int TimingGroups, int Flicks, int Holds, int Sliders, int Chords, double DualSustainOverlapMs, int SustainWithOppositeFlicks);
+    private sealed record Counts(int Heads, int TimingGroups, int Flicks, int Holds, int Sliders,
+                                int Clicks, double ClickFraction, double ClicksPerMinute,
+                                double? MinimumClickClearanceMs, double? MedianClickClearanceMs, int ClicksOverlappingDirectionalGestures,
+                                int Chords, double DualSustainOverlapMs, int SustainWithOppositeFlicks);
     private sealed record Difference(int MatchingHeads, int RemovedOrChangedHeads, int AddedOrChangedHeads, double ChangedHeadFraction);
     private sealed record ObjectDescription(string Kind, double StartTime, double EndTime, string Side, float Angle, float[] SegmentArcs, double[] SegmentDurationWeights);
     private sealed record ExampleWindow(double StartTime, double EndTime, int ChangedHeads, ObjectDescription[] Standard, ObjectDescription[] Experimental);

@@ -158,6 +158,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             {
                 SticksSlider slider => new DrawableSticksSlider(slider),
                 SticksHold hold => new DrawableSticksHold(hold),
+                SticksClick click => new DrawableSticksClick(click),
                 SticksFlick flick => new DrawableSticksFlick(flick),
                 _ => null,
             };

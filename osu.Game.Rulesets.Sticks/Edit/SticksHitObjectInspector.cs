@@ -18,8 +18,16 @@ namespace osu.Game.Rulesets.Sticks.Edit
             AddHeader("Stick");
             AddValue(sticks.Side == StickSide.Left ? "Left (outer / blue)" : "Right (inner / red)");
 
-            AddHeader("Angle");
-            AddValue($"{SticksHitObject.NormaliseAngle(sticks.Angle):0.###}°");
+            if (sticks is SticksClick)
+            {
+                AddHeader("Input");
+                AddValue("Button press — no aim required");
+            }
+            else
+            {
+                AddHeader("Angle");
+                AddValue($"{SticksHitObject.NormaliseAngle(sticks.Angle):0.###}°");
+            }
 
             switch (sticks)
             {

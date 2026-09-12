@@ -26,9 +26,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private const double target_sample_interval = 18;
         private const float minimum_half_span = 0.35f;
         private const float rail_radius = 1.35f;
-        private const float edge_glow_width = 24;
 
-        private readonly RibbonPoint[] points = new RibbonPoint[max_points];
+        private readonly SticksRibbonPoint[] points = new SticksRibbonPoint[max_points];
         private readonly float[] sampledAngles = new float[max_points];
         private readonly RibbonShape shape;
         private int pointCount;
@@ -127,12 +126,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 float radius = SticksPlayfield.GUIDE_RADIUS * radialProgress;
                 float angle = sampledAngles[i];
 
-                points[i] = new RibbonPoint(
+                points[i] = new SticksRibbonPoint(
                     radius,
                     angle,
-                    halfAngularSpan,
-                    SticksPlayfield.PointAt(angle - halfAngularSpan, radius),
-                    SticksPlayfield.PointAt(angle + halfAngularSpan, radius));
+                    halfAngularSpan);
             }
 
             updateGeometry();
@@ -150,16 +147,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             shape.SetStyle(displayedSide, displayedFillAlpha);
         }
 
-        private readonly record struct RibbonPoint(
-            float Radius,
-            float Angle,
-            float HalfSpan,
-            Vector2 LeftEdge,
-            Vector2 RightEdge);
-
         private partial class RibbonShape : Drawable
         {
-            private readonly RibbonPoint[] points = new RibbonPoint[max_points];
+            private readonly SticksRibbonPoint[] points = new SticksRibbonPoint[max_points];
             private int pointCount;
             private StickSide side;
             private float fillAlpha;
@@ -173,7 +163,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 shader = shaders.Load(VertexShaderDescriptor.TEXTURE_2, FragmentShaderDescriptor.TEXTURE);
             }
 
-            public void SetGeometry(RibbonPoint[] source, int count)
+            public void SetGeometry(SticksRibbonPoint[] source, int count)
             {
                 pointCount = count;
                 Array.Copy(source, points, count);
@@ -194,7 +184,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             private sealed class RibbonShapeDrawNode : DrawNode
             {
-                private readonly RibbonPoint[] points = new RibbonPoint[max_points];
+                private readonly SticksRibbonPoint[] points = new SticksRibbonPoint[max_points];
+                private readonly SticksRibbonQuad[] strip = new SticksRibbonQuad[SticksRibbonGeometry.MAX_ANGULAR_SEGMENTS];
                 private int pointCount;
                 private StickSide side;
                 private float fillAlpha;
@@ -227,124 +218,63 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     if (pointCount < 2 || shader == null || texture == null)
                         return;
 
-                    ColourInfo fillColour = ColourInfo.SingleColour(side == StickSide.Left
-                        ? new Color4(0, 1, 0, fillAlpha)
-                        : new Color4(1, 0, 0, fillAlpha));
                     ColourInfo railColour = ColourInfo.SingleColour(side == StickSide.Left
                         ? new Color4(0, 1, 1, 1)
                         : new Color4(1, 0, 1, 1));
-                    ColourInfo edgeToInterior = ColourInfo.GradientVertical(
-                        new Color4(0, 0, 1, 0.82f),
-                        new Color4(0, 0, 0, 0.82f));
-                    ColourInfo interiorToEdge = ColourInfo.GradientVertical(
-                        new Color4(0, 0, 0, 0.82f),
-                        new Color4(0, 0, 1, 0.82f));
 
                     shader.Bind();
 
                     for (int i = 0; i < pointCount - 1; i++)
                     {
-                        renderer.DrawQuad(
-                            texture,
-                            new Quad(
-                                Vector2Extensions.Transform(points[i].LeftEdge, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(points[i + 1].LeftEdge, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(points[i].RightEdge, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(points[i + 1].RightEdge, DrawInfo.Matrix)),
-                            fillColour);
+                        int count = SticksRibbonGeometry.FillStrip(points[i], points[i + 1], points[0].Radius, strip);
 
-                        drawEdgeGlowSegment(renderer, points[i], points[i + 1], true, edgeToInterior);
-                        drawEdgeGlowSegment(renderer, points[i], points[i + 1], false, interiorToEdge);
+                        for (int j = 0; j < count; j++)
+                        {
+                            Quad quad = strip[j].Geometry;
+                            Vector4 glow = strip[j].EdgeGlow;
+                            renderer.DrawQuad(
+                                texture,
+                                new Quad(
+                                    Vector2Extensions.Transform(quad.TopLeft, DrawInfo.Matrix),
+                                    Vector2Extensions.Transform(quad.TopRight, DrawInfo.Matrix),
+                                    Vector2Extensions.Transform(quad.BottomLeft, DrawInfo.Matrix),
+                                    Vector2Extensions.Transform(quad.BottomRight, DrawInfo.Matrix)),
+                                new ColourInfo
+                                {
+                                    TopLeft = maskColour(glow.X),
+                                    TopRight = maskColour(glow.Y),
+                                    BottomLeft = maskColour(glow.Z),
+                                    BottomRight = maskColour(glow.W),
+                                });
+                        }
+
                         drawRailSegment(renderer, points[i].LeftEdge, points[i + 1].LeftEdge, railColour);
                         drawRailSegment(renderer, points[i].RightEdge, points[i + 1].RightEdge, railColour);
                     }
 
-                    drawCurvedLeadingCap(renderer, fillColour, railColour, edgeToInterior);
+                    drawLeadingRail(renderer, railColour);
                     shader.Unbind();
                 }
 
-                private void drawCurvedLeadingCap(IRenderer renderer, ColourInfo fillColour, ColourInfo railColour, ColourInfo edgeToInterior)
-                {
-                    const int cap_segments = 12;
-                    RibbonPoint leading = points[0];
-                    float halfSpanRadians = leading.HalfSpan * MathF.PI / 180;
-                    float capDepth = Math.Max(2, leading.Radius * (1 - MathF.Cos(halfSpanRadians)) + 1);
-                    float innerRadius = Math.Max(0, leading.Radius - capDepth);
-                    float glowInnerRadius = Math.Max(innerRadius, leading.Radius - edge_glow_width);
-                    Vector2 previousOuter = SticksPlayfield.PointAt(leading.Angle - leading.HalfSpan, leading.Radius);
+                // ColourInfo accepts sRGB colours, but the shader needs a linear
+                // distance ramp in B. Convert that data before wrapping it.
+                private SRGBColour maskColour(float glow) => (side == StickSide.Left
+                    ? new Color4(0, 1, glow, fillAlpha)
+                    : new Color4(1, 0, glow, fillAlpha)).ToSRGB();
 
-                    for (int i = 0; i < cap_segments; i++)
+                private void drawLeadingRail(IRenderer renderer, ColourInfo railColour)
+                {
+                    SticksRibbonPoint leading = points[0];
+                    int count = SticksRibbonGeometry.AngularSegmentsFor(leading.HalfSpan);
+                    Vector2 previous = leading.LeftEdge;
+
+                    for (int i = 1; i <= count; i++)
                     {
-                        float firstAngle = leading.Angle - leading.HalfSpan + 2 * leading.HalfSpan * i / cap_segments;
-                        float secondAngle = leading.Angle - leading.HalfSpan + 2 * leading.HalfSpan * (i + 1) / cap_segments;
-
-                        renderer.DrawQuad(
-                            texture,
-                            new Quad(
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(firstAngle, leading.Radius), DrawInfo.Matrix),
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, leading.Radius), DrawInfo.Matrix),
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(firstAngle, innerRadius), DrawInfo.Matrix),
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, innerRadius), DrawInfo.Matrix)),
-                            fillColour);
-
-                        renderer.DrawQuad(
-                            texture,
-                            new Quad(
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(firstAngle, leading.Radius), DrawInfo.Matrix),
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, leading.Radius), DrawInfo.Matrix),
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(firstAngle, glowInnerRadius), DrawInfo.Matrix),
-                                Vector2Extensions.Transform(SticksPlayfield.PointAt(secondAngle, glowInnerRadius), DrawInfo.Matrix)),
-                            edgeToInterior);
-
-                        Vector2 nextOuter = SticksPlayfield.PointAt(secondAngle, leading.Radius);
-                        drawRailSegment(renderer, previousOuter, nextOuter, railColour);
-                        previousOuter = nextOuter;
+                        float angle = leading.Angle - leading.HalfSpan + 2 * leading.HalfSpan * i / count;
+                        Vector2 next = SticksPlayfield.PointAt(angle, leading.Radius);
+                        drawRailSegment(renderer, previous, next, railColour);
+                        previous = next;
                     }
-                }
-
-                private void drawEdgeGlowSegment(
-                    IRenderer renderer,
-                    RibbonPoint from,
-                    RibbonPoint to,
-                    bool leftEdge,
-                    ColourInfo colour)
-                {
-                    Vector2 fromAcross = from.RightEdge - from.LeftEdge;
-                    Vector2 toAcross = to.RightEdge - to.LeftEdge;
-                    float fromWidth = fromAcross.Length;
-                    float toWidth = toAcross.Length;
-
-                    if (fromWidth <= 0.001f || toWidth <= 0.001f)
-                        return;
-
-                    Vector2 fromDirection = fromAcross / fromWidth;
-                    Vector2 toDirection = toAcross / toWidth;
-                    float fromDepth = Math.Min(edge_glow_width, fromWidth / 2);
-                    float toDepth = Math.Min(edge_glow_width, toWidth / 2);
-
-                    Vector2 fromEdge = leftEdge ? from.LeftEdge : from.RightEdge;
-                    Vector2 toEdge = leftEdge ? to.LeftEdge : to.RightEdge;
-                    Vector2 fromInner = leftEdge
-                        ? fromEdge + fromDirection * fromDepth
-                        : fromEdge - fromDirection * fromDepth;
-                    Vector2 toInner = leftEdge
-                        ? toEdge + toDirection * toDepth
-                        : toEdge - toDirection * toDepth;
-
-                    renderer.DrawQuad(
-                        texture,
-                        leftEdge
-                            ? new Quad(
-                                Vector2Extensions.Transform(fromEdge, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(toEdge, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(fromInner, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(toInner, DrawInfo.Matrix))
-                            : new Quad(
-                                Vector2Extensions.Transform(fromInner, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(toInner, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(fromEdge, DrawInfo.Matrix),
-                                Vector2Extensions.Transform(toEdge, DrawInfo.Matrix)),
-                        colour);
                 }
 
                 private void drawRailSegment(IRenderer renderer, Vector2 from, Vector2 to, ColourInfo colour)

@@ -20,7 +20,7 @@ When adding a case:
 3. Use a broad target range until playtesting supports something narrower.
 4. After a meaningful model change, append a milestone with the before/after rating and its design reason.
 
-## Compare experimental converters on real maps
+## Compare conversion on real maps
 
 ```text
 dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -c Release -- --compare-converters mapreference/standard --output mapreference/standard/comparison.json
@@ -28,15 +28,19 @@ dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -c Release -- --
 
 The input can be a directory (searched recursively), an `.osu`, or an `.osz`; repeat `--compare-converters` for multiple inputs. Only mode-0 maps are converted. Identical SHA-256 sources are evaluated once, and archives are read without extracting media. Keep downloaded maps and generated reports under the gitignored `mapreference/` directory.
 
-The runner compares Standard and Duet; add `--include-parity` for Parity and `--include-combined` for Parity + Duet. These flags can be used independently or together. It uses the source format version, legacy gameplay offsets, `FlatWorkingBeatmap.GetPlayableBeatmap` with the actual mods, and `SticksDifficultyCalculator.Calculate(mods)` for in-game Sticks stars. Authored Sticks maps are labelled `authored-bypass` and checked for identical output across modes.
+The runner compares **Default** and **Encore** (click accents); add `--include-parity` to also compare **Parity** and **ParityEncore**. Default is the former Duet converter, and Parity uses that base. `--include-combined` remains an alias for `--include-parity` for older command lines. It uses the source format version, legacy gameplay offsets, `FlatWorkingBeatmap.GetPlayableBeatmap` with the actual mods, and `SticksDifficultyCalculator.Calculate(mods)` for in-game Sticks stars. Authored Sticks maps are labelled `authored-bypass` and checked for identical output across modes.
 
-The console reports head/flick/hold/slider counts, two-stick chords, milliseconds with both sticks sustaining, and interior flicks played opposite an active sustain. It prints three eight-second windows with the most differing objects. JSON includes metadata, source hash/IDs, stars, all converted objects, and both versions of those windows. `changedHeadFraction` is the fraction of the multiset union that does not match, comparing kind, timing, side, angle and slider arcs to 0.001 precision, plus exact timed segment weights. Added chord partners count as changes even when the existing head is preserved.
+The console reports head/flick/hold/slider/click counts, minimum click clearance, two-stick chords, milliseconds with both sticks sustaining, and interior flicks played opposite an active sustain. It prints three eight-second windows with the most differing objects. JSON includes source OD/CS, metadata, source hash/IDs, stars, all converted objects, and both versions of those windows. Click metrics include the fraction of heads, clicks per minute, minimum/median clearance and the number overlapping directional gestures. Clearance is the distance to any other note's complete occupied interval, on either hand: simultaneous heads and active sustains give zero. Maps with no measurable click clearance report `null`.
 
-The process exits unsuccessfully for unreadable inputs, no evaluated maps, or validation failures. Validation checks chronological order, finite geometry, positive durations, carrier encode/decode (including segment timing), procedural same-side sustain overlaps and the 120 degrees/second generated-slider speed limit on every segment. Authored overlaps and speeds are measured but do not fail those procedural constraints.
+`changedHeadFraction` is the fraction of the multiset union that does not match the Default output, comparing kind, timing, side, angle and slider arcs to 0.001 precision, plus exact timed segment weights. Added chord partners count as changes even when the existing head is preserved.
+
+The process exits unsuccessfully for unreadable inputs, no evaluated maps, or validation failures. Validation checks chronological order, finite geometry, positive durations, carrier encode/decode (including segment timing), procedural same-side directional sustain overlaps and the 120 degrees/second generated-slider speed limit on every segment. Button clicks can overlap directional sustains, so these are measured by clearance rather than rejected as invalid. Authored overlaps and speeds are measured but do not fail those procedural constraints.
+
+For a before/after comparison against a saved ruleset DLL from before Duet became the default, run that build with `--legacy-duet-base`. This explicitly selects Duet for Default/Encore and ParityDuet for Parity/ParityEncore using testbed-only conversion mods. The report records `usesExplicitDuetBaseline: true`. Run the current build without that flag to verify the actual new default. Compare reports with matching source hashes; the ruleset assembly hash is recorded too.
 
 ## Parity angle audit
 
-The original reset audit requires the original hard-correction converter build. Its capture includes the actual Standard, Parity, Duet and Parity + Duet gameplay conversions, each head's local beat length and slider endpoint:
+The original reset audit requires the original hard-correction converter build. Its capture includes the historical Standard, Parity, Duet and Parity + Duet strategies, each head's local beat length and slider endpoint. The audit explicitly selects each strategy through testbed-only mods and the gameplay pipeline. These labels are retained for compatibility with the analysis scripts; they do not describe the current mod selection menu.
 
 ```sh
 dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -c Release -- --audit-parity mapreference/standard --audit-parity mapreference/high-cs --output mapreference/parity-audit/objects.json

@@ -15,7 +15,7 @@ namespace osu.Game.Rulesets.Sticks.Scoring
         {
             HitEvent[] events = source.ToArray();
             HitEvent[] timingEvents = events.Where(hitEvent =>
-                hitEvent.HitObject is ISticksAccuracyComponent
+                hitEvent.HitObject is SticksClick or ISticksAccuracyComponent
                 {
                     AccuracyComponent: SticksAccuracyComponent.Timing,
                 }).ToArray();

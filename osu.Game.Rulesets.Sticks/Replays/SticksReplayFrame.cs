@@ -23,13 +23,18 @@ namespace osu.Game.Rulesets.Sticks.Replays
 
         public bool RightShoulder;
 
+        public bool LeftStickButton;
+
+        public bool RightStickButton;
+
         public SticksReplayFrame()
         {
         }
 
         public SticksReplayFrame(double time, Vector2 leftStick, Vector2 rightStick,
                                  bool leftTrigger = false, bool rightTrigger = false,
-                                 bool leftShoulder = false, bool rightShoulder = false)
+                                 bool leftShoulder = false, bool rightShoulder = false,
+                                 bool leftStickButton = false, bool rightStickButton = false)
             : base(time)
         {
             LeftStick = leftStick;
@@ -38,6 +43,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
             RightTrigger = rightTrigger;
             LeftShoulder = leftShoulder;
             RightShoulder = rightShoulder;
+            LeftStickButton = leftStickButton;
+            RightStickButton = rightStickButton;
         }
 
         public void FromLegacy(LegacyReplayFrame currentFrame, IBeatmap beatmap, ReplayFrame? lastFrame = null)
@@ -48,6 +55,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
             RightTrigger = false;
             LeftShoulder = false;
             RightShoulder = false;
+            LeftStickButton = false;
+            RightStickButton = false;
         }
 
         public LegacyReplayFrame ToLegacy(IBeatmap beatmap) => new LegacyReplayFrame(Time, LeftStick.X, LeftStick.Y, packRightStick(RightStick));
@@ -59,7 +68,9 @@ namespace osu.Game.Rulesets.Sticks.Replays
                                                                  && LeftTrigger == frame.LeftTrigger
                                                                  && RightTrigger == frame.RightTrigger
                                                                  && LeftShoulder == frame.LeftShoulder
-                                                                 && RightShoulder == frame.RightShoulder;
+                                                                 && RightShoulder == frame.RightShoulder
+                                                                 && LeftStickButton == frame.LeftStickButton
+                                                                 && RightStickButton == frame.RightStickButton;
 
         /// <summary>
         /// The stock replay bridge only offers two floats and a 32-bit button field. Sticks uses

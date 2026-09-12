@@ -84,6 +84,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         public override bool ReplacesExistingObject(HitObject existing) =>
             existing is SticksHitObject sticks
             && sticks.Side == HitObject.Side
+            && (sticks is SticksClick) == (HitObject is SticksClick)
             && base.ReplacesExistingObject(existing);
     }
 }

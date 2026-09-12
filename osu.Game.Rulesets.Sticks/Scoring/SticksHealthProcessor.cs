@@ -36,7 +36,8 @@ namespace osu.Game.Rulesets.Sticks.Scoring
         {
             double increase;
 
-            switch (result.Type)
+            HitResult grade = result.HitObject is SticksClick ? SticksClick.TimingGrade(result.Type) : result.Type;
+            switch (grade)
             {
                 case HitResult.LargeTickMiss:
                     increase = IBeatmapDifficultyInfo.DifficultyRange(Beatmap.Difficulty.DrainRate, -0.02, -0.075, -0.14);

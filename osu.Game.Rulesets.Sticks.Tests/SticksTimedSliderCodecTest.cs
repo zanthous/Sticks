@@ -120,16 +120,23 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
         [TestCase("samples/sticks-v4~s~l~0~1000~90~1.wav")]
         [TestCase(@"samples\sticks-v4~s~l~0~1000~90~1.wav")]
-        public void TestFutureCarrierRemainsUnsupported(string filename)
+        [TestCase("sticks-v4~p~l~0~2000~180~1~-1~2.wav")]
+        public void TestUnsupportedCarrierCannotFallBackToProceduralConversion(string filename)
         {
-            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(markerObject(filename));
+            HitObject proxy = markerObject(filename);
+            SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(proxy);
 
             Assert.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
                 Assert.That(inspection.Version, Is.EqualTo(4));
                 Assert.That(inspection.Decoded, Is.Null);
+                Assert.That(SticksAuthoredBeatmapCodec.TryDecode(proxy, out _), Is.False);
             });
+
+            var beatmap = new Beatmap<HitObject>();
+            beatmap.HitObjects.Add(proxy);
+            Assert.That(new SticksBeatmapConverter(beatmap, new SticksRuleset()).CanConvert(), Is.False);
         }
 
         [Test]

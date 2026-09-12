@@ -181,7 +181,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             if (isDisposing)
             {
-                playfield.RemoveRadialPath(radialPath);
+                // Loading can be cancelled before the playfield is resolved. In that
+                // case the path is still our child and base disposal will clean it up.
+                playfield?.RemoveRadialPath(radialPath);
                 radialPathRegistered = false;
             }
 

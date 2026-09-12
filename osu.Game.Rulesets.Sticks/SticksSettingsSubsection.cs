@@ -194,9 +194,9 @@ namespace osu.Game.Rulesets.Sticks
                 },
                 new SettingsButtonV2
                 {
-                    Text = "Restore selected authored Sticks difficulty",
-                    TooltipText = "Restore a Sticks difficulty which lazer's external-edit import changed to osu!standard. All authored Sticks data must still be intact.",
-                    Keywords = new[] { "editor", "map", "restore", "recover", "external" },
+                    Text = "Import selected difficulty as osu!sticks map",
+                    TooltipText = "Use the selected difficulty's authored Sticks notes and switch it to osu!sticks. Its authored Sticks data must still be intact.",
+                    Keywords = new[] { "import", "editor", "map", "restore", "recover", "external" },
                     Action = restoreAuthoredDifficulty,
                 },
                 new SettingsButtonV2
@@ -260,7 +260,7 @@ namespace osu.Game.Rulesets.Sticks
 
                     osuScreen.Beatmap.Value = restored;
                     osuScreen.Ruleset.Value = restored.BeatmapInfo.Ruleset;
-                    screen.Push(new EditorLoader());
+                    notifications?.Post(new SimpleNotification { Text = "Imported difficulty as osu!sticks." });
                 }
                 catch (Exception exception)
                 {

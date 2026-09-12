@@ -15,13 +15,16 @@ namespace osu.Game.Rulesets.Sticks.Replays
         private bool rightTrigger;
         private bool leftShoulder;
         private bool rightShoulder;
+        private bool leftStickButton;
+        private bool rightStickButton;
         private volatile bool active;
 
         public bool Active => active;
 
         public void Update(Vector2 left, Vector2 right,
                            bool leftTrigger = false, bool rightTrigger = false,
-                           bool leftShoulder = false, bool rightShoulder = false)
+                           bool leftShoulder = false, bool rightShoulder = false,
+                           bool leftStickButton = false, bool rightStickButton = false)
         {
             lock (sync)
             {
@@ -31,6 +34,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 this.rightTrigger = rightTrigger;
                 this.leftShoulder = leftShoulder;
                 this.rightShoulder = rightShoulder;
+                this.leftStickButton = leftStickButton;
+                this.rightStickButton = rightStickButton;
                 active = true;
             }
         }
@@ -52,8 +57,16 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 rightTrigger = false;
                 leftShoulder = false;
                 rightShoulder = false;
+                leftStickButton = false;
+                rightStickButton = false;
                 active = false;
             }
+        }
+
+        public (Vector2 Left, Vector2 Right, bool LeftTrigger, bool RightTrigger, bool LeftShoulder, bool RightShoulder, bool LeftStickButton, bool RightStickButton) SnapshotWithAllButtons()
+        {
+            lock (sync)
+                return (leftStick, rightStick, leftTrigger, rightTrigger, leftShoulder, rightShoulder, leftStickButton, rightStickButton);
         }
 
         public (Vector2 Left, Vector2 Right) Snapshot()

@@ -14,12 +14,14 @@ namespace osu.Game.Rulesets.Sticks.Replays
     internal sealed class SticksReplayStore
     {
         private const int magic = 0x53544B52;
-        private const int version = 3;
+        private const int version = 4;
+        private const int version_with_shoulders = 3;
         private const int version_with_triggers = 2;
         private const int version_without_buttons = 1;
         private const int bytes_per_frame_v1 = sizeof(double) + sizeof(float) * 4;
         private const int bytes_per_frame_v2 = bytes_per_frame_v1 + sizeof(bool) * 2;
         private const int bytes_per_frame_v3 = bytes_per_frame_v2 + sizeof(bool) * 2;
+        private const int bytes_per_frame_v4 = bytes_per_frame_v3 + sizeof(bool) * 2;
         private const int maximum_frame_count = 10_000_000;
 
         private readonly Storage storage;
@@ -64,6 +66,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     writer.Write(frame.RightTrigger);
                     writer.Write(frame.LeftShoulder);
                     writer.Write(frame.RightShoulder);
+                    writer.Write(frame.LeftStickButton);
+                    writer.Write(frame.RightStickButton);
                 }
 
                 return true;
@@ -130,12 +134,13 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     return false;
 
                 int storedVersion = reader.ReadInt32();
-                if (storedVersion is not version and not version_with_triggers and not version_without_buttons)
+                if (storedVersion is not version and not version_with_shoulders and not version_with_triggers and not version_without_buttons)
                     return false;
 
                 int bytesPerFrame = storedVersion switch
                 {
-                    version => bytes_per_frame_v3,
+                    version => bytes_per_frame_v4,
+                    version_with_shoulders => bytes_per_frame_v3,
                     version_with_triggers => bytes_per_frame_v2,
                     _ => bytes_per_frame_v1,
                 };
@@ -159,6 +164,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
                         new Vector2(reader.ReadSingle(), reader.ReadSingle()),
                         storedVersion >= version_with_triggers && reader.ReadBoolean(),
                         storedVersion >= version_with_triggers && reader.ReadBoolean(),
+                        storedVersion >= version_with_shoulders && reader.ReadBoolean(),
+                        storedVersion >= version_with_shoulders && reader.ReadBoolean(),
                         storedVersion >= version && reader.ReadBoolean(),
                         storedVersion >= version && reader.ReadBoolean());
 

@@ -48,6 +48,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     $"{SEGMENT_MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{string.Join('_', slider.SegmentArcAngles.Select(segment => number(segment)))}.wav",
                 SticksSlider slider => $"{MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{number(slider.ArcAngle)}~{slider.RepeatCount}.wav",
                 SticksHold hold => $"{MARKER_PREFIX}h~{side}~{angle}~{number(hold.Duration)}.wav",
+                SticksClick => $"{MARKER_PREFIX}c~{side}~{angle}.wav",
                 SticksFlick => $"{MARKER_PREFIX}f~{side}~{angle}.wav",
                 _ => throw new ArgumentException($"Unsupported authored Sticks object: {hitObject.GetType().Name}", nameof(hitObject)),
             };
@@ -251,6 +252,15 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             switch (parts[1])
             {
+                case "c" when parts.Length == 4:
+                    return new SticksClick
+                    {
+                        StartTime = source.StartTime,
+                        Side = side,
+                        Angle = SticksHitObject.NormaliseAngle(angle),
+                        Samples = samples,
+                    };
+
                 case "f" when parts.Length == 4:
                     return new SticksFlick
                     {

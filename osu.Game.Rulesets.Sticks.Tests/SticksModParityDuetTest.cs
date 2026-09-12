@@ -170,24 +170,40 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestCombinedModIsRegisteredUnrankedAndExclusiveWithItsComponents()
+        public void TestDefaultConversionIncludesFormerDuetPatterns()
         {
-            Mod[] mods = new SticksRuleset().GetModsFor(ModType.Conversion).ToArray();
-            SticksModParityDuet combined = mods.OfType<SticksModParityDuet>().Single();
-            var converter = new SticksBeatmapConverter(map(), new SticksRuleset());
-            combined.ApplyToBeatmapConverter(converter);
+            Beatmap<HitObject> source = chordPhrase();
+            source.HitObjects.Add(slider(5000, 1000));
+            SticksHitObject[] legacy = convert(source, SticksConversionMode.Standard);
+            SticksHitObject[] expected = convert(source, SticksConversionMode.Duet);
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert()
+                .HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.Multiple(() =>
             {
-                Assert.That(combined.Name, Is.EqualTo("Parity + Duet"));
-                Assert.That(combined.Acronym, Is.EqualTo("PD"));
-                Assert.That(combined.Ranked, Is.False);
-                Assert.That(combined.Type, Is.EqualTo(ModType.Conversion));
-                Assert.That(combined.IncompatibleMods, Does.Contain(typeof(SticksModParity)));
-                Assert.That(combined.IncompatibleMods, Does.Contain(typeof(SticksModDuet)));
-                Assert.That(mods.OfType<SticksModParity>().Single().IncompatibleMods, Does.Contain(typeof(SticksModParityDuet)));
-                Assert.That(mods.OfType<SticksModDuet>().Single().IncompatibleMods, Does.Contain(typeof(SticksModParityDuet)));
-                Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.ParityDuet));
+                Assert.That(signature(converted), Is.EqualTo(signature(expected)));
+                Assert.That(chordCount(converted), Is.GreaterThan(chordCount(legacy)));
+                Assert.That(converted.OfType<SticksSlider>().Count(note => note.StartTime == 5000), Is.EqualTo(2));
+            });
+        }
+
+        [TestCase("DU", SticksConversionMode.Duet)]
+        [TestCase("PD", SticksConversionMode.ParityDuet)]
+        public void TestRetiredModsRemainLoadableForSavedScores(string acronym, SticksConversionMode mode)
+        {
+            var ruleset = new SticksRuleset();
+            Mod mod = ruleset.CreateModFromAcronym(acronym);
+            Beatmap<HitObject> source = chordPhrase();
+            var converter = new SticksBeatmapConverter(source, ruleset);
+            ((IApplicableToBeatmapConverter)mod).ApplyToBeatmapConverter(converter);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(mod.Type, Is.EqualTo(ModType.System));
+                Assert.That(mod.Ranked, Is.False);
+                Assert.That(ruleset.GetModsFor(ModType.Conversion).Select(candidate => candidate.Acronym), Does.Not.Contain(acronym));
+                Assert.That(signature(converter.Convert().HitObjects.Cast<SticksHitObject>()),
+                    Is.EqualTo(signature(convert(source, mode))));
             });
         }
 
@@ -196,7 +212,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Beatmap<HitObject> source = chordPhrase();
             source.HitObjects.Add(slider(5000, 500));
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard };
             string[] standard = signature(converter.Convert().HitObjects.Cast<SticksHitObject>());
             new SticksModDuet().ApplyToBeatmapConverter(converter);
             string[] duet = signature(converter.Convert().HitObjects.Cast<SticksHitObject>());
@@ -214,16 +230,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(source.HitObjects, Has.Count.EqualTo(6));
         }
 
-        [Test]
-        public void TestGameplayPipelineAppliesCombinedModBeforeCreatingSliderNestedObjects()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TestGameplayPipelineUsesTwoStickBaseBeforeCreatingSliderNestedObjects(bool parity)
         {
             Beatmap<HitObject> source = map(circle(500, 0), circle(500, 0), slider(1000, 2000));
-            SticksHitObject[] expected = convert(source, SticksConversionMode.ParityDuet);
+            SticksHitObject[] expected = convert(source, parity ? SticksConversionMode.ParityDuet : SticksConversionMode.Duet);
             foreach (SticksHitObject note in expected)
                 note.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
             var working = new FlatWorkingBeatmap(source);
             SticksHitObject[] playable = working.GetPlayableBeatmap(new SticksRuleset().RulesetInfo,
-                new Mod[] { new SticksModParityDuet() }, CancellationToken.None).HitObjects.Cast<SticksHitObject>().ToArray();
+                parity ? new Mod[] { new SticksModParity() } : Array.Empty<Mod>(), CancellationToken.None).HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.That(signature(playable), Is.EqualTo(signature(expected)));
             Assert.That(playable.OfType<SticksSlider>().Count(), Is.EqualTo(2));
@@ -242,7 +259,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksParityConversion.Apply(expected, source, CancellationToken.None);
             SticksBeatmapConverter.AlignNearbyChordHeads(expected);
             SticksBeatmapConverter.AssignSyncedNoteLinks(expected);
-            SticksHitObject[] combined = convert(source, SticksConversionMode.ParityDuet, disableReversals);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { DisableReversals = disableReversals };
+            new SticksModParity().ApplyToBeatmapConverter(converter);
+            SticksHitObject[] combined = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             Assert.Multiple(() =>
             {
                 Assert.That(combined.Select(shape), Is.EqualTo(duet.Select(shape)), "Duet timing, stick assignment, paths and samples must survive parity.");

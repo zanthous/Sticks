@@ -22,12 +22,24 @@ namespace osu.Game.Rulesets.Sticks.Scoring
         protected override HitResult GetSimulatedHitResult(Judgement judgement) =>
             judgement is SticksAngleJudgement ? HitResult.SmallTickHit : base.GetSimulatedHitResult(judgement);
 
-        public override int GetBaseScoreForResult(HitResult result) =>
-            result == HitResult.SmallTickHit ? 300 : base.GetBaseScoreForResult(result);
+        // Timing and aim each own half of a 300-point head. SmallTickHit is the
+        // combo-neutral carrier used to reconstruct aim's maximum from saved statistics.
+        public override int GetBaseScoreForResult(HitResult result) => result switch
+        {
+            HitResult.SmallTickHit => 150,
+            // Direction-free clicks use one full-weight timing result.
+            HitResult.Perfect => 300,
+            HitResult.Great or HitResult.Good or HitResult.Ok or HitResult.Meh => base.GetBaseScoreForResult(result) / 2,
+            _ => base.GetBaseScoreForResult(result),
+        };
 
-        protected override double GetComboScoreChange(JudgementResult result) => isAngleComponent(result)
-            ? 0
-            : base.GetComboScoreChange(result);
+        protected override double GetComboScoreChange(JudgementResult result) => result.HitObject switch
+        {
+            ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Angle } => 0,
+            // Timing owns the entire head's combo contribution, including aim's half.
+            ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Timing } => 2 * base.GetComboScoreChange(result),
+            _ => base.GetComboScoreChange(result),
+        };
 
         protected override void ApplyScoreChange(JudgementResult result)
         {

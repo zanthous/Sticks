@@ -9,7 +9,6 @@ using osu.Game.IO;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Sticks.Beatmaps;
-using osu.Game.Rulesets.Sticks.Mods;
 using osu.Game.Rulesets.Sticks.Objects;
 
 namespace osu.Game.Rulesets.Sticks.DifficultyTestbed;
@@ -199,13 +198,10 @@ internal static class ParityAudit
                          SticksConversionMode.Duet, SticksConversionMode.ParityDuet,
                      })
             {
-                Mod[] mods = conversionMode switch
-                {
-                    SticksConversionMode.Parity => new Mod[] { new SticksModParity() },
-                    SticksConversionMode.Duet => new Mod[] { new SticksModDuet() },
-                    SticksConversionMode.ParityDuet => new Mod[] { new SticksModParityDuet() },
-                    _ => Array.Empty<Mod>(),
-                };
+                // These labels describe historical strategies, not the current public mod list.
+                // Explicit selection preserves the old four-way audit after Duet becomes the
+                // gameplay default and public Parity starts from that default.
+                Mod[] mods = { ReferenceConversionMod.Create(conversionMode) };
                 IBeatmap converted = working.GetPlayableBeatmap(ruleset.RulesetInfo, mods);
                 ObjectDescription[] objects = converted.HitObjects.Cast<SticksHitObject>().Select(note => describe(note, source)).ToArray();
                 result.Modes.Add(new ModeAudit(conversionMode.ToString(), objects));

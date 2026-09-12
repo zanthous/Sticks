@@ -45,9 +45,10 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float CENTER_OUT_CURSOR_HELD_THRESHOLD = 0.9f;
         public const float CENTER_OUT_CURSOR_MOVING_THRESHOLD = 0.2f;
         private const double center_out_cursor_motion_grace = 40;
+        private const float guide_ring_thickness = 2;
         public static readonly Color4 LEFT_COLOUR = SticksHitObject.LEFT_DISPLAY_COLOUR;
         public static readonly Color4 RIGHT_COLOUR = SticksHitObject.RIGHT_DISPLAY_COLOUR;
-        public static readonly Color4 OVERLAP_COLOUR = new Color4(0.722f, 0.278f, 1f, 1f); // #B847FF
+        public static readonly Color4 OVERLAP_COLOUR = Color4Extensions.FromHex("C05CFF");
 
         private readonly CircularContainer leftCursor;
         private readonly CircularContainer rightCursor;
@@ -77,6 +78,12 @@ namespace osu.Game.Rulesets.Sticks.UI
         private float rightTrigger;
         private bool leftShoulderPressed;
         private bool rightShoulderPressed;
+        private bool leftStickPressed;
+        private bool rightStickPressed;
+        private bool lastReportedLeftStickPressed;
+        private bool lastReportedRightStickPressed;
+        private readonly SticksClickInput leftClickInput = new SticksClickInput();
+        private readonly SticksClickInput rightClickInput = new SticksClickInput();
         private readonly SticksStrumButtonState leftTriggerButton = new SticksStrumButtonState();
         private readonly SticksStrumButtonState rightTriggerButton = new SticksStrumButtonState();
         private readonly SticksStrumButtonState leftShoulderButton = new SticksStrumButtonState();
@@ -258,6 +265,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         public bool TriggerPressed(StickSide side) => side == StickSide.Left
             ? isTriggerPressed(leftTrigger)
             : isTriggerPressed(rightTrigger);
+
+        public bool StickPressed(StickSide side) => side == StickSide.Left ? leftStickPressed : rightStickPressed;
 
         public bool ShoulderPressed(StickSide side) => side == StickSide.Left
             ? leftShoulderPressed
@@ -550,13 +559,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private static bool tryGetFlickTarget(DrawableHitObject drawable, StickSide side, SticksInputTracker.FlickEvent flickEvent, out FlickTarget target)
         {
-            SticksHitObject hitObject = drawable switch
-            {
-                DrawableSticksFlick flick when !flick.Judged => flick.HitObject,
-                DrawableSticksSlider slider when !slider.HeadJudged => slider.HitObject,
-                DrawableSticksHold hold when !hold.HeadJudged => hold.HitObject,
-                _ => null,
-            };
+            SticksHitObject hitObject = unjudgedHeadHitObjectFor(drawable);
 
             if (hitObject == null || hitObject.Side != side)
             {
@@ -707,11 +710,16 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         protected override bool OnJoystickPress(JoystickPressEvent e)
         {
-            if (!StrumMode)
-                return base.OnJoystickPress(e);
-
             switch (e.Button)
             {
+                case JoystickButton.GamePadLeftStick:
+                    leftStickPressed = true;
+                    return true;
+
+                case JoystickButton.GamePadRightStick:
+                    rightStickPressed = true;
+                    return true;
+
                 case JoystickButton.GamePadLeftShoulder:
                     leftShoulderPressed = true;
                     return true;
@@ -727,14 +735,16 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         protected override void OnJoystickRelease(JoystickReleaseEvent e)
         {
-            if (!StrumMode)
-            {
-                base.OnJoystickRelease(e);
-                return;
-            }
-
             switch (e.Button)
             {
+                case JoystickButton.GamePadLeftStick:
+                    leftStickPressed = false;
+                    return;
+
+                case JoystickButton.GamePadRightStick:
+                    rightStickPressed = false;
+                    return;
+
                 case JoystickButton.GamePadLeftShoulder:
                     leftShoulderPressed = false;
                     return;
@@ -759,9 +769,11 @@ namespace osu.Game.Rulesets.Sticks.UI
             bool rightTriggerPressed = TriggerPressed(StickSide.Right);
             bool leftShoulder = ShoulderPressed(StickSide.Left);
             bool rightShoulder = ShoulderPressed(StickSide.Right);
+            bool leftStickButton = StickPressed(StickSide.Left);
+            bool rightStickButton = StickPressed(StickSide.Right);
 
             if (replayInputProvider.Active)
-                (left, right, leftTriggerPressed, rightTriggerPressed, leftShoulder, rightShoulder) = replayInputProvider.SnapshotWithButtons();
+                (left, right, leftTriggerPressed, rightTriggerPressed, leftShoulder, rightShoulder, leftStickButton, rightStickButton) = replayInputProvider.SnapshotWithAllButtons();
 
             Vector2 displayedLeft = MapStickDistance(left, PhysicalStickDistanceAtGameEdge);
             Vector2 displayedRight = MapStickDistance(right, PhysicalStickDistanceAtGameEdge);
@@ -789,7 +801,16 @@ namespace osu.Game.Rulesets.Sticks.UI
                 }
             }
 
-            reportPhysicalStickInput(left, right, leftTriggerPressed, rightTriggerPressed, leftShoulder, rightShoulder);
+            // Sample independently of stick motion, recharge and duration tracking.
+            bool leftClick = leftClickInput.Update(leftShoulder, leftTriggerPressed, leftStickButton, StrumMode);
+            bool rightClick = rightClickInput.Update(rightShoulder, rightTriggerPressed, rightStickButton, StrumMode);
+            if (!RelaxMode)
+            {
+                if (leftClick) hitClick(StickSide.Left, Time.Current);
+                if (rightClick) hitClick(StickSide.Right, Time.Current);
+            }
+
+            reportPhysicalStickInput(left, right, leftTriggerPressed, rightTriggerPressed, leftShoulder, rightShoulder, leftStickButton, rightStickButton);
             bool leftCursorVisible = updateCursor(
                 leftCursor,
                 displayedLeft,
@@ -920,14 +941,16 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private void reportPhysicalStickInput(Vector2 left, Vector2 right,
                                               bool leftTriggerPressed, bool rightTriggerPressed,
-                                              bool leftShoulder, bool rightShoulder)
+                                              bool leftShoulder, bool rightShoulder, bool leftStickButton, bool rightStickButton)
         {
             if (left == lastReportedPhysicalLeft
                 && right == lastReportedPhysicalRight
                 && leftTriggerPressed == lastReportedLeftTrigger
                 && rightTriggerPressed == lastReportedRightTrigger
                 && leftShoulder == lastReportedLeftShoulder
-                && rightShoulder == lastReportedRightShoulder)
+                && rightShoulder == lastReportedRightShoulder
+                && leftStickButton == lastReportedLeftStickPressed
+                && rightStickButton == lastReportedRightStickPressed)
                 return;
 
             bool important = RelaxMode
@@ -935,6 +958,8 @@ namespace osu.Game.Rulesets.Sticks.UI
                              || rightTriggerPressed != lastReportedRightTrigger
                              || leftShoulder != lastReportedLeftShoulder
                              || rightShoulder != lastReportedRightShoulder
+                             || leftStickButton != lastReportedLeftStickPressed
+                             || rightStickButton != lastReportedRightStickPressed
                              || crossesGestureBoundary(lastReportedPhysicalLeft, left)
                              || crossesGestureBoundary(lastReportedPhysicalRight, right);
             lastReportedPhysicalLeft = left;
@@ -943,10 +968,43 @@ namespace osu.Game.Rulesets.Sticks.UI
             lastReportedRightTrigger = rightTriggerPressed;
             lastReportedLeftShoulder = leftShoulder;
             lastReportedRightShoulder = rightShoulder;
+            lastReportedLeftStickPressed = leftStickButton;
+            lastReportedRightStickPressed = rightStickButton;
 
             // Joystick X and Y arrive as separate framework events. Publishing here, after the
             // input event batch has completed, prevents recording a new X with the previous Y.
             PhysicalStickInputChanged?.Invoke(important);
+        }
+
+        public Color4 ClickColourFor(SticksClick hitObject)
+        {
+            foreach (DrawableHitObject drawable in ((SticksHitObjectContainer)HitObjectContainer).VisibleObjects)
+            {
+                if (drawable is DrawableSticksClick other && !other.Judged
+                    && other.HitObject.Side != hitObject.Side
+                    && Math.Abs(other.HitObject.StartTime - hitObject.StartTime) < 0.01)
+                    return OverlapColour;
+            }
+            return ColourFor(hitObject.Side);
+        }
+
+        private void hitClick(StickSide side, double time)
+        {
+            DrawableSticksClick target = null;
+            double bestOffset = double.PositiveInfinity;
+            foreach (DrawableHitObject drawable in ((SticksHitObjectContainer)HitObjectContainer).VisibleObjects)
+            {
+                if (drawable is not DrawableSticksClick click || click.Judged || click.HitObject.Side != side)
+                    continue;
+                double offset = System.Math.Abs(time - click.HitObject.StartTime);
+                if (offset < bestOffset && click.HitObject.HitWindows?.ResultFor(time - click.HitObject.StartTime).IsHit() == true)
+                {
+                    target = click;
+                    bestOffset = offset;
+                }
+            }
+            // One edge may hit only one note, even when their timing windows overlap.
+            target?.TryHit(time);
         }
 
         private static bool isTriggerPressed(float value) => value >= 0.5f;
@@ -1030,9 +1088,10 @@ namespace osu.Game.Rulesets.Sticks.UI
             Anchor = Anchor.TopLeft,
             Origin = Anchor.Centre,
             Position = new Vector2(SIZE / 2),
-            Size = new Vector2(radius * 2),
+            // BorderThickness grows inward; radius denotes the visible stroke's midpoint.
+            Size = new Vector2(radius * 2 + guide_ring_thickness),
             Masking = true,
-            BorderThickness = 2,
+            BorderThickness = guide_ring_thickness,
             BorderColour = colour,
             Child = new Box
             {

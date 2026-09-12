@@ -6,12 +6,13 @@ using osu.Game.Rulesets.Sticks.Beatmaps;
 
 namespace osu.Game.Rulesets.Sticks.Mods
 {
+    // Retired from the mod selector. System registration preserves existing saved DU acronyms.
     public class SticksModDuet : Mod, IApplicableToBeatmapConverter
     {
         public override string Name => "Duet";
         public override string Acronym => "DU";
         public override LocalisableString Description => "Experimental conversion: turn source rhythms and shapes into coordinated two-stick phrases. Applies to standard maps.";
-        public override ModType Type => ModType.Conversion;
+        public override ModType Type => ModType.System;
         public override bool Ranked => false;
         public override Type[] IncompatibleMods => new[] { typeof(SticksModParity), typeof(SticksModParityDuet) };
 

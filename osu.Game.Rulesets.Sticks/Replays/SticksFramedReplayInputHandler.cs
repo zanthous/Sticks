@@ -40,7 +40,9 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     HasFrames && StartFrame.LeftTrigger,
                     HasFrames && StartFrame.RightTrigger,
                     HasFrames && StartFrame.LeftShoulder,
-                    HasFrames && StartFrame.RightShoulder);
+                    HasFrames && StartFrame.RightShoulder,
+                    HasFrames && StartFrame.LeftStickButton,
+                    HasFrames && StartFrame.RightStickButton);
                 return;
             }
 
@@ -52,7 +54,9 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 CurrentTime < EndFrame.Time ? StartFrame.LeftTrigger : EndFrame.LeftTrigger,
                 CurrentTime < EndFrame.Time ? StartFrame.RightTrigger : EndFrame.RightTrigger,
                 CurrentTime < EndFrame.Time ? StartFrame.LeftShoulder : EndFrame.LeftShoulder,
-                CurrentTime < EndFrame.Time ? StartFrame.RightShoulder : EndFrame.RightShoulder);
+                CurrentTime < EndFrame.Time ? StartFrame.RightShoulder : EndFrame.RightShoulder,
+                CurrentTime < EndFrame.Time ? StartFrame.LeftStickButton : EndFrame.LeftStickButton,
+                CurrentTime < EndFrame.Time ? StartFrame.RightStickButton : EndFrame.RightStickButton);
         }
 
         /// <summary>

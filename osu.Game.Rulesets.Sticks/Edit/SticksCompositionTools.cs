@@ -25,6 +25,19 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksFlickPlacementBlueprint();
     }
 
+    public class SticksClickCompositionTool : SticksCompositionTool
+    {
+        public SticksClickCompositionTool()
+            : base("Click")
+        {
+            TooltipText = "Place a button note; outer lane selects left hand, inner lane selects right hand. No aim required.";
+        }
+
+        public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorHitCircle };
+
+        public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksClickPlacementBlueprint();
+    }
+
     public class SticksHoldCompositionTool : SticksCompositionTool
     {
         public SticksHoldCompositionTool()

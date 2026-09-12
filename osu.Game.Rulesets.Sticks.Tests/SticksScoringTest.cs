@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using osu.Framework.Input.StateChanges;
+using osu.Framework.Timing;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Database;
@@ -73,6 +74,97 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             processor.RevertResult(timing);
             Assert.That(processor.Combo.Value, Is.Zero);
+        }
+
+        [TestCase(HitResult.Great, HitResult.Great, 300)]
+        [TestCase(HitResult.Great, HitResult.Ok, 200)]
+        [TestCase(HitResult.Ok, HitResult.Great, 200)]
+        [TestCase(HitResult.Meh, HitResult.Great, 175)]
+        [TestCase(HitResult.Ok, HitResult.Ok, 100)]
+        [TestCase(HitResult.Meh, HitResult.Ok, 75)]
+        [TestCase(HitResult.Miss, HitResult.Miss, 0)]
+        public void TestHeadWeightsAgainstTicksAndTails(HitResult timing, HitResult aim, int headValue)
+        {
+            foreach (SticksHitObject head in new SticksHitObject[] { new SticksFlick(), new SticksSliderHead(), new SticksHoldHead() })
+            {
+                var processor = new SticksScoreProcessor(new SticksRuleset());
+                processor.ApplyResult(result(head, timing));
+                processor.ApplyResult(result(new SticksAngleComponent(), aim));
+
+                Assert.Multiple(() =>
+                {
+                    Assert.That(processor.GetScoreProcessorStatistics().MaximumBaseScore, Is.EqualTo(300));
+                    Assert.That(processor.GetScoreProcessorStatistics().BaseScore, Is.EqualTo(headValue));
+                    Assert.That(processor.Combo.Value, Is.EqualTo(timing == HitResult.Miss ? 0 : 1));
+                });
+
+                processor.ApplyResult(result(new SticksSliderTick(), HitResult.LargeTickHit));
+                processor.ApplyResult(result(new SticksSliderRepeat(), HitResult.LargeTickHit));
+                processor.ApplyResult(result(new SticksSliderTail(), HitResult.SliderTailHit));
+
+                Assert.That(processor.Accuracy.Value, Is.EqualTo((headValue + 210.0) / 510).Within(0.000001),
+                    "A head must weigh 300 against each 30-point tracking judgement and 150-point tail.");
+            }
+        }
+
+        [Test]
+        public void TestTimingCarriesWholeHeadComboWeightAndRewinds()
+        {
+            var processor = new SticksScoreProcessor(new SticksRuleset());
+            var timing = result(new SticksFlick(), HitResult.Great);
+            var aim = result(new SticksAngleComponent(), HitResult.Ok);
+            var tick = result(new SticksSliderTick(), HitResult.LargeTickHit);
+
+            processor.ApplyResult(timing);
+            processor.ApplyResult(aim);
+            Assert.That(processor.GetScoreProcessorStatistics().ComboPortion, Is.EqualTo(300));
+
+            processor.ApplyResult(tick);
+            Assert.That(processor.GetScoreProcessorStatistics().ComboPortion,
+                Is.EqualTo(300 + 30 * System.Math.Sqrt(2)).Within(0.000001));
+
+            processor.RevertResult(tick);
+            processor.RevertResult(aim);
+            processor.RevertResult(timing);
+            Assert.Multiple(() =>
+            {
+                Assert.That(processor.GetScoreProcessorStatistics().ComboPortion, Is.Zero.Within(0.000001));
+                Assert.That(processor.GetScoreProcessorStatistics().MaximumBaseScore, Is.Zero);
+                Assert.That(processor.Combo.Value, Is.Zero);
+            });
+        }
+
+        [Test]
+        public void TestMixedPartialScoreReconstructsAccuracyFromSavedStatistics()
+        {
+            Beatmap<SticksHitObject> beatmap = createBeatmap(
+                new SticksFlick { StartTime = 1000 },
+                new SticksSlider { StartTime = 1500, Duration = 1000, ArcAngle = 120 },
+                new SticksHold { StartTime = 2000, Duration = 1000 });
+            var processor = new SticksScoreProcessor(new SticksRuleset());
+            processor.ApplyBeatmap(beatmap);
+
+            foreach (HitObject hitObject in beatmap.HitObjects.SelectMany(enumerateRecursively).OrderBy(hitObject => hitObject.GetEndTime()))
+            {
+                HitResult type = hitObject switch
+                {
+                    ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Timing } => HitResult.Meh,
+                    ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Angle } => HitResult.Ok,
+                    SticksSliderTick or SticksHoldTick => HitResult.LargeTickMiss,
+                    _ => hitObject.Judgement.MaxResult,
+                };
+                processor.ApplyResult(new JudgementResult(hitObject, hitObject.Judgement) { Type = type });
+            }
+
+            var score = new ScoreInfo();
+            processor.PopulateScore(score);
+            int tickCount = score.MaximumStatistics.GetValueOrDefault(HitResult.LargeTickHit);
+            Assert.Multiple(() =>
+            {
+                Assert.That(tickCount, Is.GreaterThan(0));
+                Assert.That(processor.Accuracy.Value, Is.EqualTo((3 * 75.0 + 2 * 150) / (3 * 300 + tickCount * 30 + 2 * 150)).Within(0.000001));
+                Assert.That(StandardisedScoreMigrationTools.ComputeAccuracy(score, processor), Is.EqualTo(processor.Accuracy.Value).Within(0.000001));
+            });
         }
 
         [Test]
@@ -246,7 +338,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick second = createFlick(1000, StickSide.Right, 180);
             var firstAngle = (SticksAngleComponent)first.NestedHitObjects.Single();
             var secondAngle = (SticksAngleComponent)second.NestedHitObjects.Single();
-            var display = new SticksJudgementDisplay();
+            var display = new SticksJudgementDisplay { Clock = new FramedClock(new ManualClock()) };
 
             // This is the ordering that a simultaneous chord is allowed to produce. A single
             // pending timing slot would overwrite the first note before either angle arrived.
@@ -276,22 +368,21 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestJudgementFeedbackUsesThinBottomBar()
+        public void TestJudgementFeedbackUsesBoundedDotPool()
         {
             var display = new SticksJudgementDisplay();
 
             Assert.Multiple(() =>
             {
                 Assert.That(display.Size.X, Is.EqualTo(SticksPlayfield.SIZE));
-                Assert.That(display.Size.Y, Is.EqualTo(SticksJudgementDisplay.BAR_HEIGHT));
-                Assert.That(SticksJudgementDisplay.DISPLAY_DURATION, Is.EqualTo(420));
-                Assert.That(SticksJudgementDisplay.FADE_DURATION, Is.EqualTo(100));
-                Assert.That(display.Position.Y + display.Size.Y, Is.EqualTo(SticksPlayfield.SIZE));
+                Assert.That(display.Size.Y, Is.EqualTo(SticksPlayfield.SIZE));
+                Assert.That(display.Children.Count, Is.EqualTo(SticksJudgementDisplay.MAX_DOTS));
+                Assert.That(display.Children.All(dot => dot.Alpha == 0), Is.True);
             });
         }
 
         [Test]
-        public void TestJudgementFeedbackShowsSuccessfulActionCheckpoints()
+        public void TestJudgementFeedbackDoesNotShowSuccessfulActionCheckpoints()
         {
             var display = new SticksJudgementDisplay();
             (SticksHitObject Object, HitResult Result)[] checkpoints =
@@ -306,7 +397,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 display.ResetDisplay();
                 display.Process(result(hitObject, hitResult));
-                Assert.That(display.LastResult, Is.EqualTo(HitResult.Perfect), hitObject.GetType().Name);
+                Assert.That(display.LastResult, Is.Null, hitObject.GetType().Name);
+                Assert.That(display.Children.All(dot => dot.Alpha == 0), Is.True);
             }
         }
 

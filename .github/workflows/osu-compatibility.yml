@@ -94,10 +94,12 @@ jobs:
           path: upstream-osu
           fetch-depth: 1
 
-      - name: Set up .NET 8
+      - name: Set up .NET SDKs
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Verify ruleset API generation
         shell: pwsh
@@ -116,6 +118,15 @@ jobs:
               throw "Preflight detected ruleset API $env:EXPECTED_API but checked-out source contains $apiVersion."
           }
 
+          $osuGameProject = Get-Content -Raw -LiteralPath ".\upstream-osu\osu.Game\osu.Game.csproj"
+          $targetFrameworkMatch = [regex]::Match($osuGameProject, '<TargetFramework>(?<framework>[^<]+)</TargetFramework>')
+
+          if (-not $targetFrameworkMatch.Success) {
+              throw "Could not read TargetFramework from the official osu.Game project."
+          }
+
+          "STICKS_TARGET_FRAMEWORK=$($targetFrameworkMatch.Groups['framework'].Value)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
           if ($apiVersion -ge [Version]::Parse("2026.818.0")) {
               "STICKS_NEW_RULESET_API=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
@@ -125,6 +136,7 @@ jobs:
         run: |
           $properties = @(
               "-p:OsuSourceRoot=$env:GITHUB_WORKSPACE\upstream-osu"
+              "-p:TargetFramework=$env:STICKS_TARGET_FRAMEWORK"
               "-p:OsuClientVersion=${{ matrix.client_version }}"
               "-p:AssemblyVersion=${{ needs.check_releases.outputs.assembly_version }}"
               "-p:FileVersion=${{ needs.check_releases.outputs.assembly_version }}"
@@ -142,6 +154,7 @@ jobs:
         run: |
           $properties = @(
               "-p:OsuSourceRoot=$env:GITHUB_WORKSPACE\upstream-osu"
+              "-p:TargetFramework=$env:STICKS_TARGET_FRAMEWORK"
               "-p:OsuClientVersion=${{ matrix.client_version }}"
               "-p:AssemblyVersion=${{ needs.check_releases.outputs.assembly_version }}"
               "-p:FileVersion=${{ needs.check_releases.outputs.assembly_version }}"
@@ -161,7 +174,7 @@ jobs:
           ASSEMBLY_VERSION: ${{ needs.check_releases.outputs.assembly_version }}
           RULESET_VERSION: ${{ needs.check_releases.outputs.ruleset_version }}
         run: |
-          $source = ".\osu.Game.Rulesets.Sticks\bin\Release\net8.0\osu.Game.Rulesets.Sticks.dll"
+          $source = ".\osu.Game.Rulesets.Sticks\bin\Release\$env:STICKS_TARGET_FRAMEWORK\osu.Game.Rulesets.Sticks.dll"
           $output = ".\compatibility-release"
           $dll = Join-Path $output $env:ASSET_NAME
 

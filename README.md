@@ -15,18 +15,18 @@ See [LICENSE.md](LICENSE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md
 Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 
 - The left stick is blue and the right stick is red.
-- Notes, sliders, and holds travel from the center toward the circular judgment line.
+- Notes and sliders travel from the center toward the circular judgment line.
 - Flick notes require entering the recharge zone, then crossing outward at the target angle near the hit time.
-- Click notes are unfilled coloured halos approaching the ring. Press L1/L2/L3 for left or R1/R2/R3 for right; Strum restricts clicks to L3/R3. Stick angle and position do not matter. Clicks can be placed alongside holds or sliders and use timing-only 300/100/50 scoring.
+- Click notes are unfilled coloured halos approaching the ring. Press L1/L2/L3 for left or R1/R2/R3 for right; Strum restricts clicks to L3/R3. Stick angle and position do not matter. Clicks can be placed alongside sliders and use timing-only 300/100/50 scoring.
 - Sliders require hitting the head and continuously following the displayed angular path with the assigned stick.
-- Directional holds require hitting an angle and sustaining it while the hold progresses toward the judgment line.
-- Flick and hold/slider heads grade timing and angle equally. Non-perfect hits show a colored dot just outside the ring at the note's angle: green for `200`, lime for `175`, yellow for `100`, and orange for `75`. Each dot starts fading immediately and disappears after 600 ms; left-stick dots sit slightly farther out so stacked doubles remain distinct. Perfect `300` hits show no dot. Failing either required component is a miss, with audio feedback.
-- Each complete head has 300 accuracy weight (150 timing + 150 aim), tracking ticks and reversals have 30, and slider/hold tails have 150. Timing carries the head's full 300-point combo contribution with one combo increment; aim adds no extra combo. These weights are normalized to a 1,000,000 maximum before mod multipliers. Previously saved scores retain their stored values; replay recalculation uses the current weights.
-- Holds use slider-style independent head, beat tick, and tail checkpoints. Leaving the target loses only checkpoints crossed while away, and tracking/audio resume on return.
+- Sliders can stay at one angle: hit the head and keep the stick held there until they finish. Older maps with holds load as stationary sliders.
+- Flick and slider heads grade timing and angle equally. Non-perfect hits show a colored dot just outside the ring at the note's angle: green for `200`, lime for `175`, yellow for `100`, and orange for `75`. Each dot starts fading immediately and disappears after 600 ms; left-stick dots sit slightly farther out so stacked doubles remain distinct. Perfect `300` hits show no dot. Failing either required component is a miss, with audio feedback.
+- Each complete head has 300 accuracy weight (150 timing + 150 aim), tracking ticks and reversals have 30, and slider tails have 150. Timing carries the head's full 300-point combo contribution with one combo increment; aim adds no extra combo. These weights are normalized to a 1,000,000 maximum before mod multipliers. Previously saved scores retain their stored values; replay recalculation uses the current weights.
+- Stationary sliders use independent head, beat tick, and tail checkpoints. Leaving the target loses only checkpoints crossed while away, and tracking/audio resume on return.
 - Standard circles convert to flicks. Standard sliders and other duration objects convert to generated circular slider patterns.
-- Source hold notes and spinners convert to directional holds.
+- Source hold notes and spinners convert to stationary sliders.
 
-The optional Brackets presentation style has one judgment circle per stick color, and notes pop in in-place. The editor currently uses this style regardless of the gameplay presentation selected in settings.
+The optional Brackets presentation style has one judgment circle per stick color, and notes pop in in-place. The editor uses the modern centre-out visuals regardless of the gameplay presentation selected in settings.
 
 Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. F3/F4 changes AR by 0.5, while Shift+F3/F4 changes it by 0.1. The default is AR 7.5 / 825 ms. Map AR does not affect this setting.
 
@@ -86,18 +86,19 @@ Sticks has a circular editor inside osu!lazer. To start from an imported song:
 3. Choose **Create blank Sticks difficulty** to keep the song, metadata, and timing but map from scratch, or **Create editable converted Sticks difficulty** to use the converter as a starting point.
 4. The new database-backed Sticks difficulty opens directly in lazer's editor.
 
-Use the left editor toolbox (or number keys) to select Flick, Click, Hold, or Slider:
+Use the left editor toolbox (or number keys) to select Flick, Slider, or Click:
 
-- Flick: click the blue outer lane for the left stick or red inner lane for the right stick.
-- Click: select the Click tool and place a halo on the blue outer lane (left hand) or red inner lane (right hand). The placement angle does not affect gameplay.
-- Hold: press on a lane, drag radially in the displayed duration direction, and release.
-- Slider: press on a lane, trace the circular arc, and release.
-- Selected hold/slider: drag its endpoint on the timeline to change duration.
-- Selected slider: drag the tail to move its final point; hold Shift while dragging to snap the angle to 15° increments.
-- At a selected slider's endpoint, use `+` to place another reversal point or `−` to remove the final point. Right-click cancels point placement.
-- Drag selected objects around the ring to change their angle. A single object may also cross between the two stick lanes; grouped selections preserve their angular pattern.
+- Notes use the same centre-out visuals and shared ring as gameplay. When placing a note, click just outside the ring for the left stick or just inside it for the right stick. Farther outside selects both sticks: a purple preview places an exact pair with one undo step. This also works for click halos and sliders. Outside the placement area, no preview is drawn.
+- Flick: click near the ring to place the note.
+- Click: select the Click tool and place a halo. The placement angle does not affect gameplay.
+- Slider: click near the ring to start, trace an arc for movement or stay at the same angle for a stationary slider, then scroll to the end time. Left-click (or release a held left button) finishes; right-click places the point and starts the next span. Mouse distance never changes duration. Ctrl+Z cancels an unfinished point before undoing earlier edits.
+- Selected slider: drag its endpoint on the timeline to change duration.
+- Selected slider: drag a circular handle at a turn or the tail to move that point. Timing stays fixed, and moving a turn keeps later endpoints in place. Hold Shift to snap to 15° increments.
+- At a selected slider's endpoint, right-click to continue it with the same trace-and-scroll placement. Each new span keeps the earlier timing intact. Right-click places the pending point and continues; a point needs a later end time. Escape cancels only the pending point, keeping finished segments.
+- Drag visible notes or slider ribbons to change their angle. Grouped selections preserve their angular pattern and stick assignments.
+- The inspector edits stick, angle and start time, plus slider duration, end time and individual segments. Select matching sliders to edit their segments together. Stick changes apply immediately; **Both** creates matching notes for both sticks when there is room. Choose Left or Right on a selected pair to keep only that stick. Numeric fields commit on Enter or when you leave the field. Each edit is validated and undoable. Escape cancels the current field's draft.
 
-Normal editor save, Ctrl+S, undo/redo, dirty-state warnings, timing, setup, timeline, test-play, copy, and paste remain available. Same-time objects only replace an existing object on the same stick, so opposite-stick chords can be authored normally.
+Normal editor save, Ctrl+S, undo/redo, dirty-state warnings, timing, setup, timeline, test-play, copy, and paste remain available. Same-time placement replaces matching objects on the selected stick; purple placement replaces both sides together.
 
 Authored gameplay data is versioned inside ordinary mode-0 carrier objects. The Sticks converter reconstructs angles, sides, durations, slider arcs, and repeats exactly when the difficulty is reopened or shared; unmarked standard maps continue to use procedural conversion. This provides editor persistence without patching osu!lazer.
 

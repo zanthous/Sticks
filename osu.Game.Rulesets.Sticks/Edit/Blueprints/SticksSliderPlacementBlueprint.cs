@@ -1,10 +1,9 @@
 #nullable enable
 
-using System;
 using osu.Framework.Allocation;
 using osu.Framework.Input.Events;
-using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Screens.Edit;
 using osuTK;
 using osuTK.Input;
 
@@ -13,13 +12,12 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
     public partial class SticksSliderPlacementBlueprint : SticksPlacementBlueprint<SticksSlider>
     {
         [Resolved]
-        private IBeatSnapProvider? beatSnapProvider { get; set; }
+        private SticksHitObjectComposer composer { get; set; } = null!;
 
-        private float lastPointerAngle;
-        private bool hasLastPointerAngle;
-        private double arcDuration;
-        private double clockDuration;
-        private float pointerArcAngle;
+        [Resolved]
+        private EditorClock editorClock { get; set; } = null!;
+
+        private SticksSliderPlacementGesture? gesture;
 
         public SticksSliderPlacementBlueprint()
             : base(new SticksSlider())
@@ -28,31 +26,29 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         protected override bool IsValidForPlacement => base.IsValidForPlacement
                                                        && (PlacementActive == PlacementState.Waiting
-                                                           || HitObject.Duration > 0 && Math.Abs(HitObject.ArcAngle) >= 1);
+                                                           || gesture?.CanCommit == true);
 
         protected override bool OnMouseDown(MouseDownEvent e)
         {
             if (PlacementActive == PlacementState.Waiting && e.Button == MouseButton.Left && HasValidPosition)
             {
                 BeginPlacement(true);
-                arcDuration = clockDuration = minimumDuration();
-                updateDuration();
+                gesture = new SticksSliderPlacementGesture(HitObject.Angle, HitObject.StartTime, editorClock.CurrentTimeAccurate);
+                HitObject.Duration = 0;
                 HitObject.ArcAngle = 0;
-                pointerArcAngle = 0;
-                lastPointerAngle = HitObject.Angle;
-                hasLastPointerAngle = true;
                 return true;
             }
 
-            if (PlacementActive == PlacementState.Active && e.Button == MouseButton.Left && Math.Abs(HitObject.ArcAngle) >= 1)
+            if (PlacementActive == PlacementState.Active && (e.Button == MouseButton.Left || e.Button == MouseButton.Right))
             {
-                EndPlacement(true);
-                return true;
-            }
+                updateDuration();
+                if (gesture?.CanCommit != true)
+                    return true;
 
-            if (PlacementActive == PlacementState.Active && e.Button == MouseButton.Right)
-            {
                 EndPlacement(true);
+                if (e.Button == MouseButton.Right)
+                    composer.ContinueSliderPlacement(PlacedPartner == null ? new[] { HitObject } : new[] { HitObject, PlacedPartner });
+
                 return true;
             }
 
@@ -61,46 +57,38 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         protected override void OnMouseUp(MouseUpEvent e)
         {
-            if (PlacementActive == PlacementState.Active && e.Button == MouseButton.Left && Math.Abs(HitObject.ArcAngle) >= 1)
-                EndPlacement(true);
+            if (PlacementActive == PlacementState.Active && e.Button == MouseButton.Left)
+            {
+                updateDuration();
+                if (gesture?.CanCommit == true)
+                    EndPlacement(true);
+            }
 
             base.OnMouseUp(e);
         }
 
         protected override void ActivePointerMoved(Vector2 localPosition, float angle, bool isInLane)
         {
-            if (!isInLane)
+            if (gesture == null)
                 return;
 
-            if (!hasLastPointerAngle)
-            {
-                lastPointerAngle = angle;
-                hasLastPointerAngle = true;
-                return;
-            }
-
-            pointerArcAngle += SticksHitObject.DeltaAngle(lastPointerAngle, angle);
-            HitObject.ArcAngle = ShiftPressed
-                ? SticksEditorCoordinates.SnapAngleOffset(pointerArcAngle)
-                : pointerArcAngle;
-            lastPointerAngle = angle;
-
-            double step = minimumDuration();
-            arcDuration = Math.Max(step, Math.Ceiling(Math.Abs(HitObject.ArcAngle) / 90) * step);
-            updateDuration();
+            gesture.UpdatePointer(angle, isInLane, ShiftPressed);
+            HitObject.ArcAngle = gesture.Arc;
         }
 
         protected override void TimeUpdated(double time)
         {
             if (PlacementActive == PlacementState.Active)
-            {
-                clockDuration = Math.Max(minimumDuration(), time - HitObject.StartTime);
                 updateDuration();
-            }
         }
 
-        private void updateDuration() => HitObject.Duration = Math.Max(arcDuration, clockDuration);
+        private void updateDuration()
+        {
+            if (gesture == null)
+                return;
 
-        private double minimumDuration() => beatSnapProvider?.GetBeatLengthAtTime(HitObject.StartTime) ?? 100;
+            gesture.UpdateTime(editorClock.CurrentTimeAccurate);
+            HitObject.Duration = gesture.Duration;
+        }
     }
 }

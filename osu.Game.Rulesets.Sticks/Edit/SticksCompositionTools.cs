@@ -17,7 +17,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksFlickCompositionTool()
             : base("Flick")
         {
-            TooltipText = "Place a flick; the outer lane is left stick and the inner lane is right stick";
+            TooltipText = "Place a flick near the ring: outside selects the left stick, inside selects the right stick, farther outside selects both";
         }
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorHitCircle };
@@ -30,7 +30,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksClickCompositionTool()
             : base("Click")
         {
-            TooltipText = "Place a button note; outer lane selects left hand, inner lane selects right hand. No aim required.";
+            TooltipText = "Place a button note near the ring: outside selects the left stick, inside selects the right stick, farther outside selects both. No aim required.";
         }
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorHitCircle };
@@ -38,25 +38,12 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksClickPlacementBlueprint();
     }
 
-    public class SticksHoldCompositionTool : SticksCompositionTool
-    {
-        public SticksHoldCompositionTool()
-            : base("Hold")
-        {
-            TooltipText = "Press and drag radially to place a hold; edit its duration from the timeline end handle";
-        }
-
-        public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorHoldNote };
-
-        public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksHoldPlacementBlueprint();
-    }
-
     public class SticksSliderCompositionTool : SticksCompositionTool
     {
         public SticksSliderCompositionTool()
             : base("Slider")
         {
-            TooltipText = "Press and trace the first arc, then release; select the slider and use + at its endpoint to place each reversal point";
+            TooltipText = "Click near the ring (farther outside selects both sticks), trace the path, and scroll to its end time. Left-click finishes; right-click places the point and continues. Keep the same angle for a stationary slider; Escape cancels the pending point";
         }
 
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorSlider };

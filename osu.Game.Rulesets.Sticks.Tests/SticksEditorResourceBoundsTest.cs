@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Reflection;
 using NUnit.Framework;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Lines;
 using osu.Framework.Testing;
 using osu.Game.Beatmaps;
@@ -11,6 +13,7 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Sticks.Beatmaps;
 using osu.Game.Rulesets.Sticks.Edit.Blueprints;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Screens.Edit;
 
 namespace osu.Game.Rulesets.Sticks.Tests
@@ -19,7 +22,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
     public class SticksEditorResourceBoundsTest
     {
         [Test]
-        public void TestMaximumAuthoredSliderHasBoundedPreviewVertices()
+        public void TestMaximumAuthoredSliderHasBoundedModernPreviewGeometry()
         {
             var slider = new SticksSlider
             {
@@ -28,15 +31,39 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 RepeatCount = int.MaxValue,
                 Side = StickSide.Left,
             };
-            var preview = new SticksBlueprintPiece();
+            using var preview = new SticksBlueprintPiece();
 
             preview.UpdateFrom(slider);
 
-            int pathVertexCount = preview.ChildrenOfType<SmoothPath>().Sum(path => path.Vertices.Count);
+            SticksRadialTimelinePath ribbon = preview.ChildrenOfType<SticksRadialTimelinePath>().Single();
+            int pointCount = (int)typeof(SticksRadialTimelinePath)
+                .GetField("pointCount", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(ribbon)!;
+            var points = (SticksRibbonPoint[])typeof(SticksRadialTimelinePath)
+                .GetField("points", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(ribbon)!;
             Assert.Multiple(() =>
             {
                 Assert.That(slider.SegmentCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT));
-                Assert.That(pathVertexCount, Is.LessThanOrEqualTo(10_000));
+                Assert.That(preview.ChildrenOfType<SmoothPath>().Sum(path => path.Vertices.Count), Is.LessThanOrEqualTo(10),
+                    "Only the shared modern marker's small caps may use SmoothPath; the duration body must use the bounded ribbon.");
+                Assert.That(pointCount, Is.InRange(2, 96), "Placement preview must remain bounded even at the authored segment limit.");
+                Assert.That(points.Take(pointCount).All(point => float.IsFinite(point.Radius) && float.IsFinite(point.Angle)), Is.True);
+            });
+        }
+
+        [Test]
+        public void TestSelectionOverlayDoesNotAllocateAnotherNoteRenderer()
+        {
+            var slider = new SticksSlider { StartTime = 2000, Duration = 1000, ArcAngle = 180, Side = StickSide.Left };
+            using var selection = new SticksBlueprintPiece(showNote: false);
+            selection.UpdateFrom(slider, 2250, selected: true);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(selection.ChildrenOfType<SmoothPath>(), Is.Empty);
+                Assert.That(selection.ChildrenOfType<BufferedContainer>(), Is.Empty);
+                Assert.That(selection.ChildrenOfType<SticksRadialTimelinePath>(), Is.Empty);
+                Assert.That(selection.ChildrenOfType<SticksArcMarker>(), Is.Empty);
+                Assert.That(float.IsFinite(selection.Marker.Position.X) && float.IsFinite(selection.Marker.Position.Y), Is.True);
             });
         }
 

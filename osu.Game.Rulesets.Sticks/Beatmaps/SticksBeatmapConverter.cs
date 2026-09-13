@@ -8,6 +8,7 @@ using System.Threading;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -58,6 +59,39 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         /// This can accompany any of the angle/pattern conversion strategies.
         /// </summary>
         public bool AddClickNotes { get; set; }
+
+        /// <summary>
+        /// Applies the next experimental arrangement after the base conversion.
+        /// Independent of the angle strategy so Parity can apply afterwards in either mod order.
+        /// </summary>
+        public bool UseCounterpoint { get; set; }
+
+        /// <summary>
+        /// DA's visual angle override, used before hit-object defaults are applied.
+        /// </summary>
+        public float? CounterpointPrimaryHitAngle { get; set; }
+
+        private readonly List<IApplicableToDifficulty> visualDifficultyAdjustments = new List<IApplicableToDifficulty>();
+
+        internal void RegisterVisualDifficultyAdjustment(IApplicableToDifficulty adjustment)
+        {
+            if (!visualDifficultyAdjustments.Contains(adjustment))
+                visualDifficultyAdjustments.Add(adjustment);
+        }
+
+        internal float CounterpointHitAngleFor(BeatmapDifficulty sourceDifficulty)
+        {
+            if (CounterpointPrimaryHitAngle is float angle && float.IsFinite(angle) && angle > 0)
+                return angle;
+
+            // osu! applies difficulty mods after conversion. Resolve the same future
+            // CS on a clone, retaining their real formulas and application order.
+            BeatmapDifficulty visualDifficulty = sourceDifficulty.Clone();
+            foreach (IApplicableToDifficulty adjustment in visualDifficultyAdjustments)
+                adjustment.ApplyToDifficulty(visualDifficulty);
+            float cs = float.IsFinite(visualDifficulty.CircleSize) ? visualDifficulty.CircleSize : SticksHitObject.DEFAULT_CIRCLE_SIZE;
+            return SticksHitObject.HitAngleForCircleSize(cs);
+        }
 
         /// <summary>
         /// Whether procedural conversion should discard the source beatmap's hitsounds and use
@@ -119,6 +153,13 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             Beatmap<SticksHitObject> converted = base.ConvertBeatmap(original, cancellationToken);
 
+            // The framework passes native objects through. Retire legacy holds here as well
+            // as in carrier decoding, copying the list so the source remains untouched.
+            if (converted.HitObjects.Any(hitObject => hitObject is SticksHold))
+                converted.HitObjects = converted.HitObjects.Select(hitObject => hitObject is SticksHold hold
+                    ? SticksAuthoredBeatmapCodec.UpgradeLegacyHold(hold)
+                    : hitObject).ToList();
+
             // The base converter retains the source map's ruleset metadata. Sticks needs its own
             // instantiation info here so EditorBeatmap constructs the Sticks editor processor,
             // while ordinary gameplay keeps the custom online ID (-1).
@@ -132,13 +173,20 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     addDuetAccompaniment(converted);
                 }
 
-                // Apply parity to the complete duet, including added partners and accents.
+                if (UseCounterpoint)
+                    applyCounterpoint(converted, original, cancellationToken);
+
+                // Apply parity to the complete arrangement, including added partners and accents.
                 if (ConversionMode is SticksConversionMode.Parity or SticksConversionMode.ParityDuet)
-                    SticksParityConversion.Apply(converted.HitObjects, original, cancellationToken);
+                    SticksParityConversion.Apply(converted.HitObjects, original, cancellationToken,
+                        UseCounterpoint, UseCounterpoint ? CounterpointHitAngleFor(original.Difficulty) : null);
+                else if (UseCounterpoint)
+                    SticksChordGeometry.ResolveReadableChords(converted.HitObjects, CounterpointHitAngleFor(original.Difficulty));
 
                 // Independent accompaniment/parity angles can leave doubles almost coincident.
                 // Align their final heads before generating the shared visual link.
-                AlignNearbyChordHeads(converted.HitObjects);
+                if (!UseCounterpoint)
+                    AlignNearbyChordHeads(converted.HitObjects);
 
                 if (AddClickNotes && original.HitObjects.All(hitObject => hitObject is not SticksHitObject))
                     applyEncoreObjects(converted, original, cancellationToken);
@@ -262,10 +310,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             if (generatedFlickHoldDurations.TryGetValue(original, out double generatedHoldDuration))
             {
-                yield return new SticksHold
+                yield return new SticksSlider
                 {
                     StartTime = original.StartTime,
                     Duration = generatedHoldDuration,
+                    ArcAngle = 0,
                     Side = plan.Side,
                     Angle = plan.Angle,
                     Samples = conversionSamples(original),
@@ -304,10 +353,11 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             {
                 if (isHoldSource(original))
                 {
-                    yield return new SticksHold
+                    yield return new SticksSlider
                     {
                         StartTime = original.StartTime,
                         Duration = duration.Duration,
+                        ArcAngle = 0,
                         Side = plan.Side,
                         Angle = plan.Angle,
                         Samples = conversionSamples(original),
@@ -469,6 +519,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private void buildPlans(IBeatmap beatmap, CancellationToken cancellationToken)
         {
             HitObject[] objects = beatmap.HitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
+            findRapidJumpRuns(objects, beatmap);
             var activeSliders = new List<(double endTime, StickSide side)>();
             var lastUsed = new Dictionary<StickSide, double>
             {
@@ -578,8 +629,14 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private void applyRarePatterns(HitObject[] objects, IBeatmap beatmap)
         {
             applyCoordinatedChords(objects);
-            HashSet<HitObject> sliderAccompaniment = applySliderAccompaniment(objects, beatmap);
-            applyAlternatingStreams(objects, sliderAccompaniment);
+            if (!usesSourceAwarePatterns)
+            {
+                // These historical templates replace source directions with a slider
+                // trace or a fixed 30-degree stream. The current base keeps each
+                // attack's direction; enforceRapidAlternation still assigns safe hands.
+                HashSet<HitObject> sliderAccompaniment = applySliderAccompaniment(objects, beatmap);
+                applyAlternatingStreams(objects, sliderAccompaniment);
+            }
         }
 
         private void applyCoordinatedChords(HitObject[] objects)
@@ -764,7 +821,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             {
                 HitObject anchor = objects[i];
                 ConversionPlan anchorPlan = plans[anchor];
-                if (!anchorPlan.Emit || convertsToHoldOrSlider(anchor) || generatedChordPartners.ContainsKey(anchor))
+                if (!anchorPlan.Emit || convertsToHoldOrSlider(anchor) || generatedChordPartners.ContainsKey(anchor)
+                    || rapidJumpHeads.Contains(anchor))
                     continue;
 
                 TimingControlPoint timing = beatmap.ControlPointInfo.TimingPointAt(anchor.StartTime);
@@ -791,6 +849,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         break;
 
                     if (!plans[candidate].Emit || convertsToHoldOrSlider(candidate) || generatedChordPartners.ContainsKey(candidate)
+                        || rapidJumpHeads.Contains(candidate)
                         || objects.Count(otherObject => Math.Abs(otherObject.StartTime - candidate.StartTime) < 0.01 && plans[otherObject].Emit) != 1)
                         break;
 
@@ -961,7 +1020,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     plans[flick] = plans[flick] with
                     {
                         Side = playingSide,
-                        Angle = SticksHitObject.NormaliseAngle(plans[head].Angle + arc * progress),
+                        Angle = usesSourceAwarePatterns
+                            ? plans[flick].Angle
+                            : SticksHitObject.NormaliseAngle(plans[head].Angle + arc * progress),
                     };
                 }
 
@@ -974,7 +1035,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private bool isAvailableOrdinaryAnchor(HitObject hitObject) =>
             plans[hitObject].Emit
             && !convertsToHoldOrSlider(hitObject)
-            && !generatedChordPartners.ContainsKey(hitObject);
+            && !generatedChordPartners.ContainsKey(hitObject)
+            && !rapidJumpHeads.Contains(hitObject);
 
         private bool generatedSliderStartsNear(double time, double distance) =>
             generatedSliders.Keys.Any(slider => Math.Abs(slider.StartTime - time) < distance);

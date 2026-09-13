@@ -1,65 +1,88 @@
+#nullable enable
+
 using System;
-using System.Collections.Generic;
+using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Lines;
+using osu.Framework.Graphics.Primitives;
+using osu.Framework.Graphics.Shaders;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.UserInterface;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
+using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 using osuTK.Graphics;
 
 namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 {
+    /// <summary>
+    /// Existing notes keep their gameplay artwork; selections only add a lightweight highlight.
+    /// The single placement preview reuses gameplay markers and the ribbon compositor.
+    /// </summary>
     public partial class SticksBlueprintPiece : CompositeDrawable
     {
-        private readonly SmoothPath headArc;
-        private readonly SmoothPath centreTick;
-        private readonly SmoothPath body;
-        private readonly CircularContainer tail;
-        private readonly Box tailFill;
-        private readonly Circle selectionMarker;
-        private readonly OsuSpriteText detailText;
-        private bool hasDisplayedGeometry;
-        private StickSide displayedSide;
+        private readonly bool showNote;
+        private readonly CircularProgress selectionArc;
+        private readonly Box selectionMarker;
+        private SticksArcMarker? head;
+        private SticksSliderHeadMarker? sliderHead;
+        private CircularContainer? halo;
+        private SticksRadialTimelinePath? body;
+        private SticksPlayfield.SticksRibbonBuffer? bodyBuffer;
+        private OsuSpriteText? detailText;
+        private SticksHitObject? displayedObject;
+        private double displayedTime;
+        private double displayedApproachDuration;
+        private float displayedRadius;
         private float displayedAngle;
-        private int displayedKind;
-        private int displayedSegmentSignature;
-        private double displayedDuration;
+        private float displayedSpan;
+        private Color4 displayedColour;
+        private StickSide displayedSide;
+        private bool hasColour;
+
+        [Resolved(CanBeNull = true)]
+        private SticksHitObjectComposer? composer { get; set; }
 
         public Drawable Marker => selectionMarker;
 
-        public SticksBlueprintPiece()
-        {
-            Size = new Vector2(SticksPlayfield.SIZE);
+        public Vector2 EndpointPosition { get; private set; }
 
+        public Quad SelectionQuad
+        {
+            get
+            {
+                if (displayedObject is not SticksClick)
+                    return Marker.ScreenSpaceDrawQuad;
+
+                float radius = displayedRadius + 5;
+                Vector2 centre = SticksEditorCoordinates.Centre;
+                return new Quad(ToScreenSpace(centre + new Vector2(-radius, -radius)),
+                    ToScreenSpace(centre + new Vector2(radius, -radius)),
+                    ToScreenSpace(centre + new Vector2(-radius, radius)),
+                    ToScreenSpace(centre + new Vector2(radius, radius)));
+            }
+        }
+
+        public SticksBlueprintPiece(bool showNote = true)
+        {
+            this.showNote = showNote;
+            Size = new Vector2(SticksPlayfield.SIZE);
             InternalChildren = new Drawable[]
             {
-                body = path(5),
-                headArc = path(4),
-                centreTick = path(2, Color4.White),
-                tail = new CircularContainer
+                selectionArc = new CircularProgress
                 {
                     Anchor = Anchor.TopLeft,
                     Origin = Anchor.Centre,
-                    Size = new Vector2(12),
-                    Masking = true,
-                    BorderThickness = 2,
-                    BorderColour = Color4.White,
-                    Child = tailFill = new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                    },
+                    Position = SticksEditorCoordinates.Centre,
+                    RoundedCaps = true,
+                    Colour = Color4.White,
+                    Alpha = 0,
                 },
-                detailText = new OsuSpriteText
-                {
-                    Anchor = Anchor.TopLeft,
-                    Origin = Anchor.Centre,
-                    Font = OsuFont.Default.With(size: 13, weight: FontWeight.Bold),
-                },
-                selectionMarker = new Circle
+                selectionMarker = new Box
                 {
                     Anchor = Anchor.TopLeft,
                     Origin = Anchor.Centre,
@@ -70,146 +93,193 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             };
         }
 
-        public void UpdateFrom(SticksHitObject hitObject)
+        public void UpdateFrom(SticksHitObject hitObject, double? time = null, bool selected = false, bool bothSticks = false)
         {
-            int kind = hitObject is SticksClick ? 3 : hitObject is SticksSlider ? 2 : hitObject is SticksHold ? 1 : 0;
-            int segmentSignature = hitObject is SticksSlider sliderValue ? segmentHash(sliderValue) : 0;
-            bool durationAffectsGeometry = hitObject is SticksHold;
-            double duration = hitObject switch
-            {
-                SticksSlider sliderDuration => sliderDuration.Duration,
-                SticksHold holdValue => holdValue.Duration,
-                _ => 0,
-            };
+            displayedObject = hitObject;
+            displayedTime = time ?? hitObject.StartTime;
+            displayedApproachDuration = composer?.PlayerApproachDuration ?? hitObject.ApproachDuration;
+            displayedRadius = SticksEditorCoordinates.RadiusAt(displayedTime, hitObject.StartTime, displayedApproachDuration);
+            displayedAngle = SticksEditorCoordinates.AngleAt(hitObject, displayedTime);
+            displayedSpan = hitObject is SticksClick ? 360 : hitObject.PrimaryHitAngle;
 
-            if (hasDisplayedGeometry
-                && displayedSide == hitObject.Side
-                && Math.Abs(displayedAngle - hitObject.Angle) < 0.001f
-                && displayedKind == kind
-                && displayedSegmentSignature == segmentSignature
-                && (!durationAffectsGeometry || Math.Abs(displayedDuration - duration) < 0.001))
+            selectionMarker.Position = SticksPlayfield.PointAt(displayedAngle, displayedRadius);
+            selectionMarker.Rotation = displayedAngle;
+            float chordWidth = 2 * displayedRadius * MathF.Sin(Math.Min(180, displayedSpan) * MathF.PI / 360);
+            selectionMarker.Size = new Vector2(28, Math.Max(28, chordWidth));
+            setArc(selectionArc, displayedRadius, displayedAngle, displayedSpan, 8);
+            selectionArc.Alpha = selected && displayedRadius >= 8 ? 0.28f : 0;
+
+            if (!showNote)
                 return;
 
-            hasDisplayedGeometry = true;
-            displayedSide = hitObject.Side;
-            displayedAngle = hitObject.Angle;
-            displayedKind = kind;
-            displayedSegmentSignature = segmentSignature;
-            displayedDuration = duration;
+            var playfield = composer?.Playfield as SticksPlayfield;
+            Color4 colour = bothSticks
+                ? playfield?.OverlapColour ?? SticksPlayfield.OVERLAP_COLOUR
+                : playfield?.ColourFor(hitObject.Side)
+                  ?? (hitObject.Side == StickSide.Left ? SticksPlayfield.LEFT_COLOUR : SticksPlayfield.RIGHT_COLOUR);
+            bool changedColour = !hasColour || displayedSide != hitObject.Side || displayedColour != colour;
 
-            float radius = SticksPlayfield.RadiusFor(hitObject.Side);
-            Color4 colour = colourFor(hitObject.Side);
-            Vector2 head = SticksPlayfield.PointAt(hitObject.Angle, radius);
-
-            headArc.Colour = colour;
-            headArc.Vertices = hitObject is SticksClick
-                ? arcVertices(radius, 0, 360)
-                : arcVertices(radius, hitObject.Angle - SticksHitObject.VISIBLE_ARC_SPAN / 2, SticksHitObject.VISIBLE_ARC_SPAN);
-            centreTick.Alpha = hitObject is SticksClick ? 0 : 1;
-            centreTick.Vertices = radialTick(hitObject.Angle, radius, 8);
-            selectionMarker.Position = head;
-            tailFill.Colour = colour;
-            detailText.Colour = colour;
-
-            switch (hitObject)
+            if (hitObject is SticksClick)
             {
-                case SticksSlider slider:
-                    body.Show();
-                    tail.Show();
-                    detailText.Show();
-                    body.Colour = colour;
-                    body.Alpha = 0.5f;
-                    body.Vertices = sliderVertices(radius, slider);
-                    tail.Position = SticksPlayfield.PointAt(slider.SegmentStartAngleAt(slider.SegmentCount), radius);
-                    detailText.Position = labelPosition(slider.Side, slider.Angle);
-                    detailText.Text = slider.SegmentCount > 1
-                        ? $"{slider.SegmentCount} segments  {slider.TotalAngularDistance:0.#}°"
-                        : $"{slider.ArcAngle:+0.#;-0.#;0}°";
-                    break;
+                if (halo == null)
+                {
+                    AddInternal(halo = new CircularContainer
+                    {
+                        Anchor = Anchor.TopLeft,
+                        Origin = Anchor.Centre,
+                        Position = SticksEditorCoordinates.Centre,
+                        Masking = true,
+                        Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
+                    });
+                }
 
-                case SticksHold hold:
-                    body.Show();
-                    tail.Show();
-                    detailText.Show();
-                    body.Colour = colour;
-                    body.Alpha = 0.5f;
-                    float railLength = (float)Math.Clamp(hold.Duration * 0.06, 40, 130);
-                    float farRadius = radius + (hold.Side == StickSide.Left ? railLength : -railLength);
-                    Vector2 railEnd = SticksPlayfield.PointAt(hold.Angle, farRadius);
-                    body.Vertices = new[] { head, railEnd };
-                    tail.Position = railEnd;
-                    detailText.Position = labelPosition(hold.Side, hold.Angle);
-                    detailText.Text = $"{hold.Duration:0} ms";
-                    break;
-
-                default:
-                    body.Hide();
-                    tail.Hide();
-                    detailText.Hide();
-                    break;
+                float thickness = Math.Min(5, displayedRadius);
+                halo.Size = new Vector2(displayedRadius * 2 + thickness);
+                halo.BorderThickness = thickness;
+                halo.BorderColour = colour;
+                halo.Show();
+                head?.Hide();
+                sliderHead?.Hide();
             }
+            else if (hitObject is SticksSlider slider && slider.TotalAngularDistance > 0)
+            {
+                if (sliderHead == null)
+                {
+                    AddInternal(sliderHead = new SticksSliderHeadMarker(slider.Side, slider.InitialDirection, colour, true)
+                    {
+                        Presentation = SticksNotePresentation.CenterOut,
+                    });
+                }
+                else if (changedColour || sliderHead.Direction != slider.InitialDirection)
+                    sliderHead.SetLaneAndDirection(slider.Side, slider.InitialDirection, colour);
+
+                sliderHead.Angle = displayedAngle;
+                sliderHead.Span = displayedSpan;
+                sliderHead.SetRadialOffset(displayedRadius - SticksPlayfield.RadiusFor(slider.Side), true);
+                sliderHead.Show();
+                head?.Hide();
+                halo?.Hide();
+            }
+            else
+            {
+                if (head == null)
+                {
+                    AddInternal(head = new SticksArcMarker(hitObject.Side, colour, true)
+                    {
+                        Presentation = SticksNotePresentation.CenterOut,
+                    });
+                }
+                else if (changedColour)
+                    head.SetLane(hitObject.Side, colour);
+
+                head.Angle = displayedAngle;
+                head.Span = displayedSpan;
+                head.SetRadialOffset(displayedRadius - SticksPlayfield.RadiusFor(hitObject.Side), true);
+                head.Show();
+                sliderHead?.Hide();
+                halo?.Hide();
+            }
+
+            hasColour = true;
+            displayedColour = colour;
+            displayedSide = hitObject.Side;
+
+            if (hitObject is SticksSlider or SticksHold)
+            {
+                ensureBody(hitObject.Side);
+                bodyBuffer!.SetPalette(bothSticks ? colour : playfield?.ColourFor(StickSide.Left) ?? SticksPlayfield.LEFT_COLOUR,
+                    bothSticks ? colour : playfield?.ColourFor(StickSide.Right) ?? SticksPlayfield.RIGHT_COLOUR,
+                    playfield?.OverlapColour ?? SticksPlayfield.OVERLAP_COLOUR);
+                bodyBuffer.Show();
+                double duration = hitObject is SticksSlider s ? s.Duration : ((SticksHold)hitObject).Duration;
+                // Fit the entire path while placing it. Existing notes use the actual
+                // editor clock and approach duration through their gameplay drawable.
+                double previewDuration = time.HasValue ? displayedApproachDuration : Math.Max(displayedApproachDuration, duration * 1.2);
+                EndpointPosition = SticksPlayfield.PointAt(SticksEditorCoordinates.AngleAt(hitObject, hitObject.StartTime + duration),
+                    SticksEditorCoordinates.RadiusAt(displayedTime, hitObject.StartTime + duration, previewDuration));
+                if (hitObject is SticksSlider previewSlider)
+                    body!.SetSliderGeometry(previewSlider, displayedTime, previewDuration);
+                else
+                    body!.SetHoldGeometry((SticksHold)hitObject, displayedTime, previewDuration);
+
+                detailText!.Position = SticksPlayfield.PointAt(hitObject.Angle, SticksPlayfield.GUIDE_RADIUS + 30);
+                detailText.Colour = colour;
+                // Both initial placement and continuation previews contain the pending span.
+                // Show its signed, unwrapped travel so full turns and reversals can be matched.
+                detailText.Text = hitObject is SticksSlider pending
+                    ? FormattableString.Invariant($"{duration:0} ms · {pending.ArcAngle:+0.##;-0.##;0}°")
+                    : $"{duration:0} ms";
+                detailText.Show();
+            }
+            else
+            {
+                bodyBuffer?.Hide();
+                detailText?.Hide();
+            }
+        }
+
+        private void ensureBody(StickSide side)
+        {
+            if (body != null)
+                return;
+
+            // Blueprints are siblings of the drawable ruleset, outside its resource scope.
+            // Share its existing shader manager so the Sticks compositor can be resolved.
+            var shaders = composer?.Playfield.Dependencies.Get<ShaderManager>();
+            AddInternal(bodyBuffer = new SticksPlayfield.SticksRibbonBuffer(shaders)
+            {
+                RelativeSizeAxes = Axes.Both,
+                Depth = 1,
+                BackgroundColour = new Color4(0, 0, 0, 0),
+                Child = body = new SticksRadialTimelinePath(side),
+            });
+            AddInternal(detailText = new OsuSpriteText
+            {
+                Name = "Slider placement details",
+                Origin = Anchor.Centre,
+                Font = OsuFont.Default.With(size: 13, weight: FontWeight.Bold),
+            });
         }
 
         public bool ReceiveAt(Vector2 screenSpacePosition)
         {
+            if (displayedObject == null || displayedRadius < 8)
+                return false;
+
             Vector2 local = ToLocalSpace(screenSpacePosition);
-            if (displayedKind == 3)
-                return Math.Abs((local - new Vector2(SticksPlayfield.SIZE / 2)).Length - SticksPlayfield.RadiusFor(displayedSide)) <= 12;
-            return (local - selectionMarker.Position).Length <= 24;
-        }
+            Vector2 delta = local - SticksEditorCoordinates.Centre;
+            float radius = delta.Length;
+            if (displayedObject is SticksClick)
+                return Math.Abs(radius - displayedRadius) <= 12;
 
-        private static SmoothPath path(float radius, Color4? colour = null) => new SmoothPath
-        {
-            AutoSizeAxes = Axes.None,
-            Size = new Vector2(SticksPlayfield.SIZE),
-            PathRadius = radius,
-            Colour = colour ?? Color4.White,
-        };
+            if (!SticksEditorCoordinates.TryGetAngle(local, out float angle))
+                return false;
 
-        private static IReadOnlyList<Vector2> arcVertices(float radius, float startAngle, float arcAngle)
-        {
-            int segments = Math.Clamp((int)Math.Ceiling(Math.Abs(arcAngle) / 8), 2, 512);
-            var vertices = new List<Vector2>(segments + 1);
+            float tolerance = displayedSpan / 2 + 3;
+            if (Math.Abs(radius - displayedRadius) <= 14
+                && Math.Abs(SticksHitObject.DeltaAngle(displayedAngle, angle)) <= tolerance)
+                return true;
 
-            for (int i = 0; i <= segments; i++)
-                vertices.Add(SticksPlayfield.PointAt(startAngle + arcAngle * i / segments, radius));
-
-            return vertices;
-        }
-
-        private static IReadOnlyList<Vector2> sliderVertices(float radius, SticksSlider slider)
-        {
-            var result = new List<Vector2>();
-            for (int segment = 0; segment < slider.SegmentCount; segment++)
+            // Radius encodes the timestamp, so selecting the visible ribbon needs
+            // no tessellation or cached copy of the path.
+            if (!showNote && radius <= SticksPlayfield.GUIDE_RADIUS && displayedObject is SticksSlider or SticksHold)
             {
-                IReadOnlyList<Vector2> vertices = arcVertices(radius, slider.SegmentStartAngleAt(segment), slider.SegmentArcAngleAt(segment));
-                for (int i = segment == 0 ? 0 : 1; i < vertices.Count; i++)
-                    result.Add(vertices[i]);
+                double pathTime = displayedTime + (1 - radius / SticksPlayfield.GUIDE_RADIUS) * displayedApproachDuration;
+                double endTime = displayedObject is SticksSlider slider ? slider.EndTime : ((SticksHold)displayedObject).EndTime;
+                return pathTime >= displayedObject.StartTime && pathTime <= endTime
+                       && Math.Abs(SticksHitObject.DeltaAngle(SticksEditorCoordinates.AngleAt(displayedObject, pathTime), angle)) <= tolerance;
             }
 
-            return result;
+            return false;
         }
 
-        private static int segmentHash(SticksSlider slider)
+        private static void setArc(CircularProgress arc, float radius, float angle, float span, float halfThickness)
         {
-            var hash = new HashCode();
-            hash.Add(slider.SegmentCount);
-            for (int i = 0; i < slider.SegmentCount; i++)
-                hash.Add(slider.SegmentArcAngleAt(i));
-            return hash.ToHashCode();
+            float outerRadius = Math.Max(0.001f, radius + halfThickness);
+            arc.Size = new Vector2(outerRadius * 2);
+            arc.InnerRadius = Math.Min(1, halfThickness * 2 / outerRadius);
+            arc.Rotation = 90 + angle - span / 2;
+            arc.Progress = span / 360;
         }
-
-        private static IReadOnlyList<Vector2> radialTick(float angle, float radius, float halfLength) => new[]
-        {
-            SticksPlayfield.PointAt(angle, radius - halfLength),
-            SticksPlayfield.PointAt(angle, radius + halfLength),
-        };
-
-        private static Vector2 labelPosition(StickSide side, float angle) =>
-            SticksPlayfield.PointAt(angle, SticksPlayfield.RadiusFor(side) + (side == StickSide.Left ? 32 : -32));
-
-        private static Color4 colourFor(StickSide side) => side == StickSide.Left
-            ? SticksPlayfield.LEFT_COLOUR
-            : SticksPlayfield.RIGHT_COLOUR;
     }
 }

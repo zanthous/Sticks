@@ -101,18 +101,37 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 foreach (float angle in new[] { 0f, 45f, 180f, 315f })
                 {
-                    var position = SticksEditorCoordinates.PositionFor(side, angle);
+                    // Placement still chooses the hand from inside/outside input,
+                    // while the resulting notes share the gameplay judgement ring.
+                    var position = SticksPlayfield.PointAt(angle, SticksPlayfield.RadiusFor(side));
 
                     Assert.That(SticksEditorCoordinates.TryGetPlacement(position, out StickSide decodedSide, out float decodedAngle), Is.True);
                     Assert.Multiple(() =>
                     {
                         Assert.That(decodedSide, Is.EqualTo(side));
                         Assert.That(decodedAngle, Is.EqualTo(angle).Within(0.001f));
+                        Assert.That((SticksEditorCoordinates.PositionFor(side, angle) - SticksEditorCoordinates.Centre).Length,
+                            Is.EqualTo(SticksPlayfield.GUIDE_RADIUS).Within(0.001f));
                     });
                 }
             }
 
             Assert.That(SticksEditorCoordinates.TryGetPlacement(SticksEditorCoordinates.Centre, out _, out _), Is.False);
+
+            Assert.That(SticksEditorCoordinates.TryGetPlacement(SticksPlayfield.PointAt(0, 280), out StickSide outerSide, out _, out bool outerBoth), Is.True);
+            Assert.Multiple(() =>
+            {
+                Assert.That(outerSide, Is.EqualTo(StickSide.Left));
+                Assert.That(outerBoth, Is.False);
+            });
+
+            foreach (float radius in new[] { 281f, 310f, 340f, 360f })
+            {
+                Assert.That(SticksEditorCoordinates.TryGetPlacement(SticksPlayfield.PointAt(0, radius), out _, out _, out bool bothSticks), Is.True);
+                Assert.That(bothSticks, Is.True);
+            }
+
+            Assert.That(SticksEditorCoordinates.TryGetPlacement(SticksPlayfield.PointAt(0, 361), out _, out _), Is.False);
         }
 
         [Test]
@@ -145,9 +164,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, false), Is.EqualTo(82));
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, true), Is.EqualTo(75));
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(-82, true), Is.EqualTo(-75));
-                Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(2, true), Is.EqualTo(15));
-                Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(-2, true), Is.EqualTo(-15));
-                Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(0.25f, false), Is.EqualTo(1));
+                Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(2, true), Is.Zero);
+                Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(-2, true), Is.Zero);
+                Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(0.25f, false), Is.EqualTo(0.25f));
 
                 Assert.That(SticksEditorCoordinates.SnapAngle(7.49f), Is.EqualTo(0));
                 Assert.That(SticksEditorCoordinates.SnapAngle(7.5f), Is.EqualTo(15));
@@ -409,12 +428,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [TestCase(false, true, SticksNotePresentation.CenterOut)]
-        [TestCase(true, false, SticksNotePresentation.BracketMarkers)]
-        [TestCase(true, true, SticksNotePresentation.CenterOut)]
-        public void TestEditorPresentationContext(bool hasEditor, bool hasPlayer, SticksNotePresentation expected) =>
+        [TestCase(false, true, SticksNotePresentation.CenterOut, SticksNotePresentation.CenterOut)]
+        [TestCase(true, false, SticksNotePresentation.CenterOut, SticksNotePresentation.CenterOut)]
+        [TestCase(true, true, SticksNotePresentation.CenterOut, SticksNotePresentation.CenterOut)]
+        [TestCase(false, true, SticksNotePresentation.BracketMarkers, SticksNotePresentation.BracketMarkers)]
+        [TestCase(true, false, SticksNotePresentation.BracketMarkers, SticksNotePresentation.CenterOut)]
+        [TestCase(true, true, SticksNotePresentation.BracketMarkers, SticksNotePresentation.BracketMarkers)]
+        public void TestEditorPresentationContext(bool hasEditor, bool hasPlayer, SticksNotePresentation selected, SticksNotePresentation expected) =>
             Assert.That(
-                DrawableSticksRuleset.NotePresentationForContext(SticksNotePresentation.CenterOut, hasEditor, hasPlayer),
+                DrawableSticksRuleset.NotePresentationForContext(selected, hasEditor, hasPlayer),
                 Is.EqualTo(expected));
 
         [Test]
@@ -1943,34 +1965,34 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [Test]
-        public void TestEditorHoldRewindClearsCustomGameplayAndAudioState()
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TestEditorDurationRewindClearsCustomGameplayAndAudioState(bool slider)
         {
-            var drawable = new DrawableSticksHold(new SticksHold
-            {
-                StartTime = 1000,
-                Duration = 1000,
-            });
+            object drawable = slider
+                ? new DrawableSticksSlider(new SticksSlider { StartTime = 1000, Duration = 1000 })
+                : new DrawableSticksHold(new SticksHold { StartTime = 1000, Duration = 1000 });
+            Type drawableType = drawable.GetType();
 
-            typeof(DrawableSticksHold).GetMethod("MarkHeadMiss", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(drawable, null);
-            typeof(DrawableSticksHold).GetField("headHit", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(drawable, true);
-            typeof(DrawableSticksHold).GetField("headSamplePlayed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(drawable, true);
-            var eligibility = (SticksTrackingEligibility)typeof(DrawableSticksHold)
+            drawableType.GetMethod("MarkHeadMiss", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(drawable, null);
+            drawableType.GetField("headHit", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(drawable, true);
+            drawableType.GetField("headSamplePlayed", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(drawable, true);
+            var eligibility = (SticksTrackingEligibility)drawableType
                 .GetField("trackingEligibility", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
             eligibility.Authorise();
 
-            typeof(DrawableSticksHold).GetMethod("ResetEditorPreviewState", BindingFlags.Instance | BindingFlags.NonPublic)!
+            drawableType.GetMethod("ResetEditorPreviewState", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .Invoke(drawable, new object[] { 7L });
 
-            bool headJudged = (bool)typeof(DrawableSticksHold)
+            bool headJudged = (bool)drawableType
                 .GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
 
             Assert.Multiple(() =>
             {
                 Assert.That(headJudged, Is.False);
-                Assert.That(typeof(DrawableSticksHold).GetField("headHit", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable), Is.False);
-                Assert.That(typeof(DrawableSticksHold).GetField("headSamplePlayed", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable), Is.False);
-                Assert.That(drawable.TrackingAuthorised, Is.False);
+                Assert.That(drawableType.GetField("headHit", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable), Is.False);
+                Assert.That(drawableType.GetField("headSamplePlayed", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable), Is.False);
+                Assert.That(((ISticksTrackingSource)drawable).TrackingAuthorised, Is.False);
             });
         }
 
@@ -2181,6 +2203,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 StartTime = 1000,
                 Duration = 2000,
                 RepeatCount = 1,
+                ArcAngle = 90,
             };
 
             Assert.Multiple(() =>

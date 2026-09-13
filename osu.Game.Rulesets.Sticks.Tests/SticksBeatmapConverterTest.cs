@@ -223,8 +223,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(converted, Has.Exactly(1).TypeOf<SticksFlick>());
-                Assert.That(converted, Has.Exactly(2).TypeOf<SticksSlider>());
-                Assert.That(converted, Has.Exactly(1).TypeOf<SticksHold>());
+                Assert.That(converted, Has.Exactly(3).TypeOf<SticksSlider>());
+                Assert.That(converted.OfType<SticksSlider>().Count(slider => slider.IsStationary), Is.EqualTo(1));
+                Assert.That(converted.OfType<SticksHold>(), Is.Empty);
                 Assert.That(allObjects, Has.All.Matches<SticksHitObject>(hitObject =>
                     hitObject.PrimaryHitAngle == 20 && hitObject.SecondaryHitAngle == 10));
             });
@@ -300,7 +301,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(decoded[0].Side, Is.EqualTo(StickSide.Left));
                 Assert.That(decoded[0].Angle, Is.EqualTo(15));
 
-                var hold = (SticksHold)decoded[1];
+                var hold = (SticksSlider)decoded[1];
+                Assert.That(hold.IsStationary, Is.True);
                 Assert.That(hold.Duration, Is.EqualTo(750));
                 Assert.That(hold.Side, Is.EqualTo(StickSide.Right));
                 Assert.That(hold.Angle, Is.EqualTo(120));
@@ -405,10 +407,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            SticksSlider slider = converted.OfType<SticksSlider>().Single();
-            SticksHold hold = converted.OfType<SticksHold>().Single();
+            SticksSlider slider = converted.OfType<SticksSlider>().Single(note => !note.IsStationary);
+            SticksSlider hold = converted.OfType<SticksSlider>().Single(note => note.IsStationary);
             var drawableSlider = new DrawableSticksSlider(slider);
-            var drawableHold = new DrawableSticksHold(hold);
+            var drawableHold = new DrawableSticksSlider(hold);
 
             Assert.Multiple(() =>
             {
@@ -418,7 +420,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(hold.SyncedNoteAngle, Is.EqualTo(225));
                 Assert.That(typeof(DrawableSticksSlider).GetField("syncedNoteLink", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawableSlider),
                     Is.TypeOf<SticksSyncedNoteLink>());
-                Assert.That(typeof(DrawableSticksHold).GetField("syncedNoteLink", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawableHold),
+                Assert.That(typeof(DrawableSticksSlider).GetField("syncedNoteLink", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawableHold),
                     Is.TypeOf<SticksSyncedNoteLink>());
             });
         }
@@ -916,8 +918,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [TestCase("sticks-v1~s~l~45~1000~180~16.wav")]
-        [TestCase("sticks-v1~s~l~45~1000~0~0.wav")]
-        [TestCase("sticks-v1~s~l~45~1000~0.999~0.wav")]
         [TestCase("sticks-v2~s~l~45~1000~90_90_90_90_90_90_90_90_90_90_90_90_90_90_90_90_90.wav")]
         public void TestAuthoredMarkerRejectsInvalidOrSilentlyClampedValues(string marker)
         {
@@ -968,7 +968,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestConvertsSourceHoldDurationToDirectionalHold()
+        public void TestConvertsSourceHoldDurationToStationarySlider()
         {
             var source = new Beatmap<HitObject>();
             source.HitObjects.Add(new TestHoldDurationHitObject
@@ -978,13 +978,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            var hold = (SticksHold)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
+            var hold = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
 
             Assert.Multiple(() =>
             {
                 Assert.That(hold.Duration, Is.EqualTo(1500));
                 Assert.That(hold.Angle, Is.EqualTo(0).Within(0.001));
-                Assert.That(() => new DrawableSticksHold(hold), Throws.Nothing);
+                Assert.That(hold.IsStationary, Is.True);
+                Assert.That(() => new DrawableSticksSlider(hold), Throws.Nothing);
             });
         }
 
@@ -1305,7 +1306,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            SticksHold hold = converted.OfType<SticksHold>().Single();
+            SticksSlider hold = converted.OfType<SticksSlider>().Single(note => note.IsStationary);
             SticksFlick[] accompaniment = converted.OfType<SticksFlick>().ToArray();
 
             Assert.Multiple(() =>
@@ -1334,7 +1335,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            SticksHold hold = converted.OfType<SticksHold>().First();
+            SticksSlider hold = converted.OfType<SticksSlider>().First(note => note.IsStationary);
             SticksFlick[] accompaniment = converted.OfType<SticksFlick>()
                                                    .Where(flick => flick.StartTime > hold.StartTime && flick.StartTime <= hold.EndTime)
                                                    .ToArray();
@@ -1393,11 +1394,21 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.That(converted, Has.None.TypeOf<SticksSlider>());
+            SticksSlider sustain = converted.OfType<SticksSlider>().Single();
+            SticksFlick accompaniment = converted.OfType<SticksFlick>().Single();
+            Assert.Multiple(() =>
+            {
+                Assert.That(converted, Has.Length.EqualTo(2));
+                Assert.That(sustain.IsStationary, Is.True, "This short burst must not become moving dual-slider tracks.");
+                Assert.That(sustain.StartTime, Is.EqualTo(1000));
+                Assert.That(sustain.EndTime, Is.EqualTo(1750));
+                Assert.That(accompaniment.StartTime, Is.EqualTo(1250));
+                Assert.That(accompaniment.Side, Is.Not.EqualTo(sustain.Side));
+            });
         }
 
         [Test]
-        public void TestConverterBuildsGeneratedSliderWithOtherStickFlicksFromOrdinaryCircles()
+        public void TestGeneratedAccompanimentKeepsIndependentSourceDirections()
         {
             var source = new Beatmap<HitObject>();
             source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
@@ -1407,7 +1418,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 source.HitObjects.Add(new TestPositionedHitObject
                 {
                     StartTime = 1000 + i * 500,
-                    Position = new Vector2(512 - i * 128, 192),
+                    Position = new Vector2(512 - i * 128, 160),
                 });
             }
 
@@ -1423,8 +1434,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.EndTime, Is.EqualTo(3000));
                 Assert.That(accompaniment.Select(flick => flick.StartTime), Is.EqualTo(new[] { 1500, 2000, 2500 }));
                 Assert.That(accompaniment, Has.All.Matches<SticksFlick>(flick => flick.Side != slider.Side));
-                Assert.That(accompaniment, Has.All.Matches<SticksFlick>(flick =>
-                    System.Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, slider.AngleAt(flick.StartTime))) <= 0.001));
+                for (int i = 0; i < accompaniment.Length; i++)
+                {
+                    Vector2 relative = ((IHasPosition)source.HitObjects[i + 1]).Position - SticksBeatmapConverter.STANDARD_CENTRE;
+                    float expected = SticksHitObject.NormaliseAngle(System.MathF.Atan2(relative.Y, relative.X) * 180 / System.MathF.PI);
+                    Assert.That(accompaniment[i].Angle, Is.EqualTo(expected).Within(0.001));
+                }
             });
         }
 
@@ -1520,7 +1535,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestRareStreamAlternatesWithinSmallArc()
+        public void TestHistoricalRareStreamAlternatesWithinSmallArc()
         {
             var source = new Beatmap<HitObject>();
             source.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
@@ -1534,7 +1549,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 });
             }
 
-            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard }
                                       .Convert().HitObjects.Cast<SticksFlick>().ToArray();
 
             Assert.Multiple(() =>

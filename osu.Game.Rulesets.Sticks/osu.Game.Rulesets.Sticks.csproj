@@ -29,6 +29,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="osu.Game.Rulesets.Sticks.Tests" />
+    <InternalsVisibleTo Include="Sticks.DifficultyTestbed" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\cursors\*.png"

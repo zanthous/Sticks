@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -13,6 +14,7 @@ using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Play;
+using osu.Game.Skinning;
 using osuTK;
 using osuTK.Graphics;
 
@@ -37,6 +39,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SticksSliderHeadMarker headMarker;
         private readonly SticksRadialTimelinePath radialPath;
         private readonly SticksSliderContactEffect sliderContactEffect;
+        private readonly PausableSkinnableSound holdingSample;
         private readonly Container nestedHitObjectContainer;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
         private SticksSyncedNoteLink syncedNoteLink;
@@ -179,6 +182,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Depth = -12,
             });
 
+            AddInternal(holdingSample = new PausableSkinnableSound
+            {
+                Looping = true,
+                MinimumSampleVolume = MINIMUM_SAMPLE_VOLUME,
+            });
+
             ensureSyncedNoteLink();
         }
 
@@ -194,6 +203,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             base.LoadComplete();
 
             RemoveInternal(radialPath, false);
+
+            // The editor rewinds nested results independently of this parent's
+            // custom head and tracking state, just as it does for holds.
+            OnRevertResult += (drawable, _) =>
+            {
+                if (drawable is DrawableSticksSliderHead)
+                    ResetEditorPreviewState(playfield.FlickSequence(HitObject.Side));
+            };
         }
 
         protected override void Dispose(bool isDisposing)
@@ -274,6 +291,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             updateHeadJudgement(now);
 
             bool tracking = active && TrackingAuthorised && isStickInRange(now);
+            updateHoldingSample(HitObject.IsStationary && tracking && !Judged);
 
             if (useCenterOut)
                 radialPath.SetTrackingState(tracking, tracking ? HitObject.BeatPulseAt(now) : 0);
@@ -293,6 +311,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void setRadialPathRegistered(bool registered)
         {
+            updateRadialPathLifetime();
             if (radialPathRegistered == registered)
                 return;
 
@@ -303,6 +322,17 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 playfield.AddRadialPath(radialPath);
             else
                 playfield.DetachRadialPath(radialPath);
+        }
+
+        private void updateRadialPathLifetime()
+        {
+            if (radialPath == null)
+                return;
+
+            // This path lives in the shared buffer rather than under the hit object.
+            // Its own lifetime must hide stale geometry when a seek skips the parent.
+            radialPath.LifetimeStart = HitObject.StartTime - HitObject.ApproachDuration;
+            radialPath.LifetimeEnd = HitObject.EndTime;
         }
 
         private bool isStickInRange(double now)
@@ -580,6 +610,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateHeadCue(double now, bool cueActive)
         {
+            if (HitObject.IsStationary)
+            {
+                headMarker.Alpha = now >= HitObject.StartTime - HitObject.ApproachDuration && now <= HitObject.EndTime ? 1 : 0;
+                return;
+            }
+
             if (cueActive)
             {
                 headMarker.Alpha = 1;
@@ -601,6 +637,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             if (Judged || Time.Current < HitObject.EndTime)
                 return;
+
+            updateHoldingSample(false);
 
             // A converted slider may be shorter than the head's late miss window. Once the
             // parent resolves it no longer checks head input, so close any still-open head first
@@ -628,12 +666,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (editor == null)
                 return;
 
-            if (!double.IsNaN(previousEditorTime) && now < previousEditorTime && now < HitObject.StartTime)
-            {
-                headSamplePlayed = false;
-                headJudged = false;
-                headHit = false;
-            }
+            bool rewoundBeforeHead = !double.IsNaN(previousEditorTime)
+                                      && now < previousEditorTime
+                                      && now < HitObject.StartTime;
+            bool nativeHeadResultWasReverted = headJudged
+                                               && drawableHead != null
+                                               && !drawableHead.Judged;
+            if (rewoundBeforeHead || nativeHeadResultWasReverted)
+                ResetEditorPreviewState(playfield.FlickSequence(HitObject.Side));
 
             // Only compose preview receives an automatic authored sample. In F5 editor test
             // play, actual head acquisition must remain authoritative just like normal play.
@@ -651,10 +691,55 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             && previousTime < startTime
             && currentTime >= startTime;
 
+        internal void ResetEditorPreviewState(long currentSequence)
+        {
+            updateHoldingSample(false);
+            headSamplePlayed = false;
+            headJudged = false;
+            headHit = false;
+            trackingEligibility.Reset(currentSequence);
+        }
+
+        protected override void OnApply()
+        {
+            base.OnApply();
+            updateRadialPathLifetime();
+            if (editor != null)
+                ResetEditorPreviewState(playfield != null ? playfield.FlickSequence(HitObject.Side) : 0);
+        }
+
+        protected override void OnFree()
+        {
+            detachRadialPath();
+            if (editor != null)
+                ResetEditorPreviewState(playfield != null ? playfield.FlickSequence(HitObject.Side) : 0);
+            else
+                updateHoldingSample(false);
+            base.OnFree();
+            holdingSample?.ClearSamples();
+        }
+
+        public override void OnKilled()
+        {
+            // Non-pooled editor objects can be removed without OnFree or Dispose.
+            detachRadialPath();
+            base.OnKilled();
+        }
+
+        private void detachRadialPath()
+        {
+            if (!radialPathRegistered)
+                return;
+            radialPathRegistered = false;
+            radialPath.Alpha = 0;
+            playfield.DetachRadialPath(radialPath);
+        }
+
         protected override double InitialLifetimeOffset => HitObject.ApproachDuration;
 
         void ISticksApproachRateAdjustable.RefreshApproachTransforms()
         {
+            updateRadialPathLifetime();
             if (Judged)
                 return;
 
@@ -691,6 +776,44 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public override void PlaySamples()
         {
             // The head plays manually when acquired and the nested tail owns completion feedback.
+        }
+
+        protected override void LoadSamples()
+        {
+            base.LoadSamples();
+
+            if (!HitObject.IsStationary)
+            {
+                updateHoldingSample(false);
+                holdingSample.ClearSamples();
+                return;
+            }
+
+            var slidingSamples = HitObject.CreatePlayableSlidingSamples();
+            if (slidingSamples.Count == 0)
+                slidingSamples.Add(HitObject.CreateHitSampleInfo("sliderslide"));
+
+            holdingSample.Samples = slidingSamples.Cast<ISampleInfo>().ToArray();
+        }
+
+        public override void StopAllSamples()
+        {
+            base.StopAllSamples();
+            holdingSample?.Stop();
+        }
+
+        private void updateHoldingSample(bool shouldPlay)
+        {
+            if (holdingSample == null)
+                return;
+
+            if (shouldPlay)
+            {
+                if (!holdingSample.RequestedPlaying)
+                    holdingSample.Play();
+            }
+            else if (holdingSample.IsPlaying || holdingSample.RequestedPlaying)
+                holdingSample.Stop();
         }
 
         protected override void UpdateInitialTransforms() => this.Show();

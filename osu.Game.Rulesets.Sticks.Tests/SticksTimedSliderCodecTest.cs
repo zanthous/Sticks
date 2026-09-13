@@ -69,7 +69,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [TestCase("sticks-v3~s~l~0~1000~~1.wav")]
         [TestCase("sticks-v3~s~l~0~1000~90~.5_.5.wav")]
         [TestCase("sticks-v3~s~l~0~1000~90_0~1.wav")]
-        [TestCase("sticks-v3~s~l~0~1000~0_0~.5_.5.wav")]
         [TestCase("sticks-v3~s~l~0~1000~90_0~1_0.wav")]
         [TestCase("sticks-v3~s~l~0~1000~90_0~1_-1.wav")]
         [TestCase("sticks-v3~s~l~0~1000~90~NaN.wav")]

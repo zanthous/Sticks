@@ -1,15 +1,17 @@
 #nullable enable
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Shapes;
-using osu.Framework.Graphics.Sprites;
-using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Input;
+using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Game.Input.Bindings;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -21,19 +23,28 @@ using osuTK.Input;
 
 namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 {
-    public partial class SticksSelectionBlueprint : HitObjectSelectionBlueprint<SticksHitObject>
+    public partial class SticksSelectionBlueprint : HitObjectSelectionBlueprint<SticksHitObject>, IKeyBindingHandler<GlobalAction>, IKeyBindingHandler<PlatformAction>
     {
         private readonly SticksBlueprintPiece piece;
-        private readonly SliderTailHandle? sliderTailHandle;
-        private readonly SegmentButton? removeSegmentButton;
-        private readonly SegmentButton? appendSegmentButton;
-        private readonly CircularProgress? continuationPreview;
-        private readonly EndpointPreviewMarker? continuationEndpointPreview;
+        private readonly List<SliderPointHandle> sliderHandles = new List<SliderPointHandle>();
+        private SticksBlueprintPiece? continuationPreview;
+        private SticksSlider? continuationObject;
         private float dragArcAngle;
         private float lastDragPointerAngle;
-        private float originalDragArcAngle;
+        private bool hasDragPointer;
+        private int draggedSegment = -1;
+        private float[] dragSegments = Array.Empty<float>();
+        private double[] dragWeights = Array.Empty<double>();
+        private double dragDuration;
+        private double dragStartTime;
         private bool placingContinuation;
-        private float pendingContinuationArc;
+        private SticksSliderPlacementGesture? continuationGesture;
+        private SticksSlider[] continuationTargets = Array.Empty<SticksSlider>();
+
+        internal bool IsPlacingContinuation => placingContinuation;
+
+        // Preserve the selected editor time, including authored endpoints off the beat grid.
+        private double currentPointTime => editorClock.CurrentTimeAccurate;
 
         private const double endpoint_time_tolerance = 0.5;
 
@@ -46,72 +57,81 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         [Resolved(CanBeNull = true)]
         private IEditorChangeHandler? changeHandler { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private SticksHitObjectComposer? composer { get; set; }
+
         public SticksSelectionBlueprint(SticksHitObject hitObject)
             : base(hitObject)
         {
-            InternalChild = piece = new SticksBlueprintPiece();
-
-            if (hitObject is SticksSlider)
-            {
-                AddInternal(sliderTailHandle = new SliderTailHandle
-                {
-                    DragStarted = beginTailDrag,
-                    Dragged = dragTail,
-                    DragEnded = endTailDrag,
-                });
-                AddInternal(removeSegmentButton = new SegmentButton(false, removeFinalSegment));
-                AddInternal(appendSegmentButton = new SegmentButton(true, beginContinuationPlacement));
-                AddInternal(continuationPreview = new CircularProgress
-                {
-                    Anchor = Anchor.TopLeft,
-                    Origin = Anchor.Centre,
-                    Position = new Vector2(SticksPlayfield.SIZE / 2),
-                    RoundedCaps = true,
-                    Alpha = 0,
-                    Depth = -19,
-                });
-                AddInternal(continuationEndpointPreview = new EndpointPreviewMarker(confirmContinuation));
-            }
+            InternalChild = piece = new SticksBlueprintPiece(false);
         }
 
-        protected override bool AlwaysShowWhenSelected => placingContinuation;
+        protected override bool AlwaysShowWhenSelected => placingContinuation || draggedSegment >= 0;
 
         protected override void Update()
         {
             base.Update();
-            piece.UpdateFrom(HitObject);
+            double now = editorClock.CurrentTimeAccurate;
+            piece.UpdateFrom(HitObject, now, IsSelected);
 
-            if (sliderTailHandle != null && HitObject is SticksSlider slider)
+            if (HitObject is SticksSlider slider)
             {
-                bool atSliderEnd = isAtSliderEnd(slider);
+                if (draggedSegment >= 0)
+                    applyPointDrag(slider, GetContainingInputManager().CurrentState.Keyboard.ShiftPressed);
+                updateSliderHandles(slider, now);
+                updateContinuationPreview(slider, slider.SegmentStartAngleAt(slider.SegmentCount));
+            }
+        }
 
-                if (placingContinuation)
-                    pendingContinuationArc = slider.ContinuationArcAt(editorClock.CurrentTimeAccurate);
+        private void updateSliderHandles(SticksSlider slider, double now)
+        {
+            if (IsSelected)
+            {
+                while (sliderHandles.Count < slider.SegmentCount)
+                {
+                    int index = sliderHandles.Count;
+                    var handle = new SliderPointHandle
+                    {
+                        TurnName = $"Slider turn {index + 1}",
+                        DragStarted = e => beginPointDrag(index, e),
+                        Dragged = dragPoint,
+                        DragEnded = _ => endPointDrag(),
+                    };
+                    sliderHandles.Add(handle);
+                    AddInternal(handle);
+                }
+            }
 
-                float terminalAngle = slider.SegmentStartAngleAt(slider.SegmentCount);
-                sliderTailHandle.Position = SticksPlayfield.PointAt(terminalAngle, SticksPlayfield.RadiusFor(slider.Side));
-                sliderTailHandle.FillColour = slider.Side == StickSide.Left
-                    ? SticksPlayfield.LEFT_COLOUR
-                    : SticksPlayfield.RIGHT_COLOUR;
+            double time = slider.StartTime;
+            float angle = slider.Angle;
+            double approach = composer?.PlayerApproachDuration ?? slider.ApproachDuration;
+            Color4 colour = colourFor(slider.Side);
+            for (int i = 0; i < sliderHandles.Count; i++)
+            {
+                SliderPointHandle handle = sliderHandles[i];
+                if (i >= slider.SegmentCount)
+                {
+                    handle.Available = false;
+                    continue;
+                }
 
-                float radians = (terminalAngle + 90) * MathF.PI / 180;
-                Vector2 tangent = new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * 27;
-                removeSegmentButton!.Position = sliderTailHandle.Position - tangent;
-                appendSegmentButton!.Position = sliderTailHandle.Position + tangent;
-                appendSegmentButton.IconRotation = terminalAngle - Math.Sign(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) * 90;
-                sliderTailHandle.Available = !placingContinuation;
-                removeSegmentButton.Available = atSliderEnd && !placingContinuation;
-                appendSegmentButton.Available = atSliderEnd && !placingContinuation;
-                removeSegmentButton.Enabled = slider.SegmentCount > 1 && !placingContinuation;
-                appendSegmentButton.Enabled = slider.SegmentCount < SticksSlider.MAX_SEGMENT_COUNT && !placingContinuation;
-
-                updateContinuationPreview(slider, terminalAngle);
+                time += slider.SegmentDurationAt(i);
+                angle += slider.SegmentArcAngleAt(i);
+                float radius = SticksEditorCoordinates.RadiusAt(now, time, approach);
+                bool isTail = i == slider.SegmentCount - 1;
+                handle.Name = isTail ? "Slider tail" : handle.TurnName;
+                handle.Position = SticksPlayfield.PointAt(angle, radius);
+                handle.FillColour = colour;
+                handle.Available = IsSelected && !placingContinuation
+                                   && (i == draggedSegment || (isTail || slider.SegmentEndsWithReversal(i))
+                                       && radius >= 12 && now <= time + endpoint_time_tolerance);
             }
         }
 
         protected override void OnDeselected()
         {
-            placingContinuation = false;
+            cancelCurrentPoint();
+            endPointDrag();
             base.OnDeselected();
         }
 
@@ -123,16 +143,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
 
         public static float AdjustDraggedArcAngle(float rawArcAngle, bool snap)
         {
-            float adjusted = snap ? SticksEditorCoordinates.SnapAngleOffset(rawArcAngle) : rawArcAngle;
-            float minimum = snap ? 15 : 1;
-
-            if (Math.Abs(adjusted) < minimum)
-            {
-                float signSource = Math.Abs(rawArcAngle) > 0.001f ? rawArcAngle : 1;
-                adjusted = MathF.CopySign(minimum, signSource);
-            }
-
-            return adjusted;
+            return snap ? SticksEditorCoordinates.SnapAngleOffset(rawArcAngle) : rawArcAngle;
         }
 
         public static float ReversalArcTo(float startAngle, float targetAngle, int previousDirection, bool snap)
@@ -153,215 +164,305 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             && double.IsFinite(sliderEndTime)
             && Math.Abs(currentTime - sliderEndTime) <= endpoint_time_tolerance;
 
-        private bool isAtSliderEnd(SticksSlider slider) => IsAtSliderEndTime(editorClock.CurrentTimeAccurate, slider.EndTime);
-
-        private bool beginTailDrag(DragStartEvent e)
+        private bool beginPointDrag(int segment, DragStartEvent e)
         {
-            if (HitObject is not SticksSlider slider || !tryGetPointerAngle(e.ScreenSpaceMousePosition, out lastDragPointerAngle))
+            if (HitObject is not SticksSlider slider || segment >= slider.SegmentCount || !IsSelected || placingContinuation
+                || !double.IsFinite(slider.Duration) || slider.Duration <= 0
+                || !tryGetPointerAngle(e.ScreenSpaceMouseDownPosition, out lastDragPointerAngle))
                 return false;
 
-            originalDragArcAngle = dragArcAngle = slider.SegmentArcAngleAt(slider.SegmentCount - 1);
+            endPointDrag();
+            dragSegments = slider.SegmentArcAngles.ToArray();
+            dragWeights = slider.HasTimedSegments ? slider.SegmentDurationWeights.ToArray()
+                : Enumerable.Range(0, slider.SegmentCount).Select(i => slider.SegmentDurationAt(i) / slider.Duration).ToArray();
+            draggedSegment = segment;
+            dragArcAngle = dragSegments[segment];
+            dragDuration = slider.Duration;
+            dragStartTime = slider.StartTime;
+            hasDragPointer = true;
             changeHandler?.BeginChange();
             return true;
         }
 
-        private void dragTail(DragEvent e)
+        private void dragPoint(DragEvent e)
         {
-            if (HitObject is not SticksSlider slider || !tryGetPointerAngle(e.ScreenSpaceMousePosition, out float pointerAngle))
+            if (draggedSegment < 0 || HitObject is not SticksSlider slider)
                 return;
+            if (!tryGetPointerAngle(e.ScreenSpaceMousePosition, out float pointerAngle))
+            {
+                hasDragPointer = false;
+                return;
+            }
 
-            dragArcAngle += SticksHitObject.DeltaAngle(lastDragPointerAngle, pointerAngle);
+            if (hasDragPointer)
+                dragArcAngle += SticksHitObject.DeltaAngle(lastDragPointerAngle, pointerAngle);
             lastDragPointerAngle = pointerAngle;
+            hasDragPointer = true;
+            applyPointDrag(slider, e.ShiftPressed);
+        }
 
-            float adjusted = slider.HasTimedSegments
-                ? e.ShiftPressed ? SticksEditorCoordinates.SnapAngleOffset(dragArcAngle) : dragArcAngle
-                : AdjustDraggedArcAngle(dragArcAngle, e.ShiftPressed);
-            if (Math.Abs(slider.SegmentArcAngleAt(slider.SegmentCount - 1) - adjusted) < 0.001f)
+        private void applyPointDrag(SticksSlider slider, bool snap)
+        {
+            if (slider.SegmentCount != dragSegments.Length || slider.Duration != dragDuration || slider.StartTime != dragStartTime)
+            {
+                endPointDrag();
+                return;
+            }
+
+            float adjusted = AdjustDraggedArcAngle(dragArcAngle, snap);
+            if (Math.Abs(slider.SegmentArcAngleAt(draggedSegment) - adjusted) < 0.001f)
                 return;
 
-            // A slider must retain some movement; do not turn a tail drag into an
-            // invalid entirely stationary path.
-            if (slider.HasTimedSegments && adjusted == 0
-                && Enumerable.Range(0, slider.SegmentCount - 1).All(index => slider.SegmentArcAngleAt(index) == 0))
+            var angles = new Dictionary<int, double> { [draggedSegment] = adjusted };
+            float delta = adjusted - dragSegments[draggedSegment];
+            if (draggedSegment + 1 < dragSegments.Length)
+                angles[draggedSegment + 1] = dragSegments[draggedSegment + 1] - delta;
+            if (!SticksInspectorEdits.TryPrepare(new[] { slider }, new SticksInspectorEdit { SegmentAngles = angles }, null,
+                    out var plans, out _)
+                || editorBeatmap != null && !SticksInspectorEdits.ValidateCheckpointBudget(plans, editorBeatmap.ControlPointInfo,
+                    editorBeatmap.Difficulty.SliderTickRate, out _))
                 return;
 
-            slider.ReplaceFinalSegment(adjusted);
+            float[] segments = dragSegments.ToArray();
+            foreach (var (index, arc) in angles)
+                segments[index] = (float)arc;
+            // Independent timing keeps this join on its authored beat. The next arc absorbs
+            // the change so moving a turn leaves every later endpoint in place.
+            slider.SetTimedSegments(segments, dragWeights);
             editorBeatmap?.Update(slider);
         }
 
-        private void endTailDrag(DragEndEvent e)
+        private void endPointDrag()
         {
-            if (HitObject is SticksSlider { HasTimedSegments: false } slider && Math.Abs(slider.SegmentArcAngleAt(slider.SegmentCount - 1)) < 1)
-            {
-                slider.ReplaceFinalSegment(MathF.CopySign(1, originalDragArcAngle));
-                editorBeatmap?.Update(slider);
-            }
+            foreach (SliderPointHandle handle in sliderHandles)
+                handle.IsGrabbed = false;
 
+            if (draggedSegment < 0)
+                return;
+            draggedSegment = -1;
+            hasDragPointer = false;
+            dragSegments = Array.Empty<float>();
+            dragWeights = Array.Empty<double>();
             changeHandler?.EndChange();
         }
 
-        private bool tryGetPointerAngle(Vector2 screenSpacePosition, out float angle) =>
-            SticksEditorCoordinates.TryGetPlacement(piece.ToLocalSpace(screenSpacePosition), out _, out angle);
-
-        private void beginContinuationPlacement()
+        protected override void Dispose(bool isDisposing)
         {
-            if (HitObject is not SticksSlider slider || slider.SegmentCount >= SticksSlider.MAX_SEGMENT_COUNT || !isAtSliderEnd(slider))
-                return;
-
-            placingContinuation = true;
-            pendingContinuationArc = 0;
-            sliderTailHandle!.Available = false;
-            removeSegmentButton!.Available = false;
-            appendSegmentButton!.Available = false;
-            updateContinuationPreview(slider, slider.SegmentStartAngleAt(slider.SegmentCount));
+            endPointDrag();
+            base.Dispose(isDisposing);
         }
 
-        private void removeFinalSegment()
+        private bool tryGetPointerAngle(Vector2 screenSpacePosition, out float angle) =>
+            SticksEditorCoordinates.TryGetAngle(piece.ToLocalSpace(screenSpacePosition), out angle);
+
+        public void BeginContinuationPlacement(SticksSlider[]? targets = null)
         {
-            if (HitObject is SticksSlider slider && slider.SegmentCount > 1)
-                performUndoableChange(slider, () => slider.RemoveFinalSegmentAtConstantSpeed());
+            if (HitObject is not SticksSlider slider || slider.SegmentCount >= SticksSlider.MAX_SEGMENT_COUNT
+                || currentPointTime < slider.EndTime - endpoint_time_tolerance)
+                return;
+
+            continuationTargets = targets ?? new[] { slider };
+            placingContinuation = true;
+            continuationGesture = createContinuationGesture(slider);
+            endPointDrag();
+            foreach (SliderPointHandle handle in sliderHandles)
+                handle.Available = false;
+            updateContinuationPreview(slider, slider.AngleAt(slider.EndTime));
         }
 
         protected override bool OnMouseDown(MouseDownEvent e)
         {
-            if (!IsSelected
-                && e.Button == MouseButton.Left
-                && appendSegmentButton?.Enabled == true
-                && appendSegmentButton.ReceivePositionalInputAt(e.ScreenSpaceMousePosition))
+            if (e.Button == MouseButton.Right && IsSelected && HitObject is SticksSlider)
             {
-                // Child controls do not receive positional input until lazer has selected their
-                // blueprint. Let the normal editor selection handler process this press, then use
-                // that same press to enter reversal placement once selection has completed.
-                Schedule(() =>
-                {
-                    if (IsSelected)
-                        beginContinuationPlacement();
-                });
+                if (!placingContinuation)
+                    BeginContinuationPlacement();
+                else
+                    confirmContinuation(true);
 
-                return false;
+                // Invalid same-beat points must not fall through to quick-delete.
+                return true;
             }
 
             if (!placingContinuation || HitObject is not SticksSlider)
                 return base.OnMouseDown(e);
 
-            if (e.Button == MouseButton.Right)
-            {
-                placingContinuation = false;
-                return true;
-            }
-
-            // The endpoint check is the explicit visual target, while retaining the original
-            // placement convenience of allowing a left click anywhere on the playfield.
             if (e.Button == MouseButton.Left)
-                confirmContinuation();
+                confirmContinuation(false);
 
             return true;
         }
 
-        private void confirmContinuation()
+        protected override void OnMouseUp(MouseUpEvent e)
         {
-            if (!placingContinuation || HitObject is not SticksSlider slider)
-                return;
+            if (placingContinuation && e.Button == MouseButton.Left)
+                confirmContinuation(false);
 
-            double newEndTime = editorClock.CurrentTimeAccurate;
-            if (Math.Abs(slider.ContinuationArcAt(newEndTime)) < 1)
-                return;
-
-            placingContinuation = false;
-            performUndoableChange(slider, () => slider.AppendTimedSegmentAtConstantSpeed(newEndTime));
+            base.OnMouseUp(e);
         }
 
-        private void updateContinuationPreview(SticksSlider slider, float terminalAngle)
+        private void confirmContinuation(bool keepPlacing)
         {
-            if (continuationPreview == null || continuationEndpointPreview == null)
+            if (!placingContinuation || HitObject is not SticksSlider slider || continuationGesture == null)
                 return;
 
-            if (!placingContinuation)
-            {
-                continuationPreview.Alpha = 0;
-                continuationEndpointPreview.SetState(false, false);
+            updateContinuationGesture();
+            if (!continuationGesture.CanCommit)
                 return;
-            }
-
-            float radius = SticksPlayfield.RadiusFor(slider.Side);
-            bool canConfirm = Math.Abs(pendingContinuationArc) >= 1;
-            continuationEndpointPreview.Position = SticksPlayfield.PointAt(
-                terminalAngle + (canConfirm ? pendingContinuationArc : 0),
-                radius);
-            continuationEndpointPreview.FillColour = slider.Side == StickSide.Left
-                ? SticksPlayfield.LEFT_COLOUR
-                : SticksPlayfield.RIGHT_COLOUR;
-            continuationEndpointPreview.SetState(true, canConfirm);
-
-            if (!canConfirm)
-            {
-                continuationPreview.Alpha = 0;
-                return;
-            }
-
-            const float halfThickness = 4;
-            float outerRadius = radius + halfThickness;
-            continuationPreview.Size = new Vector2(outerRadius * 2);
-            continuationPreview.InnerRadius = 2 * halfThickness / outerRadius;
-            continuationPreview.Colour = slider.Side == StickSide.Left ? SticksPlayfield.LEFT_COLOUR : SticksPlayfield.RIGHT_COLOUR;
-            continuationPreview.Rotation = 90 + (pendingContinuationArc >= 0 ? terminalAngle : terminalAngle + pendingContinuationArc);
-            continuationPreview.Progress = Math.Abs(pendingContinuationArc) / 360;
-            continuationPreview.Alpha = 0.55f;
-
-        }
-
-        private void performUndoableChange(HitObject hitObject, Action mutation)
-        {
-            if (editorBeatmap == null)
-            {
-                mutation();
-                return;
-            }
 
             changeHandler?.BeginChange();
             try
             {
-                mutation();
-                editorBeatmap.Update(hitObject);
+                foreach (SticksSlider target in continuationTargets)
+                {
+                    target.AppendTimedSegment(continuationGesture.Arc, currentPointTime);
+                    editorBeatmap?.Update(target);
+                }
             }
             finally
             {
                 changeHandler?.EndChange();
             }
+
+            releaseContinuationPreview();
+            placingContinuation = keepPlacing && slider.SegmentCount < SticksSlider.MAX_SEGMENT_COUNT;
+            continuationGesture = placingContinuation
+                ? createContinuationGesture(slider)
+                : null;
         }
+
+        private SticksSliderPlacementGesture createContinuationGesture(SticksSlider slider)
+        {
+            float angle = tryGetPointerAngle(GetContainingInputManager().CurrentState.Mouse.Position, out float pointerAngle)
+                ? pointerAngle : slider.AngleAt(slider.EndTime);
+            return new SticksSliderPlacementGesture(angle, slider.EndTime, slider.EndTime);
+        }
+
+        private void updateContinuationGesture()
+        {
+            if (continuationGesture == null)
+                return;
+
+            var state = GetContainingInputManager().CurrentState;
+            bool valid = tryGetPointerAngle(state.Mouse.Position, out float angle);
+            continuationGesture.UpdatePointer(angle, valid, state.Keyboard.ShiftPressed);
+            continuationGesture.UpdateTime(currentPointTime);
+        }
+
+        private bool cancelCurrentPoint()
+        {
+            if (!placingContinuation)
+                return false;
+
+            placingContinuation = false;
+            releaseContinuationPreview();
+            continuationTargets = Array.Empty<SticksSlider>();
+            continuationGesture = null;
+            return true;
+        }
+
+        public bool OnPressed(KeyBindingPressEvent<GlobalAction> e) =>
+            e.Action == GlobalAction.Back && cancelCurrentPoint();
+
+        public void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
+        {
+        }
+
+        public bool OnPressed(KeyBindingPressEvent<PlatformAction> e) =>
+            e.Action == PlatformAction.Undo && cancelCurrentPoint();
+
+        public void OnReleased(KeyBindingReleaseEvent<PlatformAction> e)
+        {
+        }
+
+        private void releaseContinuationPreview()
+        {
+            if (continuationPreview != null)
+                RemoveInternal(continuationPreview, true);
+
+            continuationPreview = null;
+            continuationObject = null;
+        }
+
+        private void updateContinuationPreview(SticksSlider slider, float terminalAngle)
+        {
+            if (!placingContinuation || continuationGesture == null)
+            {
+                continuationPreview?.Hide();
+                return;
+            }
+
+            updateContinuationGesture();
+
+            if (continuationPreview == null)
+            {
+                AddInternal(continuationPreview = new SticksBlueprintPiece { Depth = -19 });
+                continuationObject = new SticksSlider();
+            }
+
+            continuationObject!.StartTime = slider.EndTime;
+            continuationObject.Duration = continuationGesture.Duration;
+            continuationObject.Angle = terminalAngle;
+            continuationObject.Side = slider.Side;
+            continuationObject.PrimaryHitAngle = slider.PrimaryHitAngle;
+            continuationObject.ArcAngle = continuationGesture.Arc;
+            continuationPreview.UpdateFrom(continuationObject, bothSticks: continuationTargets.Length > 1);
+            continuationPreview.Show();
+        }
+
+        private Color4 colourFor(StickSide side) => (composer?.Playfield as SticksPlayfield)?.ColourFor(side)
+                                                   ?? (side == StickSide.Left ? SticksPlayfield.LEFT_COLOUR : SticksPlayfield.RIGHT_COLOUR);
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos)
         {
             if (placingContinuation)
             {
                 Vector2 localPosition = piece.ToLocalSpace(screenSpacePos);
-                if (localPosition.X >= 0 && localPosition.X <= SticksPlayfield.SIZE
-                                         && localPosition.Y >= 0 && localPosition.Y <= SticksPlayfield.SIZE)
+                if (SticksEditorCoordinates.TryGetAngle(localPosition, out _))
                     return true;
             }
 
             return piece.ReceiveAt(screenSpacePos)
-                   || sliderTailHandle?.ReceivePositionalInputAt(screenSpacePos) == true
-                   || removeSegmentButton?.ReceivePositionalInputAt(screenSpacePos) == true
-                   || appendSegmentButton?.ReceivePositionalInputAt(screenSpacePos) == true;
+                   || sliderHandles.Any(handle => handle.ReceivePositionalInputAt(screenSpacePos));
         }
 
         public override Vector2 ScreenSpaceSelectionPoint => piece.Marker.ScreenSpaceDrawQuad.Centre;
 
-        public override Quad SelectionQuad => piece.Marker.ScreenSpaceDrawQuad;
+        public override Quad SelectionQuad => piece.SelectionQuad;
 
-        private partial class SliderTailHandle : CircularContainer
+        private partial class SliderPointHandle : CircularContainer
         {
             private readonly Box fill;
-            private bool available = true;
+            private readonly Circle grabbedCentre;
+            private bool available;
+            private bool isGrabbed;
+
+            public string TurnName { get; init; } = string.Empty;
+
+            public bool IsGrabbed
+            {
+                get => isGrabbed;
+                set
+                {
+                    if (isGrabbed == value)
+                        return;
+                    isGrabbed = value;
+                    // Apply immediately: the editor clock may be paused or seeking backwards.
+                    Size = new Vector2(value ? 26 : 22);
+                    grabbedCentre.Alpha = value ? 1 : 0;
+                }
+            }
 
             public bool Available
             {
                 get => available;
                 set
                 {
+                    if (available == value)
+                        return;
                     available = value;
                     Alpha = value ? 1 : 0;
+                    if (!value)
+                        IsGrabbed = false;
                 }
             }
 
@@ -376,25 +477,54 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 set => fill.Colour = value;
             }
 
-            public SliderTailHandle()
+            public SliderPointHandle()
             {
                 Anchor = Anchor.TopLeft;
                 Origin = Anchor.Centre;
                 Size = new Vector2(22);
+                Alpha = 0;
                 Masking = true;
                 BorderThickness = 3;
                 BorderColour = Color4.White;
                 Depth = -20;
-                Child = fill = new Box { RelativeSizeAxes = Axes.Both };
+                Children = new Drawable[]
+                {
+                    fill = new Box { RelativeSizeAxes = Axes.Both },
+                    grabbedCentre = new Circle
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(6),
+                        Colour = Color4.White,
+                        Depth = -1,
+                        Alpha = 0,
+                    },
+                };
             }
 
             public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
                 Available && base.ReceivePositionalInputAt(screenSpacePos);
 
-            protected override bool OnMouseDown(MouseDownEvent e) => Available && e.Button == MouseButton.Left;
+            protected override bool OnMouseDown(MouseDownEvent e)
+            {
+                if (!Available || e.Button != MouseButton.Left)
+                    return false;
+                IsGrabbed = true;
+                return true;
+            }
 
-            protected override bool OnDragStart(DragStartEvent e) =>
-                Available && e.Button == MouseButton.Left && (DragStarted?.Invoke(e) ?? false);
+            protected override void OnMouseUp(MouseUpEvent e)
+            {
+                if (e.Button == MouseButton.Left)
+                    IsGrabbed = false;
+                base.OnMouseUp(e);
+            }
+
+            protected override bool OnDragStart(DragStartEvent e)
+            {
+                IsGrabbed = Available && e.Button == MouseButton.Left && (DragStarted?.Invoke(e) ?? false);
+                return IsGrabbed;
+            }
 
             protected override void OnDrag(DragEvent e)
             {
@@ -405,172 +535,10 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             protected override void OnDragEnd(DragEndEvent e)
             {
                 DragEnded?.Invoke(e);
+                IsGrabbed = false;
                 base.OnDragEnd(e);
             }
         }
 
-        private partial class EndpointPreviewMarker : CircularContainer
-        {
-            private readonly Action confirm;
-            private readonly Box fill;
-            private readonly SpriteIcon checkIcon;
-            private bool available;
-            private bool enabled;
-
-            public Color4 FillColour
-            {
-                set => fill.Colour = value;
-            }
-
-            public override bool HandlePositionalInput => available;
-
-            public EndpointPreviewMarker(Action confirm)
-            {
-                this.confirm = confirm;
-                Anchor = Anchor.TopLeft;
-                Origin = Anchor.Centre;
-                Size = new Vector2(30);
-                Masking = true;
-                BorderThickness = 3;
-                BorderColour = Color4.White;
-                Depth = -22;
-                Alpha = 0;
-                Children = new Drawable[]
-                {
-                    fill = new Box { RelativeSizeAxes = Axes.Both },
-                    checkIcon = new SpriteIcon
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        Size = new Vector2(16),
-                        Icon = FontAwesome.Solid.Check,
-                        Colour = Color4.White,
-                        Shadow = true,
-                    },
-                };
-            }
-
-            public void SetState(bool visible, bool canConfirm)
-            {
-                available = visible;
-                enabled = canConfirm;
-                Alpha = visible ? (canConfirm ? 1 : 0.7f) : 0;
-                checkIcon.Alpha = canConfirm ? 1 : 0.65f;
-            }
-
-            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
-                available && base.ReceivePositionalInputAt(screenSpacePos);
-
-            protected override bool OnMouseDown(MouseDownEvent e) =>
-                available && enabled && e.Button == MouseButton.Left;
-
-            protected override bool OnClick(ClickEvent e)
-            {
-                if (!available || !enabled || e.Button != MouseButton.Left)
-                    return false;
-
-                confirm();
-                return true;
-            }
-        }
-
-        private partial class SegmentButton : CircularContainer
-        {
-            private readonly Action action;
-            private readonly bool activateOnPress;
-            private readonly SpriteIcon icon;
-            private bool enabled = true;
-            private bool available;
-
-            public float IconRotation
-            {
-                set => icon.Rotation = value;
-            }
-
-            public bool Available
-            {
-                get => available;
-                set
-                {
-                    available = value;
-                    updateState();
-                }
-            }
-
-            public bool Enabled
-            {
-                get => enabled;
-                set
-                {
-                    enabled = value;
-                    updateState();
-                }
-            }
-
-            public SegmentButton(bool increase, Action action)
-            {
-                this.action = action;
-                activateOnPress = increase;
-
-                Anchor = Anchor.TopLeft;
-                Origin = Anchor.Centre;
-                Size = new Vector2(20);
-                Masking = true;
-                BorderThickness = 2;
-                BorderColour = Color4.White;
-                Depth = -21;
-                Alpha = 0;
-                Children = new Drawable[]
-                {
-                    new Box
-                    {
-                        RelativeSizeAxes = Axes.Both,
-                        Colour = Color4.Black,
-                        Alpha = 0.7f,
-                    },
-                    icon = new SpriteIcon
-                    {
-                        Anchor = Anchor.Centre,
-                        Origin = Anchor.Centre,
-                        Size = new Vector2(increase ? 14 : 11),
-                        Icon = increase ? FontAwesome.Solid.AngleDoubleRight : FontAwesome.Solid.Minus,
-                        Colour = Color4.White,
-                        Shadow = increase,
-                    },
-                };
-            }
-
-            private void updateState() => Alpha = Available ? (Enabled ? 1 : 0.3f) : 0;
-
-            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
-                Available && base.ReceivePositionalInputAt(screenSpacePos);
-
-            protected override bool OnMouseDown(MouseDownEvent e)
-            {
-                if (!Available || !Enabled || e.Button != MouseButton.Left)
-                    return false;
-
-                // Enter placement on the press itself. Waiting for the later click event allowed
-                // editor selection handling to consume the first attempt in some states.
-                if (activateOnPress)
-                    action();
-                return true;
-            }
-
-            protected override bool OnClick(ClickEvent e)
-            {
-                if (e.Button != MouseButton.Left)
-                    return false;
-
-                if (activateOnPress)
-                    return true;
-
-                if (!Available || !Enabled)
-                    return false;
-
-                action();
-                return true;
-            }
-        }
     }
 }

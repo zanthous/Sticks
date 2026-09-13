@@ -13,6 +13,7 @@ using osu.Framework.Graphics;
 using osu.Framework.Extensions;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Testing;
+using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Database;
 using osu.Game.Extensions;
@@ -263,7 +264,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private bool objectsAreIntact()
         {
             SticksHitObject[] objects = reopened.HitObjects.Cast<SticksHitObject>().ToArray();
-            if (objects.Length != 3)
+            if (objects.Length != 3 || !objects.Select(hitObject => hitObject.StartTime).SequenceEqual(new[] { 1000d, 1750, 3500 }))
                 return false;
 
             if (objects[0] is not SticksFlick flick
@@ -271,10 +272,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 || Math.Abs(flick.Angle - 45) > 0.001)
                 return false;
 
-            if (objects[1] is not SticksHold hold
+            // The fixture deliberately saves a legacy hold. Reload must preserve its input,
+            // timeline and hitsounds while upgrading its representation to one stationary span.
+            if (objects[1] is not SticksSlider hold
+                || !hold.IsStationary || hold.SegmentCount != 1 || hold.RepeatCount != 0
                 || hold.Side != StickSide.Right
                 || Math.Abs(hold.Angle - 225) > 0.001
-                || Math.Abs(hold.Duration - 1250) > 0.001)
+                || Math.Abs(hold.Duration - 1250) > 0.001
+                || !hold.CreatePlayableSamples().Select(sample => (sample.Name, sample.Volume))
+                        .SequenceEqual(new[] { (HitSampleInfo.HIT_NORMAL, 64), (HitSampleInfo.HIT_CLAP, 64) }))
                 return false;
 
             return objects[2] is SticksSlider slider
@@ -310,6 +316,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     Duration = 1250,
                     Side = StickSide.Right,
                     Angle = 225,
+                    Samples = new[]
+                    {
+                        new HitSampleInfo(HitSampleInfo.HIT_NORMAL, volume: 64),
+                        new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 64),
+                    },
                 },
                 slider,
             ];

@@ -32,6 +32,8 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         protected new SticksRulesetConfigManager Config => (SticksRulesetConfigManager)base.Config;
 
+        internal double PlayerApproachDuration => SticksHitObject.ApproachDurationFor(Config.Get<float>(SticksRulesetSetting.ApproachRate));
+
         private readonly BindableFloat approachRate = new BindableFloat();
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
         private readonly Bindable<SticksChordLinkPresentation> chordLinkPresentation =
@@ -154,7 +156,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             hitObject.ApplyPlayerApproachRate(Config.Get<float>(SticksRulesetSetting.ApproachRate));
 
-            return hitObject switch
+            DrawableHitObject<SticksHitObject> drawable = hitObject switch
             {
                 SticksSlider slider => new DrawableSticksSlider(slider),
                 SticksHold hold => new DrawableSticksHold(hold),
@@ -162,6 +164,19 @@ namespace osu.Game.Rulesets.Sticks.UI
                 SticksFlick flick => new DrawableSticksFlick(flick),
                 _ => null,
             };
+
+            if (drawable != null)
+                drawable.HitObjectApplied += restorePlayerApproachRate;
+
+            return drawable;
+        }
+
+        private void restorePlayerApproachRate(DrawableHitObject drawable)
+        {
+            // Editing reapplies map defaults and rebuilds slider checkpoints without
+            // recreating the drawable. Restore the display preference on every apply.
+            ((SticksHitObject)drawable.HitObject).ApplyPlayerApproachRate(Config.Get<float>(SticksRulesetSetting.ApproachRate));
+            refreshApproachTransforms(drawable);
         }
 
         protected override PassThroughInputManager CreateInputManager() => new SticksInputManager(Ruleset?.RulesetInfo);
@@ -225,7 +240,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             bool hasEditor,
             bool hasPlayer) =>
             hasEditor && !hasPlayer
-                ? SticksNotePresentation.BracketMarkers
+                ? SticksNotePresentation.CenterOut
                 : selectedPresentation;
 
         protected override void Dispose(bool isDisposing)

@@ -8,6 +8,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
     {
         public double SliderStartTime { get; set; }
 
+        public bool IsStationary { get; set; }
+
         public double PreemptDuration => StartTime - SliderStartTime + ApproachDuration;
 
         protected override HitWindows CreateHitWindows() => HitWindows.Empty;

@@ -34,6 +34,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private StickSide displayedSide;
         private float displayedFillAlpha = 0.82f;
 
+        public override bool RemoveWhenNotAlive => false;
+
         public SticksRadialTimelinePath(StickSide side)
         {
             displayedSide = side;
@@ -55,9 +57,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             applySide(side);
         }
 
-        public void SetSliderGeometry(SticksSlider slider, double now)
+        public void SetSliderGeometry(SticksSlider slider, double now, double? approachDuration = null)
         {
-            setGeometry(slider.StartTime, slider.EndTime, slider.ApproachDuration, slider.PrimaryHitAngle, now, slider, slider.Angle);
+            setGeometry(slider.StartTime, slider.EndTime, approachDuration ?? slider.ApproachDuration, slider.PrimaryHitAngle, now, slider, slider.Angle);
 
             if (displayedSide != slider.Side)
                 applySide(slider.Side);
@@ -81,9 +83,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             shape.SetStyle(displayedSide, displayedFillAlpha);
         }
 
-        public void SetHoldGeometry(SticksHold hold, double now)
+        public void SetHoldGeometry(SticksHold hold, double now, double? approachDuration = null)
         {
-            setGeometry(hold.StartTime, hold.EndTime, hold.ApproachDuration, hold.PrimaryHitAngle, now, null, hold.Angle);
+            setGeometry(hold.StartTime, hold.EndTime, approachDuration ?? hold.ApproachDuration, hold.PrimaryHitAngle, now, null, hold.Angle);
 
             if (displayedSide != hold.Side)
                 applySide(hold.Side);

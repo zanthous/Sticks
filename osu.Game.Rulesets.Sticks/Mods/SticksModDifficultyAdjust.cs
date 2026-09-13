@@ -74,7 +74,11 @@ namespace osu.Game.Rulesets.Sticks.Mods
         public void ApplyToBeatmapConverter(IBeatmapConverter beatmapConverter)
         {
             if (beatmapConverter is SticksBeatmapConverter sticksConverter)
+            {
                 sticksConverter.DisableReversals = DisableReversals.Value;
+                sticksConverter.CounterpointPrimaryHitAngle = PrimaryHitAngle.Value;
+                sticksConverter.RegisterVisualDifficultyAdjustment(this);
+            }
         }
 
         public void ApplyToDrawableRuleset(DrawableRuleset<SticksHitObject> drawableRuleset)

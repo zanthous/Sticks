@@ -77,14 +77,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestReturningOuterAnchorProducesHoldAroundIndependentSlider()
+        public void TestReturningOuterAnchorProducesStationarySliderAroundIndependentSlider()
         {
             // This off-downbeat 5/4-spacing phrase is unclaimed by the baseline converter.
             Beatmap<HitObject> source = phrase(new[] { 1000d, 1625, 2250, 2875 }, new[] { 0f, 90, 150, 0 });
 
             SticksHitObject[] converted = convert(source);
-            SticksHold hold = converted.OfType<SticksHold>().Single();
-            SticksSlider slider = converted.OfType<SticksSlider>().Single();
+            SticksSlider hold = converted.OfType<SticksSlider>().Single(note => note.IsStationary);
+            SticksSlider slider = converted.OfType<SticksSlider>().Single(note => !note.IsStationary);
 
             Assert.Multiple(() =>
             {
@@ -203,23 +203,30 @@ namespace osu.Game.Rulesets.Sticks.Tests
             assertPlayable(converted);
         }
 
-        [TestCase(1, 1)]
+        [TestCase(1, 0)]
         [TestCase(1.5, 0)]
-        public void TestStationaryInterleavedVoiceStillRequiresAlignedHoldTicks(double tickRate, int expectedHolds)
+        [TestCase(1, 10)]
+        [TestCase(1.5, 10)]
+        public void TestLowMotionVoiceRetainsFlickRhythmBesideMovingSlider(double tickRate, float drift)
         {
-            Beatmap<HitObject> source = unclaimedInterleavedPhrase(new[] { 0f, 180, 0, 150, 0, 120 });
+            Beatmap<HitObject> source = unclaimedInterleavedPhrase(new[] { 0f, 180, drift / 2, 150, drift, 120 });
             source.Difficulty.SliderTickRate = tickRate;
+            source.HitObjects[3].Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 41) };
             SticksHitObject[] converted = convert(source);
 
-            Assert.That(converted.OfType<SticksHold>().Count(), Is.EqualTo(expectedHolds));
-            if (expectedHolds == 1)
+            SticksSlider slider = converted.OfType<SticksSlider>().Single(note => note.StartTime >= 600);
+            SticksFlick[] pulses = converted.OfType<SticksFlick>().Where(note => note.StartTime >= 600).ToArray();
+            Assert.Multiple(() =>
             {
-                SticksHold hold = converted.OfType<SticksHold>().Single();
-                hold.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
-                Assert.That(hold.StartTime, Is.EqualTo(600));
-                Assert.That(hold.EndTime, Is.EqualTo(1800));
-                Assert.That(hold.NestedHitObjects.Select(note => note.StartTime), Does.Contain(1200d));
-            }
+                Assert.That(converted.OfType<SticksSlider>().Where(note => note.IsStationary), Is.Empty);
+                Assert.That(slider.StartTime, Is.EqualTo(900));
+                Assert.That(slider.EndTime, Is.EqualTo(2100));
+                Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { -30f, -30 }).Within(0.001));
+                Assert.That(pulses.Select(note => note.StartTime), Is.EqualTo(new[] { 600d, 1200, 1800 }));
+                Assert.That(pulses.Select(note => note.Angle), Is.EqualTo(new[] { 0, drift / 2, drift }).Within(0.001));
+                Assert.That(pulses, Has.All.Matches<SticksFlick>(note => note.Side != slider.Side));
+                Assert.That(pulses[1].Samples.Single().Volume, Is.EqualTo(41));
+            });
             assertPlayable(converted);
         }
 

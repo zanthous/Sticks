@@ -175,7 +175,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public SticksSliderHeadMarker(StickSide side, int direction, Color4 colour, bool animatedSpan = false, bool reversalStyle = false)
         {
             this.side = side;
-            this.direction = Math.Sign(direction) == 0 ? 1 : Math.Sign(direction);
+            this.direction = Math.Sign(direction);
             this.reversalStyle = reversalStyle;
 
             Anchor = Anchor.TopLeft;
@@ -242,7 +242,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         public void SetLaneAndDirection(StickSide newSide, int newDirection, Color4 colour)
         {
             side = newSide;
-            direction = Math.Sign(newDirection) == 0 ? 1 : Math.Sign(newDirection);
+            direction = Math.Sign(newDirection);
 
             if (widthArc != null)
                 widthArc.Colour = colour;
@@ -330,9 +330,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool showCaps = presentation != SticksNotePresentation.ApproachCircles && !showBox;
             leadingCap.Alpha = showCaps ? 1 : 0;
             trailingCap.Alpha = showCaps && !reversalStyle ? 1 : 0;
-            centerTick.Alpha = showPlainCenterOutHead ? 1 : 0;
-            colourPlate.Alpha = showPlainCenterOutHead ? 0 : 1;
-            directionArrow.Alpha = showPlainCenterOutHead ? 0 : 1;
+            bool stationary = direction == 0;
+            centerTick.Alpha = showPlainCenterOutHead || (stationary && presentation != SticksNotePresentation.ApproachCircles) ? 1 : 0;
+            colourPlate.Alpha = showPlainCenterOutHead || (stationary && presentation != SticksNotePresentation.ApproachCircles) ? 0 : 1;
+            directionArrow.Alpha = showPlainCenterOutHead || stationary ? 0 : 1;
 
             bool fullyOpaqueArc = showBox || showPlainCenterOutHead;
             if (widthArc != null)

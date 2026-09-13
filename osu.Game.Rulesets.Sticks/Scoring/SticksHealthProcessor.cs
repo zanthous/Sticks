@@ -48,7 +48,7 @@ namespace osu.Game.Rulesets.Sticks.Scoring
                     break;
 
                 case HitResult.LargeTickHit:
-                    increase = result.HitObject is SticksSliderTick ? 0.015 : 0.02;
+                    increase = result.HitObject is SticksSliderTick { IsStationary: false } ? 0.015 : 0.02;
                     break;
 
                 case HitResult.SliderTailHit:

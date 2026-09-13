@@ -1,9 +1,14 @@
 #nullable enable
 
+using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics.UserInterface;
+using osu.Game.Graphics.UserInterface;
+using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Screens.Edit;
 using osu.Game.Screens.Edit.Compose.Components;
 using osuTK;
 
@@ -14,6 +19,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
         [Resolved]
         private SticksHitObjectComposer? composer { get; set; }
 
+        [Resolved]
+        private EditorClock? editorClock { get; set; }
+
         public override bool HandleMovement(MoveSelectionEvent<HitObject> moveEvent)
         {
             SticksHitObject[] hitObjects = SelectedItems.OfType<SticksHitObject>().ToArray();
@@ -21,18 +29,13 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 return false;
 
             Vector2 target = moveEvent.Blueprint.ScreenSpaceSelectionPoint + moveEvent.ScreenSpaceDelta;
-            if (composer?.TryGetPlacement(target, out StickSide targetSide, out float targetAngle) != true)
+            if (composer == null || !SticksEditorCoordinates.TryGetAngle(composer.Playfield.ToLocalSpace(target), out float targetAngle))
                 return false;
 
-            if (hitObjects.Length == 1)
-            {
-                reference.Side = targetSide;
-                reference.Angle = targetAngle;
-                EditorBeatmap.Update(reference);
-                return true;
-            }
-
-            float angleDelta = SticksHitObject.DeltaAngle(reference.Angle, targetAngle);
+            // Both hands now share a radius. Drag relative to the visible head/contact,
+            // retaining the hand and the original path even partway through a slider.
+            float referenceAngle = SticksEditorCoordinates.AngleAt(reference, editorClock?.CurrentTimeAccurate ?? reference.StartTime);
+            float angleDelta = SticksHitObject.DeltaAngle(referenceAngle, targetAngle);
             foreach (SticksHitObject hitObject in hitObjects)
             {
                 hitObject.Angle = SticksHitObject.NormaliseAngle(hitObject.Angle + angleDelta);
@@ -40,6 +43,19 @@ namespace osu.Game.Rulesets.Sticks.Edit
             }
 
             return true;
+        }
+
+        protected override IEnumerable<MenuItem> GetContextMenuItemsForSelection(IEnumerable<SelectionBlueprint<HitObject>> selection)
+        {
+            yield return new OsuMenuItem("Swap sticks", MenuItemType.Standard, () =>
+                EditorBeatmap.PerformOnSelection(hitObject =>
+                {
+                    if (hitObject is SticksHitObject sticks)
+                        sticks.Side = sticks.Side == StickSide.Left ? StickSide.Right : StickSide.Left;
+                }));
+
+            foreach (MenuItem item in base.GetContextMenuItemsForSelection(selection))
+                yield return item;
         }
     }
 }

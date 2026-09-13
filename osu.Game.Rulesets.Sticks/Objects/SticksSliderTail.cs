@@ -8,6 +8,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
     {
         public double SliderStartTime { get; set; }
 
+        public bool IsStationary { get; set; }
+
         /// <summary>
         /// Keeps the tail alive from the same point as its parent slider, including on sliders
         /// which last longer than the framework's default nested-object lifetime window.

@@ -129,12 +129,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(messages, Does.Contain("The angle is not finite."));
                 Assert.That(messages, Does.Contain("The hold duration is invalid."));
-                Assert.That(messages, Does.Contain("The slider contains an invalid path segment."));
-                Assert.That(messages, Does.Contain("The slider path has no valid angular distance."));
+                Assert.That(messages, Does.Not.Contain("The slider contains an invalid path segment."));
+                Assert.That(messages, Does.Not.Contain("The slider path has no valid angular distance."));
                 Assert.That(messages, Has.None.Contains("speed"),
                     "The verifier must not impose an arbitrary authored slider-speed limit.");
-                Assert.That(messages.Count(message => message.Contains("slider")), Is.EqualTo(2),
-                    "The extremely fast but structurally valid slider should not be rejected.");
+                Assert.That(messages.Count(message => message.Contains("slider")), Is.Zero,
+                    "Stationary and extremely fast but structurally valid sliders should not be rejected.");
             });
         }
 

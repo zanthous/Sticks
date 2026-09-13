@@ -107,10 +107,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(converted[1].Side, Is.EqualTo(StickSide.Right));
                 Assert.That(converted[1].Angle, Is.EqualTo(180));
 
-                Assert.That(converted[2], Is.TypeOf<SticksHold>());
+                Assert.That(converted[2], Is.TypeOf<SticksSlider>());
+                Assert.That(((SticksSlider)converted[2]).IsStationary, Is.True);
                 Assert.That(converted[2].Side, Is.EqualTo(StickSide.Left));
                 Assert.That(converted[2].Angle, Is.EqualTo(90.25f));
-                Assert.That(((SticksHold)converted[2]).Duration, Is.EqualTo(750.5));
+                Assert.That(((SticksSlider)converted[2]).Duration, Is.EqualTo(750.5));
 
                 Assert.That(converted[3], Is.TypeOf<SticksSlider>());
                 Assert.That(converted[3].Side, Is.EqualTo(StickSide.Right));

@@ -51,9 +51,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 mods.ToArray(), CancellationToken.None).HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.That(converted.OfType<SticksClick>(), Is.Not.Empty);
-            SticksHold sourceSpinnerHold = converted.OfType<SticksHold>().Single(hold => hold.StartTime == 9000);
+            SticksSlider sourceSpinnerHold = converted.OfType<SticksSlider>().Single(hold => hold.IsStationary && hold.StartTime == 9000);
             Assert.That(sourceSpinnerHold.EndTime, Is.EqualTo(11000));
-            Assert.That(signature(converted.OfType<SticksHold>()), Is.EqualTo(signature(original.OfType<SticksHold>())));
+            Assert.That(signature(converted.OfType<SticksSlider>().Where(slider => slider.IsStationary)), Is.EqualTo(signature(original.OfType<SticksSlider>().Where(slider => slider.IsStationary))));
         }
 
         [Test]
@@ -90,7 +90,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.That(signature(converted), Is.EqualTo(signature(baseline)));
-            Assert.That(converted.OfType<SticksHold>(), Is.Not.Empty);
+            Assert.That(converted.OfType<SticksSlider>().Where(slider => slider.IsStationary), Is.Not.Empty);
             Assert.That(converted.OfType<SticksClick>(), Is.Empty);
         }
 
@@ -121,7 +121,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 circle(500, 45, true), circle(1500, 60, true), circle(2500, 75, true), circle(3500, 90, true));
             source.Difficulty.OverallDifficulty = overallDifficulty;
             SticksHitObject[] converted = convert(source);
-            Assert.That(converted.OfType<SticksHold>().Count(), Is.EqualTo(2));
+            Assert.That(converted.OfType<SticksSlider>().Where(slider => slider.IsStationary).Count(), Is.EqualTo(2));
             Assert.That(converted.OfType<SticksClick>(), Is.Empty);
         }
 

@@ -223,6 +223,43 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void TestAuthoredContinuationKeepsPreviousTimingAndSamples(bool timed)
+        {
+            SticksSlider slider = create(new[] { 30f, 60f }, new[] { 200d, 800d });
+            if (!timed)
+                slider.SetCustomSegments(slider.SegmentArcAngles);
+
+            slider.Samples.Add(new HitSampleInfo(HitSampleInfo.HIT_NORMAL, volume: 80));
+            for (int i = 0; i <= slider.SegmentCount; i++)
+                slider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 40 + i) });
+
+            double[] originalDurations = Enumerable.Range(0, slider.SegmentCount).Select(slider.SegmentDurationAt).ToArray();
+            double[] sampleTimes = Enumerable.Range(0, 11).Select(i => 1000d + i * 100).ToArray();
+            float[] originalAngles = sampleTimes.Select(slider.AngleAt).ToArray();
+            IList<HitSampleInfo>[] originalNodeSamples = slider.NodeSamples.ToArray();
+            HitSampleInfo originalSample = slider.Samples.Single();
+
+            Assert.That(slider.AppendTimedSegment(-15, 2300), Is.True);
+            Assert.That(slider.AppendTimedSegment(0, 2500), Is.True);
+            Assert.That(slider.AppendTimedSegment(10, 2500), Is.False);
+            Assert.That(slider.AppendTimedSegment(float.NaN, 2700), Is.False);
+            Assert.Multiple(() =>
+            {
+                Assert.That(slider.HasTimedSegments, Is.True);
+                Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 30f, 60f, -15f, 0f }));
+                Assert.That(Enumerable.Range(0, 2).Select(slider.SegmentDurationAt), Is.EqualTo(originalDurations).Within(0.000001));
+                Assert.That(sampleTimes.Select(slider.AngleAt), Is.EqualTo(originalAngles).Within(0.00001));
+                Assert.That(slider.SegmentEndTimeAt(1), Is.EqualTo(2000).Within(0.000001));
+                Assert.That(slider.SegmentEndTimeAt(2), Is.EqualTo(2300).Within(0.000001));
+                Assert.That(slider.EndTime, Is.EqualTo(2500));
+                Assert.That(slider.AngleAt(2400), Is.EqualTo(85));
+                Assert.That(slider.NodeSamples, Is.EqualTo(originalNodeSamples));
+                Assert.That(slider.Samples.Single(), Is.SameAs(originalSample));
+            });
+        }
+
         [Test]
         public void TestTimedContinuationUsesFinalMovingSpeed()
         {
@@ -251,6 +288,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(() => slider.AppendSegmentAtConstantSpeed(10), Throws.InvalidOperationException);
                 Assert.That(slider.AppendTimedSegmentAtConstantSpeed(2200), Is.False);
+                Assert.That(slider.AppendTimedSegment(-10, 2200), Is.False);
                 Assert.That(slider.Duration, Is.EqualTo(1000));
                 Assert.That(slider.SegmentCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT));
                 Assert.That(slider.SegmentEndTimeAt(0), Is.EqualTo(1062.5));
@@ -258,15 +296,16 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestRemovingOnlyMovingSegmentKeepsValidPath()
+        public void TestRemovingOnlyMovingSegmentLeavesStationaryDuration()
         {
             SticksSlider slider = create(new[] { 0f, 10f }, new[] { 200d, 800d });
 
             Assert.Multiple(() =>
             {
-                Assert.That(slider.RemoveFinalSegmentAtConstantSpeed(), Is.False);
-                Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 0f, 10f }));
-                Assert.That(slider.Duration, Is.EqualTo(1000));
+                Assert.That(slider.RemoveFinalSegmentAtConstantSpeed(), Is.True);
+                Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 0f }));
+                Assert.That(slider.Duration, Is.EqualTo(200));
+                Assert.That(slider.IsStationary, Is.True);
             });
         }
 
@@ -316,7 +355,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             yield return new TestCaseData(Array.Empty<float>(), Array.Empty<double>());
             yield return new TestCaseData(new[] { 1f, 2f }, new[] { 1d });
             yield return new TestCaseData(Enumerable.Repeat(1f, 17).ToArray(), Enumerable.Repeat(1d, 17).ToArray());
-            yield return new TestCaseData(new[] { 0f, 0f }, new[] { 1d, 1d });
             yield return new TestCaseData(new[] { float.NaN }, new[] { 1d });
             yield return new TestCaseData(new[] { float.PositiveInfinity }, new[] { 1d });
             yield return new TestCaseData(new[] { 1f }, new[] { 0d });

@@ -87,6 +87,27 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             _ => null,
         };
 
+        internal static SticksHitObject VisibleHeadOf(DrawableHitObject drawable, double time, bool pausedEditorPreview)
+        {
+            if (pausedEditorPreview)
+            {
+                // A preview result exactly on this timestamp need not be reverted by lazer's
+                // rewind logic. The paused editor still needs the complete authored head here.
+                SticksHitObject head = drawable switch
+                {
+                    DrawableSticksFlick flick => flick.HitObject,
+                    DrawableSticksSlider slider => slider.HitObject,
+                    DrawableSticksHold hold => hold.HitObject,
+                    _ => null,
+                };
+
+                if (head != null && time <= head.StartTime)
+                    return head;
+            }
+
+            return UnjudgedHeadOf(drawable);
+        }
+
         protected override void Update()
         {
             base.Update();
@@ -98,7 +119,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     if (headCount >= visibleHeads.Length)
                         break;
 
-                    SticksHitObject head = UnjudgedHeadOf(drawable);
+                    SticksHitObject head = VisibleHeadOf(drawable, Time.Current, playfield.IsPausedEditorPreview);
                     if (head != null)
                         visibleHeads[headCount++] = head;
                 }

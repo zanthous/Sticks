@@ -23,6 +23,8 @@ using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.UI;
+using osu.Game.Screens.Edit;
+using osu.Game.Screens.Play;
 using osuTK;
 using osuTK.Graphics;
 
@@ -103,6 +105,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         private Color4 leftColour = LEFT_COLOUR;
         private Color4 rightColour = RIGHT_COLOUR;
         private Color4 overlapColour = OVERLAP_COLOUR;
+
+        [Resolved(CanBeNull = true)]
+        private EditorClock editorClock { get; set; }
+
+        [Resolved(CanBeNull = true)]
+        private Player player { get; set; }
+
+        internal bool IsPausedEditorPreview => editorClock != null && player == null && !editorClock.IsRunning;
 
         public int ColourVersion { get; private set; }
 
@@ -316,6 +326,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 leftCursor = cursor(LEFT_COLOUR, out leftCursorFill),
                 rightCursor = cursor(RIGHT_COLOUR, out rightCursorFill),
             });
+            updateRadialPresentationMode();
         }
 
         internal void AddRadialPath(SticksRadialTimelinePath path)
@@ -332,6 +343,14 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         internal void RemoveRadialPath(SticksRadialTimelinePath path)
         {
+            if (path.Parent == null)
+            {
+                // Detached paths have no drawable-tree mutation to defer. Dispose now
+                // so shutdown cannot strand them in a scheduler that will not run again.
+                path.Dispose();
+                return;
+            }
+
             // Hit object disposal may be initiated by the host's shutdown thread. Defer the
             // child mutation; if the playfield is also shutting down, its normal disposal owns it.
             Scheduler.Add(() =>
@@ -763,6 +782,27 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             base.Update();
 
+            if (IsPausedEditorPreview)
+            {
+                // Scrubbing a paused compose view is not a controller gesture. Replay positions
+                // may jump straight to a held note, or change when the chart is edited; feeding
+                // those jumps into the tracker can hit only one member of a simultaneous pair.
+                input.Update(StickSide.Left, Vector2.Zero, Time.Current);
+                input.Update(StickSide.Right, Vector2.Zero, Time.Current);
+                leftClickInput.Update(false, false, false, StrumMode);
+                rightClickInput.Update(false, false, false, StrumMode);
+                leftTriggerButton.Update(false);
+                rightTriggerButton.Update(false);
+                leftShoulderButton.Update(false);
+                rightShoulderButton.Update(false);
+                leftCursor.Alpha = rightCursor.Alpha = 0;
+                leftRelaxDirectionLine.Alpha = rightRelaxDirectionLine.Alpha = 0;
+                previousDisplayedLeftMagnitude = previousDisplayedRightMagnitude = 0;
+                leftCursorOutwardUntil = rightCursorOutwardUntil = double.NegativeInfinity;
+                updateTrails(false, false);
+                return;
+            }
+
             var left = new Vector2(leftX, leftY);
             var right = new Vector2(rightX, rightY);
             bool leftTriggerPressed = TriggerPressed(StickSide.Left);
@@ -980,7 +1020,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             foreach (DrawableHitObject drawable in ((SticksHitObjectContainer)HitObjectContainer).VisibleObjects)
             {
-                if (drawable is DrawableSticksClick other && !other.Judged
+                if (drawable is DrawableSticksClick other && (!other.Judged || (IsPausedEditorPreview && Time.Current <= other.HitObject.StartTime))
                     && other.HitObject.Side != hitObject.Side
                     && Math.Abs(other.HitObject.StartTime - hitObject.StartTime) < 0.01)
                     return OverlapColour;
@@ -1164,8 +1204,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             _ => true,
         };
 
-        private partial class SticksRibbonBuffer : BufferedContainer, ITexturedShaderDrawable
+        internal partial class SticksRibbonBuffer : BufferedContainer, ITexturedShaderDrawable
         {
+            private readonly ShaderManager shaderManagerOverride;
             private IShader compositeShader = null!;
             private PaletteShader paletteShader;
             private Color4 leftColour = LEFT_COLOUR;
@@ -1174,9 +1215,10 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             IShader ITexturedShaderDrawable.TextureShader => compositeShader;
 
-            public SticksRibbonBuffer()
+            public SticksRibbonBuffer(ShaderManager shaderManager = null)
                 : base(cachedFrameBuffer: false)
             {
+                shaderManagerOverride = shaderManager;
             }
 
             public void SetPalette(Color4 left, Color4 right, Color4 overlap)
@@ -1190,7 +1232,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             [BackgroundDependencyLoader]
             private void load(IRenderer renderer, ShaderManager shaders)
             {
-                IShader shader = shaders.Load(VertexShaderDescriptor.TEXTURE_2, "SticksRibbonComposite");
+                IShader shader = (shaderManagerOverride ?? shaders).Load(VertexShaderDescriptor.TEXTURE_2, "SticksRibbonComposite");
                 compositeShader = paletteShader = new PaletteShader(renderer, shader);
                 paletteShader.SetPalette(leftColour, rightColour, overlapColour);
             }

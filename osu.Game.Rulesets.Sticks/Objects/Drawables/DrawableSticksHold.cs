@@ -257,6 +257,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void setRadialPathRegistered(bool registered)
         {
+            updateRadialPathLifetime();
             if (radialPathRegistered == registered)
                 return;
 
@@ -267,6 +268,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 playfield.AddRadialPath(radialPath);
             else
                 playfield.DetachRadialPath(radialPath);
+        }
+
+        private void updateRadialPathLifetime()
+        {
+            if (radialPath == null)
+                return;
+
+            // Buffer ownership is independent of the parent's visible lifetime.
+            radialPath.LifetimeStart = HitObject.StartTime - HitObject.ApproachDuration;
+            radialPath.LifetimeEnd = HitObject.EndTime;
         }
 
         private void updateVisualRadialOffset()
@@ -536,6 +547,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         protected override void OnApply()
         {
             base.OnApply();
+            updateRadialPathLifetime();
 
             // Editing a hold re-applies it with newly-created nested drawables. Do not attach
             // that fresh head to state retained by the previous preview pass.
@@ -545,6 +557,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         void ISticksApproachRateAdjustable.RefreshApproachTransforms()
         {
+            updateRadialPathLifetime();
             if (Judged)
                 return;
 
@@ -600,6 +613,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         protected override void OnFree()
         {
+            detachRadialPath();
             // Clear RequestedPlaying before discarding the custom loop's samples. Otherwise an
             // editor re-apply can reload them while the sound still claims to be playing and it
             // will never start again.
@@ -610,6 +624,22 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             base.OnFree();
             holdingSample?.ClearSamples();
+        }
+
+        public override void OnKilled()
+        {
+            // Non-pooled editor objects can be removed without OnFree or Dispose.
+            detachRadialPath();
+            base.OnKilled();
+        }
+
+        private void detachRadialPath()
+        {
+            if (!radialPathRegistered)
+                return;
+            radialPathRegistered = false;
+            radialPath.Alpha = 0;
+            playfield.DetachRadialPath(radialPath);
         }
 
         private void updateHoldingSample(bool shouldPlay)

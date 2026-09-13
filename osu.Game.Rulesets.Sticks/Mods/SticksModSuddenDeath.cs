@@ -18,7 +18,7 @@ namespace osu.Game.Rulesets.Sticks.Mods
                 return true;
 
             return FailOnSliderTail.Value
-                   && result.HitObject is SticksSliderTail
+                   && result.HitObject is SticksSliderTail { IsStationary: false }
                    && !result.IsHit;
         }
     }

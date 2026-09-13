@@ -192,9 +192,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(roundTripped.Select(hitObject => hitObject.GetType()), Is.EqualTo(new[]
                 {
                     typeof(SticksFlick),
-                    typeof(SticksHold),
+                    typeof(SticksSlider),
                     typeof(SticksSlider),
                 }));
+                Assert.That(((SticksSlider)roundTripped[1]).TotalAngularDistance, Is.Zero);
+                Assert.That(((SticksSlider)roundTripped[1]).Duration, Is.EqualTo(750));
                 Assert.That(((SticksSlider)roundTripped[2]).ArcAngle, Is.EqualTo(180));
                 Assert.That(((SticksSlider)roundTripped[2]).RepeatCount, Is.EqualTo(1));
             });

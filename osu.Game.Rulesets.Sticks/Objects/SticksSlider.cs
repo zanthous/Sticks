@@ -86,8 +86,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
         {
             deserialising = false;
 
-            // Legacy segment loading discards stationary and sub-degree arcs. Defer both fields
-            // until they are available so a timed path survives either JSON property order.
+            // Untimed paths discard zero-duration stationary pieces mixed into a moving path.
+            // Defer both fields so timed dwells survive either JSON property order.
             if (pendingSerialisedDurationWeights != null)
                 SetTimedSegments(pendingSerialisedSegments ?? throw new JsonSerializationException("Timed slider segments are missing."), pendingSerialisedDurationWeights);
             else if (pendingSerialisedSegments != null)
@@ -161,6 +161,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
             }
         }
 
+        [JsonIgnore]
+        public bool IsStationary => TotalAngularDistance == 0;
+
         public int InitialDirection
         {
             get
@@ -175,7 +178,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                     }
                 }
 
-                return Math.Sign(SegmentArcAngleAt(0)) == 0 ? 1 : Math.Sign(SegmentArcAngleAt(0));
+                return Math.Sign(SegmentArcAngleAt(0));
             }
         }
 
@@ -332,7 +335,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
             if (segmentIndex < 0 || segmentIndex >= SegmentCount - 1)
                 return false;
 
-            if (!HasTimedSegments)
+            if (!HasTimedSegments && !IsStationary)
                 return true;
 
             int nextDirection = Math.Sign(SegmentArcAngleAt(segmentIndex + 1));
@@ -371,7 +374,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
             int upcoming = SegmentIndexAt(time) + 1;
 
-            if (HasTimedSegments)
+            if (HasTimedSegments || IsStationary)
             {
                 while (upcoming < SegmentCount && !SegmentEndsWithReversal(upcoming - 1))
                     upcoming++;
@@ -424,11 +427,14 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public void SetCustomSegments(IEnumerable<float> segments)
         {
-            List<float> values = segments.Where(segment => float.IsFinite(segment) && Math.Abs(segment) >= 1)
-                                         .Take(MAX_SEGMENT_COUNT)
-                                         .ToList();
+            ArgumentNullException.ThrowIfNull(segments);
+            List<float> values = segments.Where(float.IsFinite).Take(MAX_SEGMENT_COUNT).ToList();
+            // Without independent timing, a zero piece inside a moving path has no duration.
+            // Entirely stationary paths instead divide their duration across the stored pieces.
+            if (values.Any(segment => segment != 0))
+                values.RemoveAll(segment => segment == 0);
             if (values.Count == 0)
-                throw new ArgumentException("A slider requires at least one non-zero segment.", nameof(segments));
+                throw new ArgumentException("A slider requires at least one finite segment.", nameof(segments));
 
             customSegmentArcAngles = values;
             segmentDurationWeights = null;
@@ -454,8 +460,8 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 throw new ArgumentException($"A timed slider requires 1 to {MAX_SEGMENT_COUNT} matching arcs and durations.");
 
             double distance = values.Sum(value => (double)Math.Abs(value));
-            if (values.Any(value => !float.IsFinite(value)) || !double.IsFinite(distance) || distance <= 0 || distance > float.MaxValue)
-                throw new ArgumentException("Timed slider arcs must be finite and include non-zero movement.", nameof(arcs));
+            if (values.Any(value => !float.IsFinite(value)) || !double.IsFinite(distance) || distance > float.MaxValue)
+                throw new ArgumentException("Timed slider arcs must be finite.", nameof(arcs));
 
             double totalDuration = durations.Sum();
             if (durations.Any(value => !double.IsFinite(value) || value <= 0) || !double.IsFinite(totalDuration) || totalDuration <= 0)
@@ -491,6 +497,9 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public void AppendSegmentAtConstantSpeed(float segmentArcAngle)
         {
+            if (IsStationary)
+                throw new InvalidOperationException("A stationary slider must be extended using a new end time.");
+
             if (HasTimedSegments)
             {
                 if (SegmentCount >= MAX_SEGMENT_COUNT)
@@ -505,12 +514,35 @@ namespace osu.Game.Rulesets.Sticks.Objects
             }
 
             float totalDistance = TotalAngularDistance;
-            double degreesPerMillisecond = totalDistance / Math.Max(1, Duration);
+            double degreesPerMillisecond = totalDistance / Duration;
             List<float> segments = SegmentArcAngles.ToList();
             segments.Add(segmentArcAngle);
-            double addedDuration = Math.Abs(segmentArcAngle) / Math.Max(0.001, degreesPerMillisecond);
+            double addedDuration = Math.Abs(segmentArcAngle) / degreesPerMillisecond;
+            if (!float.IsFinite(segmentArcAngle) || !double.IsFinite(addedDuration) || addedDuration <= 0)
+                throw new ArgumentException("The segment must produce positive finite movement and duration.", nameof(segmentArcAngle));
             SetCustomSegments(segments);
             Duration += addedDuration;
+        }
+
+        /// <summary>
+        /// Appends an authored arc ending at the selected time, retaining every existing segment's
+        /// timing and node samples. A zero arc adds a stationary span. Invalid requests leave the
+        /// slider unchanged.
+        /// </summary>
+        public bool AppendTimedSegment(float segmentArcAngle, double newEndTime)
+        {
+            double addedDuration = newEndTime - EndTime;
+            double newDuration = Duration + addedDuration;
+            double totalDistance = SegmentArcAngles.Sum(arc => (double)Math.Abs(arc)) + Math.Abs((double)segmentArcAngle);
+            if (SegmentCount >= MAX_SEGMENT_COUNT || !float.IsFinite(segmentArcAngle)
+                || !double.IsFinite(StartTime) || !double.IsFinite(Duration) || Duration <= 0
+                || !double.IsFinite(newEndTime) || !double.IsFinite(addedDuration) || addedDuration <= 0
+                || !double.IsFinite(newDuration) || newDuration <= Duration
+                || !double.IsFinite(totalDistance) || totalDistance > float.MaxValue)
+                return false;
+
+            appendTimedSegment(segmentArcAngle, addedDuration);
+            return true;
         }
 
         /// <summary>
@@ -539,6 +571,17 @@ namespace osu.Game.Rulesets.Sticks.Objects
         /// </summary>
         public bool AppendTimedSegmentAtConstantSpeed(double newEndTime)
         {
+            if (IsStationary)
+            {
+                double newDuration = newEndTime - StartTime;
+                if (!double.IsFinite(newDuration) || !double.IsFinite(newEndTime - EndTime) || newEndTime <= EndTime || Duration <= 0)
+                    return false;
+
+                // No turn or extra checkpoint is needed to keep holding the same direction.
+                Duration = newDuration;
+                return true;
+            }
+
             float segmentArcAngle = ContinuationArcAt(newEndTime);
             if (HasTimedSegments)
             {
@@ -549,7 +592,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 return true;
             }
 
-            if (Math.Abs(segmentArcAngle) < 1)
+            if (segmentArcAngle == 0 || SegmentCount >= MAX_SEGMENT_COUNT)
                 return false;
 
             List<float> segments = SegmentArcAngles.ToList();
@@ -568,20 +611,15 @@ namespace osu.Game.Rulesets.Sticks.Objects
             {
                 List<float> remainingArcs = SegmentArcAngles.Take(SegmentCount - 1).ToList();
                 List<double> remainingDurations = Enumerable.Range(0, SegmentCount - 1).Select(SegmentDurationAt).ToList();
-                if (remainingArcs.All(arc => arc == 0))
-                    return false;
-
                 SetTimedSegments(remainingArcs, remainingDurations);
                 Duration = remainingDurations.Sum();
                 return true;
             }
 
-            float totalDistance = TotalAngularDistance;
-            double degreesPerMillisecond = totalDistance / Math.Max(1, Duration);
+            double removedDuration = SegmentDurationAt(SegmentCount - 1);
             List<float> segments = SegmentArcAngles.ToList();
-            float removed = segments[^1];
             segments.RemoveAt(segments.Count - 1);
-            double reducedDuration = Math.Max(1, Duration - Math.Abs(removed) / Math.Max(0.001, degreesPerMillisecond));
+            double reducedDuration = Math.Max(1, Duration - removedDuration);
             SetCustomSegments(segments);
             Duration = reducedDuration;
             return true;
@@ -648,10 +686,13 @@ namespace osu.Game.Rulesets.Sticks.Objects
                     ? new HitSampleInfo("slidertick", volume: sourceSample?.Volume ?? 100)
                     : sourceSample.With("slidertick");
 
-                for (int segment = 0; segment < SegmentCount; segment++)
+                // Stationary pieces are one continuous sustain, so their bookkeeping boundaries
+                // must not restart tick phase or add arbitrary scoring checkpoints.
+                int tickSpanCount = IsStationary ? 1 : SegmentCount;
+                for (int segment = 0; segment < tickSpanCount; segment++)
                 {
                     double segmentStartTime = SegmentStartTimeAt(segment);
-                    double segmentDuration = SegmentDurationAt(segment);
+                    double segmentDuration = IsStationary ? Duration : SegmentDurationAt(segment);
 
                     foreach (double tickTime in SticksTickGenerator.Generate(
                                  controlPointInfo,
@@ -664,6 +705,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                         {
                             StartTime = tickTime,
                             SliderStartTime = StartTime,
+                            IsStationary = IsStationary,
                             Side = Side,
                             Angle = AngleAt(tickTime),
                             Samples = new[] { tickSample },
@@ -672,7 +714,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 }
             }
 
-            for (int reversalIndex = 0; reversalIndex < SegmentCount - 1; reversalIndex++)
+            for (int reversalIndex = 0; !IsStationary && reversalIndex < SegmentCount - 1; reversalIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -736,6 +778,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
             {
                 StartTime = EndTime,
                 SliderStartTime = StartTime,
+                IsStationary = IsStationary,
                 Side = Side,
                 Angle = AngleAt(EndTime),
                 Samples = samplesAtNode(SegmentCount),

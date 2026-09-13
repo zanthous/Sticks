@@ -78,7 +78,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 for (int length = 4; length <= window.Count; length++)
                 {
                     HitObject[] phrase = window.Take(length).ToArray();
-                    foreach (DuetCandidate candidate in duetCandidates(phrase, beatLength, Math.Max(1, beatmap.Difficulty.SliderTickRate)))
+                    foreach (DuetCandidate candidate in duetCandidates(phrase, beatLength,
+                                 SticksHitObject.HitAngleForCircleSize(beatmap.Difficulty.CircleSize)))
                     {
                         if (best != null && candidate.Score <= best.Score)
                             continue;
@@ -110,7 +111,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             planDuetAccompaniment(objects, beatmap, cancellationToken);
         }
 
-        private IEnumerable<DuetCandidate> duetCandidates(HitObject[] phrase, double beatLength, double tickRate)
+        private IEnumerable<DuetCandidate> duetCandidates(HitObject[] phrase, double beatLength, float trackingWindow)
         {
             StickSide primary = plans[phrase[0]].Side;
             StickSide secondary = other(primary);
@@ -141,19 +142,30 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 HitObject[] second = phrase.Where((_, index) => index % 2 != 0).ToArray();
                 if (first[^1].StartTime - first[0].StartTime >= Math.Max(700, beatLength * 1.5)
                     && second[^1].StartTime - second[0].StartTime >= Math.Max(700, beatLength * 1.5)
-                    && tryDuetVoicePath(first, beatLength / tickRate, out DuetVoicePath firstPath)
-                    && tryDuetVoicePath(second, beatLength / tickRate, out DuetVoicePath secondPath)
-                    && (firstPath.TotalTravel > 0 || secondPath.TotalTravel > 0))
+                    && tryDuetVoicePath(first, out DuetVoicePath firstPath)
+                    && tryDuetVoicePath(second, out DuetVoicePath secondPath))
                 {
+                    bool firstTracks = duetVoiceExcursion(firstPath) > trackingWindow;
+                    bool secondTracks = duetVoiceExcursion(secondPath) > trackingWindow;
                     double separation = Math.Abs(SticksHitObject.DeltaAngle(plans[first[0]].Angle, plans[second[0]].Angle));
                     bool contrary = firstPath.NetArc * secondPath.NetArc < 0;
-                    if (separation >= 45 || contrary)
+                    if ((firstTracks || secondTracks) && (separation >= 45 || contrary))
                     {
-                        yield return new DuetCandidate(phrase, new[]
+                        // A voice which fits inside one aim window contributes rhythm,
+                        // not tracking. Keep those attacks as flicks beside the moving
+                        // voice instead of consuming them into a barely moving sustain.
+                        var gestures = new List<DuetGesture>();
+                        addVoice(first, firstPath, primary, firstTracks);
+                        addVoice(second, secondPath, secondary, secondTracks);
+                        yield return new DuetCandidate(phrase, gestures.ToArray(), 78 + phrase.Length + (contrary ? 8 : 0));
+
+                        void addVoice(HitObject[] anchors, DuetVoicePath path, StickSide side, bool tracks)
                         {
-                            new DuetGesture(first[0], first[^1], primary, firstPath.NetArc, Path: firstPath),
-                            new DuetGesture(second[0], second[^1], secondary, secondPath.NetArc, Path: secondPath),
-                        }, 78 + phrase.Length + (contrary ? 8 : 0));
+                            if (tracks)
+                                gestures.Add(new DuetGesture(anchors[0], anchors[^1], side, path.NetArc, Path: path));
+                            else
+                                gestures.AddRange(anchors.Select(note => new DuetGesture(note, note, side, 0)));
+                        }
                     }
                 }
             }
@@ -212,7 +224,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             return duration > 0 && Math.Abs(arc) / duration * 1000 <= MAX_GENERATED_SLIDER_ANGULAR_VELOCITY;
         }
 
-        private bool tryDuetVoicePath(HitObject[] voice, double tickInterval, out DuetVoicePath path)
+        private bool tryDuetVoicePath(HitObject[] voice, out DuetVoicePath path)
         {
             var arcs = new float[voice.Length - 1];
             var durations = new double[arcs.Length];
@@ -235,17 +247,23 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             }
 
             path = new DuetVoicePath(voice, arcs, durations);
-            // Entirely stationary voices use holds, whose existing ticks must still
-            // cover the consumed interior notes. Moving paths carry explicit anchors.
-            return path.TotalTravel > 0 || duetVoiceTicksAligned(voice, tickInterval);
+            return true;
         }
 
-        private static bool duetVoiceTicksAligned(HitObject[] voice, double tickInterval) =>
-            voice.Skip(1).Take(voice.Length - 2).All(note =>
+        private static float duetVoiceExcursion(DuetVoicePath path)
+        {
+            float position = 0;
+            float minimum = 0;
+            float maximum = 0;
+            foreach (float arc in path.Arcs)
             {
-                double ticks = (note.StartTime - voice[0].StartTime) / tickInterval;
-                return Math.Abs(ticks - Math.Round(ticks)) * tickInterval <= 1;
-            });
+                position += arc;
+                minimum = Math.Min(minimum, position);
+                maximum = Math.Max(maximum, position);
+            }
+
+            return maximum - minimum;
+        }
 
         private static bool duetRhythmicInterval(double interval, double beatLength)
         {

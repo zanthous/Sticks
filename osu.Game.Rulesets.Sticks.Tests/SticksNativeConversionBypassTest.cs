@@ -55,6 +55,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
                 Assert.Multiple(() =>
                 {
+                    Assert.That(converted.OfType<SticksHold>(), Is.Empty, "Legacy native holds become stationary sliders.");
                     Assert.That(signature(converted), Is.EqualTo(expected), "Authored geometry must bypass procedural pattern and angle changes.");
                     Assert.That(signature(notes), Is.EqualTo(expected), "Conversion must not mutate its source's gameplay geometry.");
                     Assert.That(converted.Single(note => note.StartTime == 1000 && note.Side == StickSide.Left).SyncedNoteAngle,
@@ -95,11 +96,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         private static string[] signature(IEnumerable<SticksHitObject> notes) => notes.Select(note =>
-            $"{note.GetType().Name}:{note.StartTime:R}:{note.GetEndTime():R}:{note.Side}:{note.Angle:R}:{samples(note.Samples)}:"
+            $"{(note is SticksHold ? nameof(SticksSlider) : note.GetType().Name)}:{note.StartTime:R}:{note.GetEndTime():R}:{note.Side}:{note.Angle:R}:{samples(note.Samples)}:"
             + (note is SticksSlider slider
                 ? $"{slider.RepeatCount}:{slider.HasTimedSegments}:{string.Join(',', slider.SegmentArcAngles)}:"
                   + $"{string.Join(',', slider.SegmentDurationWeights ?? Array.Empty<double>())}:{string.Join(';', slider.NodeSamples.Select(samples))}"
-                : string.Empty)).ToArray();
+                : note is SticksHold ? "0:False:0::" : string.Empty)).ToArray();
 
         private static string samples(IEnumerable<HitSampleInfo> samples) =>
             string.Join(',', samples.Select(sample => $"{sample.Name}:{sample.Bank}:{sample.Volume}"));

@@ -50,8 +50,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.ApproachCircleEnabled = false;
             marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
 
-            if (playfield.CenterOutPresentation)
-                marker.Alpha = 0;
+            marker.Alpha = playfield.CenterOutPresentation ? 0 : 1;
         }
 
         protected override double InitialLifetimeOffset => HitObject.PreemptDuration;

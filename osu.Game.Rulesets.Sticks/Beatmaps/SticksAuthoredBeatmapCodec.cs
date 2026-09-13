@@ -230,12 +230,15 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 var segments = new List<float>(encodedSegments.Length);
                 foreach (string encodedSegment in encodedSegments)
                 {
-                    if (!parseFloat(encodedSegment, out float segment) || Math.Abs(segment) < 1)
+                    if (!parseFloat(encodedSegment, out float segment))
                         return null;
                     segments.Add(segment);
                 }
 
-                if (!hasValidSliderPath(angle, segments))
+                // Untimed paths may be entirely stationary, but mixed pauses need explicit
+                // durations (v3); accepting them here would silently drop their zero arcs.
+                if (segments.Any(segment => segment == 0) && segments.Any(segment => segment != 0)
+                    || !hasValidSliderPath(angle, segments))
                     return null;
 
                 var segmentedSlider = new SticksSlider
@@ -273,10 +276,13 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 case "h" when parts.Length == 5
                                    && parse(parts[4], out double holdDuration)
                                    && hasValidDuration(source.StartTime, holdDuration):
-                    return new SticksHold
+                    // Legacy holds are the stationary form of a slider. Keep the old marker
+                    // readable while giving edited and played maps one duration-note type.
+                    return new SticksSlider
                     {
                         StartTime = source.StartTime,
                         Duration = holdDuration,
+                        ArcAngle = 0,
                         Side = side,
                         Angle = SticksHitObject.NormaliseAngle(angle),
                         Samples = samples,
@@ -286,7 +292,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                                    && parse(parts[4], out double sliderDuration)
                                    && hasValidDuration(source.StartTime, sliderDuration)
                                    && parseFloat(parts[5], out float arcAngle)
-                                   && Math.Abs(arcAngle) >= 1
                                    && int.TryParse(parts[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out int repeats)
                                    && repeats >= 0
                                    && repeats < SticksSlider.MAX_SEGMENT_COUNT
@@ -305,6 +310,32 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Normalises legacy native objects without modifying the map they came from.
+        /// Saved hold markers are decoded directly as stationary sliders above.
+        /// </summary>
+        internal static SticksSlider UpgradeLegacyHold(SticksHold hold)
+        {
+            var slider = new SticksSlider
+            {
+                StartTime = hold.StartTime,
+                Duration = hold.Duration,
+                Side = hold.Side,
+                Angle = hold.Angle,
+                ArcAngle = 0,
+                PrimaryHitAngle = hold.PrimaryHitAngle,
+                SecondaryHitAngle = hold.SecondaryHitAngle,
+                Samples = hold.Samples.Select(sample => sample.With()).ToList(),
+                SyncedNoteSide = hold.SyncedNoteSide,
+                SyncedNoteAngle = hold.SyncedNoteAngle,
+            };
+
+            if (hold.Samples.Any(IsMarker))
+                slider.EnsureLegacyEditorMarker();
+
+            return slider;
         }
 
         /// <summary>
@@ -378,7 +409,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     return false;
             }
 
-            return totalDistance > 0;
+            return true;
         }
 
         private static MarkerVersionParseStatus parseMarkerVersion(string filename, out int? version)

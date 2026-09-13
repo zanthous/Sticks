@@ -77,7 +77,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(((IHasDuration)decodedCarrier.HitObjects[2]).EndTime, Is.EqualTo(3500));
                 Assert.That(roundTripped, Has.Length.EqualTo(3));
                 Assert.That(roundTripped[0], Is.TypeOf<SticksFlick>());
-                Assert.That(roundTripped[1], Is.TypeOf<SticksHold>());
+                Assert.That(roundTripped[1], Is.TypeOf<SticksSlider>());
+                Assert.That(((SticksSlider)roundTripped[1]).TotalAngularDistance, Is.Zero);
+                Assert.That(((SticksSlider)roundTripped[1]).Duration, Is.EqualTo(750));
                 Assert.That(roundTripped[2], Is.TypeOf<SticksSlider>());
                 Assert.That(((SticksSlider)roundTripped[2]).RepeatCount, Is.EqualTo(1));
             });

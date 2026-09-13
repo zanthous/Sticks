@@ -61,7 +61,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Checks
                     if (slider.SegmentCount < 1 || slider.SegmentCount > SticksSlider.MAX_SEGMENT_COUNT)
                         yield return "The slider has an invalid number of path segments.";
 
-                    if (slider.SegmentArcAngles.Any(segment => !float.IsFinite(segment) || (!slider.HasTimedSegments && Math.Abs(segment) < 1)))
+                    if (slider.SegmentArcAngles.Any(segment => !float.IsFinite(segment)))
                         yield return "The slider contains an invalid path segment.";
 
                     if (slider.HasTimedSegments
@@ -69,7 +69,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Checks
                             || slider.SegmentDurationWeights.Any(weight => !double.IsFinite(weight) || weight <= 0)))
                         yield return "The slider contains invalid segment timing weights.";
 
-                    if (!float.IsFinite(slider.TotalAngularDistance) || slider.TotalAngularDistance <= 0)
+                    if (!float.IsFinite(slider.TotalAngularDistance) || slider.TotalAngularDistance < 0)
                         yield return "The slider path has no valid angular distance.";
 
                     for (int i = 0; i < slider.SegmentCount; i++)

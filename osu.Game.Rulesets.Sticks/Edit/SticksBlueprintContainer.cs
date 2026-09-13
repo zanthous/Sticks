@@ -2,13 +2,14 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Sticks.Edit.Blueprints;
-using osu.Game.Rulesets.Sticks.Edit.Components;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Screens.Edit;
 using osu.Game.Screens.Edit.Compose.Components;
 using osuTK;
 
@@ -18,10 +19,39 @@ namespace osu.Game.Rulesets.Sticks.Edit
     {
         public new SticksHitObjectComposer Composer => (SticksHitObjectComposer)base.Composer;
 
+        [Resolved]
+        private EditorBeatmap editorBeatmap { get; set; } = null!;
+
+        private SticksSlider[]? pendingContinuation;
+
+        public void ContinueSliderPlacement(SticksSlider[] targets) => pendingContinuation = targets;
+
+        protected override void Update()
+        {
+            base.Update();
+            if (pendingContinuation == null)
+                return;
+
+            if (pendingContinuation.Any(slider => !editorBeatmap.HitObjects.Contains(slider)))
+            {
+                pendingContinuation = null;
+                return;
+            }
+
+            SticksSelectionBlueprint? blueprint = SelectionBlueprints.OfType<SticksSelectionBlueprint>()
+                .FirstOrDefault(candidate => ReferenceEquals(candidate.Item, pendingContinuation[0]));
+            if (blueprint == null || !blueprint.IsLoaded)
+                return;
+
+            editorBeatmap.SelectedHitObjects.Clear();
+            editorBeatmap.SelectedHitObjects.AddRange(pendingContinuation);
+            blueprint.BeginContinuationPlacement(pendingContinuation);
+            pendingContinuation = null;
+        }
+
         public SticksBlueprintContainer(SticksHitObjectComposer composer)
             : base(composer)
         {
-            AddInternal(new SticksEditorGuide());
         }
 
 #if !STICKS_RULESET_API_2026_818
@@ -44,10 +74,12 @@ namespace osu.Game.Rulesets.Sticks.Edit
             Vector2 movePosition = blueprints.First().originalSnapPositions.First() + distanceTravelled;
             SelectionBlueprint<HitObject> reference = blueprints.First().blueprint;
 
-            if (e.ShiftPressed && Composer.TryGetPlacement(movePosition, out StickSide side, out float angle))
+            Vector2 local = Composer.Playfield.ToLocalSpace(movePosition);
+            if (e.ShiftPressed && SticksEditorCoordinates.TryGetAngle(local, out float angle))
             {
                 angle = SticksEditorCoordinates.SnapAngle(angle);
-                movePosition = Composer.Playfield.ToScreenSpace(SticksEditorCoordinates.PositionFor(side, angle));
+                float radius = (local - SticksEditorCoordinates.Centre).Length;
+                movePosition = Composer.Playfield.ToScreenSpace(UI.SticksPlayfield.PointAt(angle, radius));
             }
 
             return SelectionHandler.HandleMovement(new MoveSelectionEvent<HitObject>(

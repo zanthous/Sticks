@@ -320,17 +320,17 @@ namespace osu.Game.Rulesets.Sticks
                 impulse = 250 / Math.Max(25, gap) * (1 + speedBonus);
             }
 
-            if (current is SticksSlider)
-                impulse *= 1.1;
-            else if (current is SticksHold)
+            if (isStationarySustain(current))
                 impulse *= 1.03;
+            else if (current is SticksSlider)
+                impulse *= 1.1;
 
             return impulse;
         }
 
         private static double controlImpulse(SticksHitObject current, double clockRate)
         {
-            if (current is SticksHold)
+            if (isStationarySustain(current))
                 return 0.15;
 
             if (current is not SticksSlider slider)
@@ -414,10 +414,11 @@ namespace osu.Game.Rulesets.Sticks
             double regionComplexity = Math.Clamp((distinctRegions - 1) / 5.0, 0, 1) * 0.3;
 
             double objectTypeBonus = 0;
-            SticksSlider slider = group.OfType<SticksSlider>().OrderByDescending(current => current.SegmentCount).FirstOrDefault();
+            SticksSlider slider = group.OfType<SticksSlider>().Where(current => !current.IsStationary)
+                                      .OrderByDescending(current => current.SegmentCount).FirstOrDefault();
             if (slider != null)
                 objectTypeBonus = 0.25 + 0.08 * Math.Log2(slider.SegmentCount);
-            else if (group.Any(current => current is SticksHold))
+            else if (group.Any(isStationarySustain))
                 objectTypeBonus = 0.08;
 
             if (previous.HasValue)
@@ -435,6 +436,7 @@ namespace osu.Game.Rulesets.Sticks
 
             bool followsActiveSliderArc = group.Any(current => current is not SticksClick && activeTracking.Any(active =>
                 active.Object is SticksSlider activeSlider
+                && !activeSlider.IsStationary
                 && active.Object.Side != current.Side
                 && Math.Abs(SticksHitObject.DeltaAngle(activeSlider.AngleAt(timestamp), current.Angle)) <= 30));
 
@@ -484,17 +486,17 @@ namespace osu.Game.Rulesets.Sticks
                         continue;
                     }
 
-                    if (active.Object is SticksSlider activeSlider)
+                    if (isStationarySustain(active.Object))
+                    {
+                        impulse += 0.25;
+                    }
+                    else if (active.Object is SticksSlider activeSlider)
                     {
                         double overlap = 0.35 + 0.1 * Math.Min(2, active.AngularVelocity / 120);
                         if (current is not SticksClick && Math.Abs(SticksHitObject.DeltaAngle(activeSlider.AngleAt(timestamp), current.Angle)) <= 30)
                             overlap *= 0.85;
 
                         impulse += overlap;
-                    }
-                    else if (active.Object is SticksHold)
-                    {
-                        impulse += 0.25;
                     }
                 }
             }
@@ -512,6 +514,11 @@ namespace osu.Game.Rulesets.Sticks
 
         private static double effectiveInterval(double interval, double clockRate) => interval / clockRate;
 
+        // Replacing the old hold representation must not add movement or pattern-switch
+        // difficulty to the same stationary gesture.
+        private static bool isStationarySustain(SticksHitObject hitObject) =>
+            hitObject is SticksHold or SticksSlider { IsStationary: true };
+
         private static double endTimeOf(SticksHitObject hitObject) => hitObject switch
         {
             SticksSlider slider => slider.EndTime,
@@ -522,6 +529,7 @@ namespace osu.Game.Rulesets.Sticks
         private static ObjectKind kindOf(SticksHitObject hitObject) => hitObject switch
         {
             SticksClick => ObjectKind.Click,
+            SticksSlider { IsStationary: true } => ObjectKind.Hold,
             SticksSlider => ObjectKind.Slider,
             SticksHold => ObjectKind.Hold,
             _ => ObjectKind.Flick,

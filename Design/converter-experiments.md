@@ -3,7 +3,8 @@
 As of 2026-09-13, the former Duet conversion is the default. Parity (`PA`) applies
 its angle changes to that complete output, including slider partners and
 accompaniment. The separate Duet (`DU`) and Parity + Duet (`PD`) selections are
-retired. The Conversion category now contains Difficulty Adjust, Parity and Encore.
+retired. The Conversion category now contains Difficulty Adjust, Parity, Encore and the
+experimental Counterpoint (`CP`) arrangement mod.
 Encore remains opt-in for additional note types. Authored Sticks maps retain their
 authored objects.
 
@@ -259,7 +260,7 @@ two-stick phrases. Existing conversion already has occasional four-anchor
 staggered sliders and five-anchor slider accompaniment. A meaningful experiment
 should offer more than increased frequency of those exact templates.
 
-Duet first builds the complete standard conversion, preserving its existing chords,
+The base first builds the existing conversion, preserving its chords,
 holds and generated slider phrases. It then evaluates unclaimed circle windows and
 commits a complete phrase only after validating both sticks. Both stick assignments
 are tried before rejecting a candidate. The available candidate types are:
@@ -272,8 +273,13 @@ are tried before rejecting a candidate. The available candidate types are:
   separate stick trajectories, allowing overlapping motion with staggered heads.
   Each moving voice retains every source direction at its original timestamp.
   Speed changes, stationary intervals and reversals remain in the path; no smooth
-  endpoint fit or intermediate-angle tolerance is applied. An entirely stationary
-  voice becomes a hold only when its existing tick rhythm covers the interior notes.
+  endpoint fit or intermediate-angle tolerance is applied. A voice whose full
+  angular excursion fits within the CS-derived primary aim window keeps its individual flicks
+  beside the other voice's slider. If neither voice needs tracking, the paired
+  slider candidate is declined. This tests whether movement is required; it does
+  not reshape source directions or limit their variety.
+  DA's explicit angle-window override is applied later and does not reselect these
+  patterns; the diagnostic export uses the actual final window.
 - **Sustain and independent flicks, five to nine anchors:** one stick connects
   phrase endpoints while the other keeps the interior source angles. A compact
   angular pattern can become a hold; a moving pattern can become a slider. The
@@ -312,6 +318,47 @@ slider heads and tails retain their source samples, while a generated hold uses
 its head samples for its tail. This conversion does not preserve every individual
 source hitsound accent. A movement template is useful
 when its geometry fits the source and its rhythm leaves enough room for both sticks.
+
+### Jump and accompaniment preservation — 2026-09-13
+
+Rapid jumps are identified before any circle-to-sustain planning. A run of at least
+four circles is protected when each interval is within the existing 260 ms
+alternation threshold and consecutive source circles do not overlap spatially.
+Spacing uses osu!standard's CS-dependent circle diameter, following the
+[upstream circle size calculation](https://github.com/ppy/osu/blob/master/osu.Game.Rulesets.Osu/Objects/OsuHitObject.cs).
+Original 2D positions distinguish jumps even when two targets share a radial
+bearing. Rests, duration objects and timing changes break a run.
+
+Protected runs retain their manual heads and source directions instead of becoming
+synthetic holds, paired sliders or a compressed small-angle stream. The two sticks
+still alternate at rapid intervals. Short bursts and compact streams also keep their
+individual directions instead of being rewritten into the historical 30-degree
+stream template. Existing source sliders retain their conversion.
+Independent accompaniment flicks also retain their source directions throughout the
+current base; they are no longer moved onto the sustaining stick's path. Historical
+Standard/Parity strategies remain available to comparison tools with their previous
+behavior. Public Parity applies after the new base pattern selection.
+
+The supplied *Masterpiece* (292577) and *Warota* (129847) examples showed why keeping
+timestamps as slider ticks is insufficient: eight widely spaced jump attacks could
+become two slow tracks. Testbed reports now measure source circle onsets retained as
+manual heads separately from generated sustain counts and angular excursion. Use
+those measurements alongside chords and simultaneous patterns when evaluating
+future changes; an increase in sustained overlap alone is not an improvement.
+
+The 45-map gameplay-pipeline comparison restores all 1,128 circle onsets in
+*Masterpiece* (previously 1,062) and all 585 in *Warota* (previously 539). Across
+the corpus, retained circle onsets rise from 20,236 to 20,437 of 20,484. Chords
+remain at 1,197; dual-sustain overlap falls from 125.50 to 97.23 seconds as jump
+substitutions are removed. All original duration-object geometry remains identical
+in Default, and all four modes pass conversion validation.
+
+Among 2,137 matched flick/slider interactions, 75 previously exactly aligned flicks
+now retain independent directions across nine maps. Their median separation from
+the other stick's slider is 49.07 degrees. The new mixed timed-voice branch is
+covered by synthetic tests; this corpus did not select new instances of it.
+Before/after exports and repeatable analysis scripts are gitignored under
+`mapreference/converter-jump-revision/`. The complete test suite passes 650 tests.
 
 Every accepted phrase must reserve its final stick assignments and entire sustain
 intervals, including generated partners. A stick needs time to release and rearm
@@ -356,3 +403,193 @@ Local captures are under `mapreference/duet-unsmoothed/` and remain gitignored.
 6. Play the authored reference passages directly to compare the intended types of
    coordination. Enabling a converter experiment on a carrier map should preserve
    its authored object data.
+
+## Counterpoint experiment
+
+Counterpoint (`CP`) is an optional, unranked conversion experiment built on the
+current default. It tests additional arrangements without changing the default
+converter. Parity can adjust the completed arrangement, and Encore can add its
+optional note types afterward. Authored Sticks maps retain their authored objects.
+
+The human references suggest distinct roles for the two hands: *Flower Dance*
+uses a lead hand with sparse opposite-hand accents and recognizable repeated
+phrases; *tbh i dont like being social* introduces a second sustain partway through
+the first and hands off at releases; *Hyperspeed* places a separate pulse beneath
+longer tracking gestures and reserves exact stacked doubles for selected accents.
+These are arrangement ideas, not templates to copy onto every passage.
+
+The experiment compares seven candidate families:
+
+- **Rhythm answer:** opposite-hand flicks at existing source slider repeats,
+  ticks or tails, supported by a recurring nearby source-head pulse or a specific
+  clap/finish on that slider node. Repeat/tail status alone is not an accent.
+  The planner compares recovery-spaced responses instead of taking the earliest
+  available checkpoints. Directions come from the surrounding source phrase.
+- **Staggered voice:** a second slider enters at a source checkpoint and ends at
+  another checkpoint. Its timed movement retains the selected portion of the
+  original slider, including reversals; the source contour can suggest parallel
+  or contrary motion.
+- **Phrase lead:** a suitable slower circle phrase stays on one hand around an
+  existing opposite-hand accent, or receives a sparse accent where there is room.
+- **Phrase support:** that articulated lead phrase receives an additional timed
+  slider on the other hand. Every circle remains a manual flick; the supporting
+  path keeps its source directions and timings without smoothing them.
+- **Punctuation:** an exact stacked double marks a source phrase arrival,
+  resolution or newly emphasized hitsound, where both hands have recovery room.
+- **Rhythmic voices:** four recurring attacks establish a steady part for one
+  hand while the other plays changing fills. Short sliders and holds remain
+  articulated. The pulse can start off the timing grid or after a short pickup;
+  its phase and period come from existing attacks. Uniform alternation and rapid
+  jump runs are preserved. This is a bounded phrase detector, not instrument
+  separation or a rule that every offbeat belongs to one hand.
+- **Staggered phrase:** a second slider enters during the first, then an available
+  hand plays a short answer using existing attacks and short sustains. Both hands
+  are checked, existing doubles keep both heads, and a single closing attack can
+  serve as the answer when the source phrase ends there.
+  The added voice can recall a nearby source slider's full signed contour and
+  relative segment timing, fitted to its entrance/release interval, rather than
+  always copying or mirroring the lead. This interpretation cannot cross a rest
+  of more than two beats or a timing change. It adds no source-head replacements.
+
+Existing head types, timings, slider durations and signed relative segments remain
+intact. Arrangements may change hand assignments, but protected rapid jump runs
+keep their original alternation. Directional doubles whose visible primary arcs
+intersect by at least half of the narrower arc become an exact purple stack;
+shallower overlaps and separated doubles retain their directions. CP uses the
+actual source-CS/EZ/HR width or an explicit Difficulty Adjust angle override.
+This approved chord rotation is the exception to preserving absolute directions.
+Parity also preserves intentional exact stacks, resolving both hands together
+before recording their actual final endpoints for subsequent gestures.
+Added sliders must require movement beyond the aim window and obey
+the existing speed limit. New paths retain at least the existing 250 ms between
+actual reversals, including the initial and final spans; same-direction control
+points do not impose extra reversal restrictions. Reversal and tail accents retain their authored node
+sounds; tick entries do not replay a head-only clap or finish accent.
+
+Candidates reserve the complete occupied interval on each hand, including release
+and rearming time. Recovery and phrase spacing depend on source difficulty and
+local tempo. Changing hand roles without adding notes needs recovery room but
+avoids the longer cooldown used for additional attacks. Low difficulties skip
+lead, support, rhythmic-voice and staggered families; slider answers are limited
+to supported, spaced releases. New doubles have a separate sparse
+budget and avoid nearby doubles already supplied by the base converter.
+
+Repeated source phrases are recognized from rhythm, object types and geometry.
+Overlapping windows within one passage do not count as independent repetitions.
+Source combo boundaries can establish a phrase, including an offbeat pickup;
+three-head groups require that explicit boundary. A combo start alone does not
+justify a standalone double. The planner remembers the selected family, relative
+rhythm and lead hand for
+matching phrases, while allowing different arrangements when occupancy prevents
+that recipe. Timing changes end rhythmic context. Candidate choice remains
+deterministic; variety is tied to source structure rather than random placement.
+
+Reference analysis and iteration exports are kept locally under the gitignored
+`mapreference/counterpoint/` directory. Evaluate retained manual attacks and source
+directions alongside simultaneous play; more overlapping duration alone does not
+establish an improvement.
+
+### Counterpoint iterations — 2026-09-13
+
+Four gameplay-pipeline exports cover the same 45 procedural maps and five authored
+references, with CP alone and with Parity/Encore. The first candidate version added
+only contrary-motion sustains and almost never changed a phrase's hand roles.
+Subsequent passes used the source contour for motion direction, reserved easy-map
+answers for releases, remembered complete phrase recipes, and recognized source
+combo boundaries and existing double accents. A separate offbeat-combo regression
+caught an inappropriate whole-beat accent gate on supporting sliders.
+
+| CP additions or changes, 45 procedural maps | First candidate | Final candidate |
+| --- | ---: | ---: |
+| Added heads | 964 | 923 |
+| Extra sustained overlap | 76.58 s | 76.06 s |
+| Parallel / contrary added overlap | 0 / 76.58 s | 63.92 / 12.15 s |
+| New double onsets | 41 | 26 |
+| Existing heads reassigned between hands | 1 | 11 |
+| Existing heads removed or reangled; paths reshaped | 0 | 0 |
+
+All 34,927 baseline heads retain their type, timing, angle and duration/path with
+plain CP; 11 change hand. Added heads comprise 271 repeats, 543 true releases,
+83 ticks and 26 source head accents. Checkpoints use osu!'s shared
+[slider event generator](https://github.com/ppy/osu/blob/master/osu.Game/Rulesets/Objects/SliderEventGenerator.cs),
+including mirrored tick placement on reverse spans and disabled ticks. The first
+candidate's approximate repeat-phase ticks were replaced rather than accepted as
+source evidence.
+
+Default, Parity, Encore and Parity+Encore outputs and stars exactly match the saved
+pre-CP baseline on all 45 maps. All five authored maps bypass CP unchanged. These
+exports report no invalid geometry, procedural same-hand sustain overlaps or lost
+source onsets. CP+Parity can reangle earlier patterns because added gestures enter
+its history; CP+Encore can change click selection to retain clearance.
+
+The new lead arrangements occur in Flower Dance and two Blue Zenith difficulties.
+Staggered entries occur in nine maps, rather than every suitable-looking phrase being
+forced into two sliders. Phrase support has a positive gameplay-converter
+regression but is absent from this development corpus; its speed and meaningful
+movement checks remain in place. Masterpiece stays unchanged, while Warota receives
+four checkpoint/release responses and retains every jump attack.
+
+The measurements establish preservation and the kinds of coordination generated.
+They do not establish that a passage feels better on a controller. In particular,
+release answers are still the most common addition and supporting phrases remain
+rare. Use the separate mod for playtesting those choices before promoting them to
+the default converter.
+
+A separate, preselected holdout used six Featured Artist Insane difficulties from
+Creo, Frums, cYsmix, Kurokotei, Silentroom and Rameses B, selected before checking
+conversion outputs or ratings. They converted to 4.64–5.58 stars on the default.
+CP retained all 3,316 baseline heads and their exact shapes, reassigning one hand;
+it added 142 heads (71 tails, 45 repeats, 16 ticks, 10 source head doubles), two
+staggered entries and no same-hand overlaps. Phrase support was also absent from
+this holdout. No gameplay changes were made in response to those results.
+
+The Release solution builds without warnings, and all 713 tests pass. Regression
+coverage includes source retention, protected jumps, offbeat supporting phrases,
+existing-double reuse, signed arcs beyond 180 degrees, node hitsounds, authentic
+reverse-span ticks, repeated motifs, cancellation, authored bypass, converter
+reuse and conversion-mod order. Saved converter-only benchmarks measured CP at
+roughly 2–2.5 times default conversion time on six maps (about 6–70 ms locally),
+excluding decode and difficulty calculation. These are local CPU measurements,
+not gameplay frame timings. Lazy motif analysis and indexed occupancy reduced
+work on passages where the experiment makes no change.
+
+### Counterpoint follow-up — hand roles and deliberate doubles
+
+The approved follow-up adds pulse/fill hand assignments for mixed flick/short-slider
+phrases, source-rhythm selection for additional attacks, and staggered phrases
+that can recall a nearby slider contour. It also merges directional doubles when
+at least half the narrower visible arc overlaps and preserves exact stacks through
+Parity. These are playable conversion changes, not audio stem separation.
+
+The final iteration-07 gameplay exports cover the 45-map development sample, six
+Featured Artist holdout maps, and five authored references. Plain CP preserves all
+38,243 baseline heads' kinds, times, durations and signed slider paths. There are
+43 hand-only changes and 236 head rotations, all attributable to the approved
+midpoint stack cleanup. All 4,912 protected jump heads are unchanged. Default and
+Encore outputs and stars are unchanged; Parity's preservation of existing stacks
+intentionally changes some PA outputs. Authored references remain identical in
+all eight tested mod combinations.
+
+Actual selection diagnostics show 12 rhythmic-voice arrangements across three
+maps, including Manic's 400 ms pulse with independently timed fills and short
+sliders. Five staggered phrases occur across three maps: Why do you hate me?,
+flying in the flow of deep-sea, and Exit This Earth's Atomosphere. The latter two
+change two existing hand assignments apiece as well as adding a second slider.
+The borrowed paths in the first map provide a different secondary contour while
+retaining its existing answering notes. These counts establish exercised behavior,
+not a numerical measure of musical quality.
+
+The cited Red Haze short tail additions are removed, while Flower Dance Normal's
+supported 600 ms clap-tail accents remain. Frums' 65.076351s release remains
+because it continues the preceding mapped pulse; its short gap after the pickup
+head is not by itself grounds for rejection. The unsupported 72.48034s release
+is removed. Existing note timing is never moved to make these responses fit.
+
+Release build: zero warnings/errors; 795 tests pass. The tests include pickup
+phase, supported/unsupported short tails, interval recovery, signed contours,
+reversal spacing, half-overlap boundaries, DA/EZ/HR visual widths, paired Parity
+history, and mod-order/reuse behavior. Local exports and analyses are
+`mapreference/counterpoint/iteration-07*` and `holdout-revision-07*`. The warmed
+six-map converter benchmark measured CP medians of 9–111 ms (2.2–3.5 times the
+base converter); this measures conversion work, not gameplay rendering. Pattern
+feel still needs playtesting, and the local sample does not represent every map.

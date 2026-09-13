@@ -9,6 +9,7 @@ using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Scoring;
+using osu.Game.Rulesets.Sticks.Skinning;
 using osuTK;
 using osuTK.Graphics;
 
@@ -27,7 +28,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const double FADE_DURATION = 600;
         internal const int MAX_DOTS = 32;
 
-        private readonly Circle[] dots = new Circle[MAX_DOTS];
+        private readonly SticksSkinnedSprite[] dots = new SticksSkinnedSprite[MAX_DOTS];
         private readonly double[] shownAt = new double[MAX_DOTS];
         private int nextDot;
         private readonly Dictionary<SticksAngleComponent, HitResult> pendingTimingResults = new Dictionary<SticksAngleComponent, HitResult>();
@@ -46,7 +47,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             for (int i = 0; i < dots.Length; i++)
             {
-                Add(dots[i] = new Circle
+                Add(dots[i] = new SticksSkinnedSprite("sticks-judgement", new Circle { RelativeSizeAxes = Axes.Both })
                 {
                     Origin = Anchor.Centre,
                     Size = new Vector2(DOT_DIAMETER),
@@ -67,8 +68,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 // Halos have no aim location. Use a stable side-specific point for timing feedback.
                 displayResult(click, result.Type switch
                 {
-                    HitResult.Good => HitResult.Ok,
-                    HitResult.Ok => HitResult.Meh,
+                    HitResult.Great => HitResult.Perfect,
                     _ => result.Type,
                 });
                 return;
@@ -114,7 +114,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 return;
 
             LastResult = result;
-            Circle dot = dots[nextDot];
+            SticksSkinnedSprite dot = dots[nextDot];
             // Keep both hands outside the ring, with the left hand slightly farther out
             // (matching its outer lane) so exact doubles cannot overwrite each other.
             dot.Position = SticksPlayfield.PointAt(source is SticksClick ? (source.Side == StickSide.Left ? 180 : 0) : source.Angle, DOT_RADIUS + (source.Side == StickSide.Left ? STICK_SEPARATION : 0));
@@ -132,7 +132,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             for (int i = 0; i < dots.Length; i++)
             {
-                Circle dot = dots[i];
+                SticksSkinnedSprite dot = dots[i];
                 if (dot.Alpha == 0)
                     continue;
 
@@ -145,7 +145,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public void ResetDisplay()
         {
-            foreach (Circle dot in dots)
+            foreach (SticksSkinnedSprite dot in dots)
                 dot.Alpha = 0;
 
             pendingTimingResults.Clear();

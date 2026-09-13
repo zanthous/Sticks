@@ -20,22 +20,22 @@ namespace osu.Game.Rulesets.Sticks.Scoring
             base.EnumerateHitObjects(beatmap).OrderBy(hitObject => hitObject.GetEndTime());
 
         protected override HitResult GetSimulatedHitResult(Judgement judgement) =>
-            judgement is SticksAngleJudgement ? HitResult.SmallTickHit : base.GetSimulatedHitResult(judgement);
+            judgement is SticksAngleJudgement or SticksClick.TimingWeightJudgement ? HitResult.SmallTickHit : base.GetSimulatedHitResult(judgement);
 
         // Timing and aim each own half of a 300-point head. SmallTickHit is the
-        // combo-neutral carrier used to reconstruct aim's maximum from saved statistics.
+        // combo-neutral carrier for the second half, including a click's repeated timing grade.
         public override int GetBaseScoreForResult(HitResult result) => result switch
         {
             HitResult.SmallTickHit => 150,
-            // Direction-free clicks use one full-weight timing result.
-            HitResult.Perfect => 300,
-            HitResult.Great or HitResult.Good or HitResult.Ok or HitResult.Meh => base.GetBaseScoreForResult(result) / 2,
+            HitResult.Great or HitResult.Ok or HitResult.Meh => base.GetBaseScoreForResult(result) / 2,
             _ => base.GetBaseScoreForResult(result),
         };
 
         protected override double GetComboScoreChange(JudgementResult result) => result.HitObject switch
         {
+            SticksClick.TimingWeight => 0,
             ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Angle } => 0,
+            SticksClick => 2 * base.GetComboScoreChange(result),
             // Timing owns the entire head's combo contribution, including aim's half.
             ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Timing } => 2 * base.GetComboScoreChange(result),
             _ => base.GetComboScoreChange(result),
@@ -45,7 +45,7 @@ namespace osu.Game.Rulesets.Sticks.Scoring
         {
             base.ApplyScoreChange(result);
 
-            if (!isAngleComponent(result) || !result.IsHit)
+            if (!isComboNeutralComponent(result) || !result.IsHit)
                 return;
 
             // The timing component owns this note's single combo increment. Accuracy still sees
@@ -59,7 +59,7 @@ namespace osu.Game.Rulesets.Sticks.Scoring
         {
             base.RemoveScoreChange(result);
 
-            if (!isAngleComponent(result) || !result.IsHit)
+            if (!isComboNeutralComponent(result) || !result.IsHit)
                 return;
 
             // ScoreProcessor performs its normal combo reversion before reaching this hook.
@@ -80,7 +80,7 @@ namespace osu.Game.Rulesets.Sticks.Scoring
                 : hitEvent;
         }
 
-        private static bool isAngleComponent(JudgementResult result) =>
-            result.HitObject is ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Angle };
+        private static bool isComboNeutralComponent(JudgementResult result) =>
+            result.HitObject is SticksClick.TimingWeight or ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Angle };
     }
 }

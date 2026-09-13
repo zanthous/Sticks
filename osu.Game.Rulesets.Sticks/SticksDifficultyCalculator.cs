@@ -177,12 +177,12 @@ namespace osu.Game.Rulesets.Sticks
 
         private static int maxComboFor(HitObject hitObject)
         {
-            bool isComboNeutralAngle = hitObject is ISticksAccuracyComponent
+            bool isComboNeutral = hitObject is SticksClick.TimingWeight or ISticksAccuracyComponent
             {
                 AccuracyComponent: SticksAccuracyComponent.Angle,
             };
 
-            int combo = !isComboNeutralAngle && hitObject.Judgement.MaxResult.AffectsCombo() ? 1 : 0;
+            int combo = !isComboNeutral && hitObject.Judgement.MaxResult.AffectsCombo() ? 1 : 0;
             return combo + maxComboFor(hitObject.NestedHitObjects);
         }
 

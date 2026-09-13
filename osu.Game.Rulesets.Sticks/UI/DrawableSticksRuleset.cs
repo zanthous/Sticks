@@ -45,6 +45,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly BindableBool hideInactiveCursors = new BindableBool();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly BindableBool showCursorTrails = new BindableBool();
+        private readonly BindableBool useSkinColours = new BindableBool(true);
         private readonly BindableBool saveReplays = new BindableBool(true);
         private readonly Bindable<Colour4> leftStickColour = new Bindable<Colour4>((Colour4)SticksPlayfield.LEFT_COLOUR);
         private readonly Bindable<Colour4> rightStickColour = new Bindable<Colour4>((Colour4)SticksPlayfield.RIGHT_COLOUR);
@@ -103,6 +104,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.ShowCursorTrails, showCursorTrails);
             showCursorTrails.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).ShowCursorTrails = enabled.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.UseSkinColours, useSkinColours);
+            useSkinColours.BindValueChanged(enabled =>
+                ((SticksPlayfield)Playfield).UseSkinColours = enabled.NewValue, true);
             Config.BindWith(SticksRulesetSetting.SaveReplays, saveReplays);
             Config.BindWith(SticksRulesetSetting.LeftStickColour, leftStickColour);
             Config.BindWith(SticksRulesetSetting.RightStickColour, rightStickColour);

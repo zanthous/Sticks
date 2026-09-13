@@ -52,9 +52,24 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.Angle = HitObject.Angle;
             marker.Span = HitObject.PrimaryHitAngle;
             marker.ApproachCircleEnabled = false;
-            marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
-
-            marker.Alpha = playfield.CenterOutPresentation ? 0 : 1;
+            bool centerOut = playfield.CenterOutPresentation;
+            marker.SkinCentreOnly = centerOut;
+            // A hidden optional marker still needs skin-change callbacks, otherwise adding
+            // a reversal image while this pooled marker is alive cannot make it visible.
+            marker.AlwaysPresent = centerOut;
+            if (centerOut)
+            {
+                float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
+                    Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
+                marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
+                bool sliderEnded = ParentHitObject is DrawableSticksSlider slider && Time.Current > slider.HitObject.EndTime;
+                marker.Alpha = marker.HasSkinCentre && radius > 0 && !sliderEnded ? 1 : 0;
+            }
+            else
+            {
+                marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
+                marker.Alpha = 1;
+            }
         }
 
         protected override double InitialLifetimeOffset => HitObject.PreemptDuration;

@@ -30,7 +30,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private readonly Box selectionMarker;
         private SticksArcMarker? head;
         private SticksSliderHeadMarker? sliderHead;
-        private CircularContainer? halo;
+        private SticksClickHalo? halo;
         private SticksRadialTimelinePath? body;
         private SticksPlayfield.SticksRibbonBuffer? bodyBuffer;
         private OsuSpriteText? detailText;
@@ -123,20 +123,15 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             {
                 if (halo == null)
                 {
-                    AddInternal(halo = new CircularContainer
+                    AddInternal(halo = new SticksClickHalo
                     {
                         Anchor = Anchor.TopLeft,
                         Origin = Anchor.Centre,
                         Position = SticksEditorCoordinates.Centre,
-                        Masking = true,
-                        Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
                     });
                 }
 
-                float thickness = Math.Min(5, displayedRadius);
-                halo.Size = new Vector2(displayedRadius * 2 + thickness);
-                halo.BorderThickness = thickness;
-                halo.BorderColour = colour;
+                halo.SetGeometry(displayedRadius, colour);
                 halo.Show();
                 head?.Hide();
                 sliderHead?.Hide();

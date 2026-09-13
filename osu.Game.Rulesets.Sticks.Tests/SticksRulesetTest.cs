@@ -65,8 +65,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(new SticksJudgement().MaxResult, Is.EqualTo(HitResult.Great));
                 Assert.That(new SticksRuleset().GetValidHitResults(), Is.EqualTo(new[]
                 {
-                    HitResult.Perfect,
-                    HitResult.Good,
                     HitResult.Great,
                     HitResult.Ok,
                     HitResult.Meh,

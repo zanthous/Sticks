@@ -10,5 +10,6 @@
     <PackageReference Include="NUnit" Version="4.5.1" />
     <PackageReference Include="NUnit3TestAdapter" Version="6.2.0" />
     <ProjectReference Include="..\osu.Game.Rulesets.Sticks\osu.Game.Rulesets.Sticks.csproj" />
+    <EmbeddedResource Include="..\Design\skin-example\Sticks Minimal.osk" LogicalName="osu.Game.Rulesets.Sticks.Tests.Resources.SticksMinimal.osk" />
   </ItemGroup>
 </Project>

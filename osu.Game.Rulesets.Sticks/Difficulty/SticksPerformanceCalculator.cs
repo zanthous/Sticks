@@ -239,12 +239,9 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
                 ResultCounts angle = countResults(events.Where(isAngleEvent));
                 ResultCounts aggregateHeads = resultCountsFromStatistics(score);
                 int maximumHeadWeight = score.MaximumStatistics.GetValueOrDefault(HitResult.Great)
-                                        + score.MaximumStatistics.GetValueOrDefault(HitResult.SmallTickHit)
-                                        + 2 * score.MaximumStatistics.GetValueOrDefault(HitResult.Perfect);
+                                        + score.MaximumStatistics.GetValueOrDefault(HitResult.SmallTickHit);
                 double fallbackHeadAccuracy = maximumHeadWeight > 0
-                    ? Math.Clamp((resultCount(score, HitResult.Perfect) * 600.0
-                                  + resultCount(score, HitResult.Great) * 300.0
-                                  + resultCount(score, HitResult.Good) * 200.0
+                    ? Math.Clamp((resultCount(score, HitResult.Great) * 300.0
                                   + resultCount(score, HitResult.Ok) * 100.0
                                   + resultCount(score, HitResult.Meh) * 50.0) / (maximumHeadWeight * 300.0), 0, 1)
                     : aggregateHeads.Total > 0 ? aggregateHeads.Accuracy : Math.Clamp(score.Accuracy, 0, 1);
@@ -366,7 +363,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
 
                 foreach (HitEvent hitEvent in events)
                 {
-                    HitResult grade = hitEvent.HitObject is SticksClick ? SticksClick.TimingGrade(hitEvent.Result) : hitEvent.Result;
+                    HitResult grade = hitEvent.Result;
                     switch (grade)
                     {
                         case HitResult.Great:
@@ -392,8 +389,8 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
 
             private static ResultCounts resultCountsFromStatistics(ScoreInfo score) => new ResultCounts
             {
-                Great = resultCount(score, HitResult.Great) + 2 * resultCount(score, HitResult.Perfect),
-                Ok = resultCount(score, HitResult.Ok) + 2 * resultCount(score, HitResult.Good),
+                Great = resultCount(score, HitResult.Great),
+                Ok = resultCount(score, HitResult.Ok),
                 Meh = resultCount(score, HitResult.Meh),
                 Miss = resultCount(score, HitResult.Miss),
             };

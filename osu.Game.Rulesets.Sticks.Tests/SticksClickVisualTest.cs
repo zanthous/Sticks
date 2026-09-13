@@ -14,6 +14,7 @@ using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
+using osu.Game.Rulesets.Sticks.Skinning;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Tests.Visual;
 using osuTK;
@@ -65,8 +66,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
                         if (progress == 1)
                         {
-                            CircularContainer guide = drawable.Playfield.ChildrenOfType<CircularContainer>()
-                                .Single(c => c.Parent == drawable.Playfield && c.BorderThickness == 2);
+                            CircularContainer guide = drawable.Playfield.ChildrenOfType<SticksSkinnedSprite>()
+                                .Single(s => s.Name == "sticks-playfield").ChildrenOfType<CircularContainer>().Single();
                             float guideRadius = (guide.DrawWidth - guide.BorderThickness) / 2;
                             Assert.That(guideRadius, Is.EqualTo(haloRadius).Within(0.001), "Guide and note stroke centres coincide at hit time");
                         }

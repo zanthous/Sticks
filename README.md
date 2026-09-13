@@ -49,6 +49,13 @@ The **Conversion** category contains **Difficulty Adjust**, **Parity** and **Enc
 
 Both conversion mods preserve authored Sticks maps. Simultaneous opposite-stick directional heads align to their circular midpoint when their visible arcs overlap by at least half of the narrower arc. These doubles render at exactly the same angle, and intentional exact stacks survive Parity. In Center Out, exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
 
+## Skins
+
+Sticks supports custom playfield artwork, cursors and cursor trails, note-centre and
+reversal markers, double-note collars, click halos, judgement dots and stick colours.
+Missing assets use the built-in visuals. Gameplay and editor previews use the same skin.
+See the [asset guide and importable example skin](Design/skinning.md).
+
 ## Build and install
 
 Requirements for the default local build are the .NET 8 SDK and ruleset API 2026.730.0. Published releases provide separately named DLLs for the supported stable lazer and Tachyon versions; install the DLL matching the osu! version you use.

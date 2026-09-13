@@ -11,7 +11,10 @@ using osu.Framework.Graphics.Shaders;
 using osu.Framework.Graphics.Shaders.Types;
 using osu.Framework.Graphics.Textures;
 using osu.Framework.Graphics.Visualisation;
+using osu.Framework.Threading;
 using osu.Framework.Timing;
+using osu.Game.Rulesets.Sticks.Skinning;
+using osu.Game.Skinning;
 using osuTK;
 using osuTK.Graphics;
 using osuTK.Graphics.ES30;
@@ -31,20 +34,31 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly TrailPart[] parts = new TrailPart[max_parts];
         private readonly string textureName;
+        private readonly string skinTextureName;
         private int currentIndex;
         private IShader authoredShader;
         private IShader tintedShader;
         private IShader shader;
         private Texture texture;
+        private Texture builtInTexture;
         private Vector2 partScale = Vector2.One;
         private Vector2? lastPosition;
         private double timeOffset;
         private float time;
         private bool preserveAuthoredColour = true;
+        private Color4 paletteColour = Color4.White;
+        private ScheduledDelegate pendingSkinChange;
+        private bool disposed;
 
-        public SticksCursorTrail(string textureName)
+        [Resolved(canBeNull: true)]
+        private ISkinSource skinSource { get; set; }
+
+        public bool UsesSkinTexture { get; private set; }
+
+        public SticksCursorTrail(string textureName, string skinTextureName = null)
         {
             this.textureName = textureName;
+            this.skinTextureName = skinTextureName;
             Clock = new FramedClock();
             Size = new Vector2(SticksPlayfield.SIZE);
             Colour = Color4.White;
@@ -59,10 +73,10 @@ namespace osu.Game.Rulesets.Sticks.UI
         [BackgroundDependencyLoader]
         private void load(IRenderer renderer, ShaderManager shaders, TextureStore textures)
         {
-            texture = textures.Get(textureName) ?? renderer.WhitePixel;
+            texture = builtInTexture = textures.Get(textureName) ?? renderer.WhitePixel;
             authoredShader = shaders.Load(@"CursorTrail", FragmentShaderDescriptor.TEXTURE);
             tintedShader = shaders.Load(@"CursorTrail", @"SticksCursorTrail");
-            shader = preserveAuthoredColour ? authoredShader : tintedShader;
+            updateAppearance();
             partScale = Vector2.One;
         }
 
@@ -72,19 +86,58 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// </summary>
         public void SetPaletteColour(Color4 colour, bool preserveAuthored)
         {
+            paletteColour = colour;
             preserveAuthoredColour = preserveAuthored;
-            Colour = preserveAuthored ? Color4.White : colour;
-
-            if (authoredShader != null && tintedShader != null)
-                shader = preserveAuthored ? authoredShader : tintedShader;
-
-            Invalidate(Invalidation.DrawNode);
+            updateAppearance();
         }
 
         protected override void LoadComplete()
         {
             base.LoadComplete();
             resetTime();
+
+            if (skinSource != null)
+                skinSource.SourceChanged += skinChanged;
+            refreshSkin();
+        }
+
+        private void skinChanged()
+        {
+            if (disposed)
+                return;
+
+            pendingSkinChange?.Cancel();
+            pendingSkinChange = Schedule(refreshSkin);
+        }
+
+        private void refreshSkin()
+        {
+            pendingSkinChange = null;
+            if (disposed)
+                return;
+
+            Texture custom = SticksSkinTextureLookup.Get(skinSource, skinTextureName);
+            UsesSkinTexture = custom != null;
+            texture = custom ?? builtInTexture;
+            updateAppearance();
+            Reset();
+        }
+
+        private void updateAppearance()
+        {
+            if (UsesSkinTexture)
+            {
+                // Custom artwork keeps its authored colours.
+                Colour = Color4.White;
+                shader = authoredShader;
+            }
+            else
+            {
+                Colour = preserveAuthoredColour ? Color4.White : paletteColour;
+                shader = preserveAuthoredColour ? authoredShader : tintedShader;
+            }
+
+            Invalidate(Invalidation.DrawNode);
         }
 
         public override bool IsPresent => true;
@@ -173,6 +226,18 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
 
         protected override DrawNode CreateDrawNode() => new TrailDrawNode(this);
+
+        protected override void Dispose(bool isDisposing)
+        {
+            disposed = true;
+            pendingSkinChange?.Cancel();
+            pendingSkinChange = null;
+            if (skinSource != null)
+                skinSource.SourceChanged -= skinChanged;
+
+            // Textures belong to the skin or game texture stores, not this drawable.
+            base.Dispose(isDisposing);
+        }
 
         private struct TrailPart
         {

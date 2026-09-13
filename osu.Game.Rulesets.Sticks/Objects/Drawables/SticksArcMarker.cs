@@ -7,6 +7,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Utils;
 using osu.Game.Rulesets.Sticks.Configuration;
+using osu.Game.Rulesets.Sticks.Skinning;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -21,6 +22,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         internal const float APPROACH_CIRCLE_INITIAL_SCALE = 4;
         internal const float BOX_OUTLINE_HALF_THICKNESS = 7;
         internal const float BOX_FILL_HALF_THICKNESS = 4.5f;
+        internal const float SKIN_CENTRE_DIAMETER = 22;
         private static readonly Color4 box_empty_colour = new Color4(0.035f, 0.035f, 0.045f, 1);
         private StickSide side;
         private readonly SmoothPath arc;
@@ -30,6 +32,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SmoothPath leadingCap;
         private readonly SmoothPath trailingCap;
         private readonly SmoothPath centerTick;
+        private readonly SticksSkinnedSprite skinCentre;
         private readonly Container hitCircle;
         private readonly Circle hitCircleBody;
         private readonly CircularContainer hitCircleRing;
@@ -201,8 +204,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 centerTick = createCap(Color4.White, cap_half_length * 0.65f),
                 approachCircle = createApproachCircle(colour),
                 hitCircle = createHitCircle(colour, out hitCircleBody, out hitCircleRing),
+                skinCentre = new SticksSkinnedSprite("sticks-note-centre")
+                {
+                    Origin = Anchor.Centre,
+                    TextureColour = colour,
+                    Alpha = 0,
+                },
             });
 
+            skinCentre.OnSkinChanged += updatePresentation;
             Span = SticksHitObject.VISIBLE_ARC_SPAN;
         }
 
@@ -233,6 +243,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             trailingCap.Colour = colour;
             approachCircle.BorderColour = colour;
             hitCircleBody.Colour = colour;
+            skinCentre.TextureColour = colour;
             updateGeometry();
         }
 
@@ -258,6 +269,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             positionCap(leadingCap, radius, -span / 2);
             positionCap(trailingCap, radius, span / 2);
             positionCap(centerTick, radius, 0);
+            skinCentre.Position = SticksPlayfield.PointAt(0, radius);
+            skinCentre.Size = SkinCentreSizeAt(radius, span);
 
             if (presentation == SticksNotePresentation.ApproachCircles)
             {
@@ -275,7 +288,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool showBrackets = !showApproachTarget && !showBox;
             leadingCap.Alpha = showBrackets ? 1 : 0;
             trailingCap.Alpha = showBrackets ? 1 : 0;
-            centerTick.Alpha = showBrackets || showBox ? 1 : 0;
+            bool showSkinCentre = presentation == SticksNotePresentation.CenterOut && skinCentre.UsesSkinTexture;
+            centerTick.Alpha = (showBrackets || showBox) && !showSkinCentre ? 1 : 0;
+            skinCentre.Alpha = showSkinCentre ? 1 : 0;
             hitCircle.Alpha = showApproachTarget ? 1 : 0;
             approachCircle.Alpha = showApproachTarget && approachCircleEnabled ? approachAlpha : 0;
 
@@ -317,6 +332,19 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             finalSpan * (presentation is SticksNotePresentation.ApproachCircles or SticksNotePresentation.FillingArcs or SticksNotePresentation.CenterOut
                 ? 1
                 : (float)(0.2 + growth * 0.8));
+
+        internal static Vector2 SkinCentreSizeAt(float radius, float angularSpan)
+        {
+            // The mask decorates the aiming point; the procedural caps still define the
+            // complete hit window. Keep decoration inside that window during approach.
+            float halfAngle = Math.Clamp(angularSpan, 0, 180) * MathF.PI / 360;
+            float sin = MathF.Sin(halfAngle);
+            float cos = MathF.Max(0, MathF.Cos(halfAngle));
+            // The inner corners are nearer the origin than the centreline. Bound the
+            // whole square by the sector, including when the direction rotates it 90°.
+            float availableWidth = 2 * Math.Max(0, radius) * sin / MathF.Max(1e-6f, sin + cos);
+            return new Vector2(Math.Clamp(availableWidth, 0, SKIN_CENTRE_DIAMETER));
+        }
 
         private static SmoothPath createArc(Color4 colour, float alpha) => new SmoothPath
         {

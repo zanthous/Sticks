@@ -67,14 +67,38 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddAssert("right hand untouched", () => !right.Judged);
             AddStep("press left stick while shoulder stays held", () => input.Update(Vector2.Zero, Vector2.Zero, leftShoulder: true, leftStickButton: true));
             AddUntilStep("left click judged", () => left.Judged);
-            AddAssert("left timing is perfect without aim", () => left.Result.Type == HitResult.Perfect);
+            AddAssert("left timing is perfect without aim", () => left.Result.Type == HitResult.Great);
             AddAssert("remaining halo is red", () => right.ChildrenOfType<CircularContainer>().Single().BorderColour.AverageColour == playfield.ColourFor(StickSide.Right));
             AddStep("press right trigger", () => input.Update(Vector2.Zero, Vector2.Zero, rightTrigger: true, leftShoulder: true, leftStickButton: true));
             AddWaitStep("process trigger", 2);
             AddAssert("trigger follows strum restriction", () => right.Judged == !strum);
             AddStep("press right stick", () => input.Update(Vector2.Zero, Vector2.Zero, rightTrigger: true, rightStickButton: true));
             AddUntilStep("right click judged", () => right.Judged);
-            AddAssert("right timing is perfect without aim", () => right.Result.Type == HitResult.Perfect);
+            AddAssert("right timing is perfect without aim", () => right.Result.Type == HitResult.Great);
+            AddAssert("both scoring halves follow the click", () =>
+                drawable.ChildrenOfType<osu.Game.Rulesets.Objects.Drawables.DrawableHitObject>()
+                        .Where(d => d.HitObject is SticksClick.TimingWeight)
+                        .All(d => d.Result.Type == HitResult.Great));
+            AddStep("rewind before clicks", () =>
+            {
+                input.Update(Vector2.Zero, Vector2.Zero);
+                manual.CurrentTime = 500;
+                clock.ProcessFrame();
+            });
+            AddUntilStep("clicks and weights reset", () =>
+                drawable.ChildrenOfType<osu.Game.Rulesets.Objects.Drawables.DrawableHitObject>()
+                        .Where(d => d.HitObject is SticksClick or SticksClick.TimingWeight)
+                        .All(d => !d.Judged));
+            AddStep("relax at click time", () =>
+            {
+                playfield.RelaxMode = true;
+                manual.CurrentTime = 1000;
+                clock.ProcessFrame();
+            });
+            AddUntilStep("relax resolves both halves", () =>
+                drawable.ChildrenOfType<osu.Game.Rulesets.Objects.Drawables.DrawableHitObject>()
+                        .Where(d => d.HitObject is SticksClick or SticksClick.TimingWeight)
+                        .All(d => d.Result.Type == HitResult.Great));
         }
     }
 }

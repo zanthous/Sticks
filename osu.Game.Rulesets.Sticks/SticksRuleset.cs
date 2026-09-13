@@ -144,8 +144,6 @@ namespace osu.Game.Rulesets.Sticks
 
         public override IEnumerable<HitResult> GetValidHitResults() => new[]
         {
-            HitResult.Perfect,
-            HitResult.Good,
             HitResult.Great,
             HitResult.Ok,
             HitResult.Meh,

@@ -36,6 +36,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
             SetDefault(SticksRulesetSetting.ShowCursorTrails, false);
+            SetDefault(SticksRulesetSetting.UseSkinColours, true);
             SetDefault(SticksRulesetSetting.DisableBeatmapHitsounds, false);
             SetDefault(SticksRulesetSetting.SaveReplays, true);
             SetDefault(SticksRulesetSetting.LeftStickColour, (Colour4)SticksPlayfield.LEFT_COLOUR);
@@ -156,6 +157,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         LeftStickColour,
         RightStickColour,
         OverlapColour,
+        UseSkinColours,
     }
 
     public enum SticksChordLinkPresentation

@@ -8,6 +8,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Utils;
 using osu.Game.Rulesets.Sticks.Configuration;
+using osu.Game.Rulesets.Sticks.Skinning;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 using osuTK.Graphics;
@@ -36,6 +37,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly SmoothPath leadingCap;
         private readonly SmoothPath trailingCap;
         private readonly SmoothPath centerTick;
+        private readonly SticksSkinnedSprite skinCentre;
         private readonly CircularContainer approachCircle;
         private readonly Circle colourPlate;
         private readonly SpriteIcon directionArrow;
@@ -49,6 +51,22 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private float radialOffset;
         private float targetRadialOffset;
         private bool radialOffsetInitialised;
+        private bool skinCentreOnly;
+
+        internal bool HasSkinCentre => skinCentre.UsesSkinTexture;
+
+        internal bool SkinCentreOnly
+        {
+            get => skinCentreOnly;
+            set
+            {
+                if (skinCentreOnly == value)
+                    return;
+
+                skinCentreOnly = value;
+                updateCapVisibility();
+            }
+        }
 
         public float RadialOffset
         {
@@ -222,8 +240,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     Rotation = this.direction * 90,
                     Shadow = true,
                 },
+                skinCentre = new SticksSkinnedSprite(centreTextureName)
+                {
+                    Origin = Anchor.Centre,
+                    TextureColour = colour,
+                    Rotation = this.direction * 90,
+                    Alpha = 0,
+                },
             });
 
+            skinCentre.OnSkinChanged += updateCapVisibility;
             Span = SticksHitObject.VISIBLE_ARC_SPAN;
         }
 
@@ -256,8 +282,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             approachCircle.BorderColour = colour;
             colourPlate.Colour = colour;
             directionArrow.Rotation = direction * 90;
+            skinCentre.TextureName = centreTextureName;
+            skinCentre.TextureColour = colour;
+            skinCentre.Rotation = direction * 90;
             updateGeometry();
         }
+
+        private string centreTextureName => direction == 0 ? "sticks-note-centre"
+            : reversalStyle ? "sticks-slider-reversal" : "sticks-slider-head";
 
         private void updateGeometry()
         {
@@ -293,6 +325,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             }
 
             positionCap(centerTick, radius, 0);
+            skinCentre.Position = SticksPlayfield.PointAt(0, radius);
+            skinCentre.Size = SticksArcMarker.SkinCentreSizeAt(radius, span);
 
             updateCapVisibility();
 
@@ -327,19 +361,23 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             bool showBox = presentation == SticksNotePresentation.FillingArcs;
             bool showPlainCenterOutHead = presentation == SticksNotePresentation.CenterOut;
-            bool showCaps = presentation != SticksNotePresentation.ApproachCircles && !showBox;
+            bool onlySkinCentre = showPlainCenterOutHead && skinCentreOnly;
+            bool showCaps = presentation != SticksNotePresentation.ApproachCircles && !showBox && !onlySkinCentre;
             leadingCap.Alpha = showCaps ? 1 : 0;
             trailingCap.Alpha = showCaps && !reversalStyle ? 1 : 0;
             bool stationary = direction == 0;
-            centerTick.Alpha = showPlainCenterOutHead || (stationary && presentation != SticksNotePresentation.ApproachCircles) ? 1 : 0;
+            bool showSkinCentre = showPlainCenterOutHead && skinCentre.UsesSkinTexture;
+            centerTick.Alpha = (showPlainCenterOutHead || (stationary && presentation != SticksNotePresentation.ApproachCircles))
+                               && !showSkinCentre && !onlySkinCentre ? 1 : 0;
+            skinCentre.Alpha = showSkinCentre ? 1 : 0;
             colourPlate.Alpha = showPlainCenterOutHead || (stationary && presentation != SticksNotePresentation.ApproachCircles) ? 0 : 1;
             directionArrow.Alpha = showPlainCenterOutHead || stationary ? 0 : 1;
 
             bool fullyOpaqueArc = showBox || showPlainCenterOutHead;
             if (widthArc != null)
-                widthArc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
+                widthArc.Alpha = onlySkinCentre ? 0 : fullyOpaqueArc ? 1 : 0.72f;
             if (animatedWidthArc != null)
-                animatedWidthArc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
+                animatedWidthArc.Alpha = onlySkinCentre ? 0 : fullyOpaqueArc ? 1 : 0.72f;
             if (boxInteriorArc != null)
             {
                 boxInteriorArc.Alpha = showBox ? 1 : 0;

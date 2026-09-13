@@ -6,7 +6,6 @@ using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Effects;
 using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Shaders;
@@ -22,7 +21,9 @@ using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.Sticks.Configuration;
+using osu.Game.Rulesets.Sticks.Skinning;
 using osu.Game.Rulesets.UI;
+using osu.Game.Skinning;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Play;
 using osuTK;
@@ -52,10 +53,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         public static readonly Color4 RIGHT_COLOUR = SticksHitObject.RIGHT_DISPLAY_COLOUR;
         public static readonly Color4 OVERLAP_COLOUR = Color4Extensions.FromHex("C05CFF");
 
-        private readonly CircularContainer leftCursor;
-        private readonly CircularContainer rightCursor;
-        private readonly Box leftCursorFill;
-        private readonly Box rightCursorFill;
+        private readonly SticksStickCursor leftCursor;
+        private readonly SticksStickCursor rightCursor;
         private readonly SticksCursorTrail leftTrail;
         private readonly SticksCursorTrail rightTrail;
         private readonly SmoothPath leftRelaxDirectionLine;
@@ -105,6 +104,26 @@ namespace osu.Game.Rulesets.Sticks.UI
         private Color4 leftColour = LEFT_COLOUR;
         private Color4 rightColour = RIGHT_COLOUR;
         private Color4 overlapColour = OVERLAP_COLOUR;
+        private Color4 configuredLeftColour = LEFT_COLOUR;
+        private Color4 configuredRightColour = RIGHT_COLOUR;
+        private Color4 configuredOverlapColour = OVERLAP_COLOUR;
+        private Color4? skinLeftColour;
+        private Color4? skinRightColour;
+        private Color4? skinOverlapColour;
+        private bool useSkinColours = true;
+
+        public bool UseSkinColours
+        {
+            get => useSkinColours;
+            set
+            {
+                if (useSkinColours == value)
+                    return;
+
+                useSkinColours = value;
+                applyColours();
+            }
+        }
 
         [Resolved(CanBeNull = true)]
         private EditorClock editorClock { get; set; }
@@ -232,9 +251,25 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public void SetColours(Color4 left, Color4 right, Color4 overlap)
         {
-            left = left.Opacity(1f);
-            right = right.Opacity(1f);
-            overlap = overlap.Opacity(1f);
+            configuredLeftColour = left.Opacity(1f);
+            configuredRightColour = right.Opacity(1f);
+            configuredOverlapColour = overlap.Opacity(1f);
+            applyColours();
+        }
+
+        private void skinChanged(ISkinSource skin)
+        {
+            skinLeftColour = skin?.GetConfig<SkinCustomColourLookup, Color4>(new SkinCustomColourLookup("SticksLeft"))?.Value;
+            skinRightColour = skin?.GetConfig<SkinCustomColourLookup, Color4>(new SkinCustomColourLookup("SticksRight"))?.Value;
+            skinOverlapColour = skin?.GetConfig<SkinCustomColourLookup, Color4>(new SkinCustomColourLookup("SticksOverlap"))?.Value;
+            applyColours();
+        }
+
+        private void applyColours()
+        {
+            Color4 left = (useSkinColours ? skinLeftColour ?? configuredLeftColour : configuredLeftColour).Opacity(1f);
+            Color4 right = (useSkinColours ? skinRightColour ?? configuredRightColour : configuredRightColour).Opacity(1f);
+            Color4 overlap = (useSkinColours ? skinOverlapColour ?? configuredOverlapColour : configuredOverlapColour).Opacity(1f);
 
             if (leftColour == left && rightColour == right && overlapColour == overlap)
                 return;
@@ -244,8 +279,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             overlapColour = overlap;
             ColourVersion++;
 
-            leftCursorFill.Colour = leftColour;
-            rightCursorFill.Colour = rightColour;
+            leftCursor.SetPaletteColour(leftColour);
+            rightCursor.SetPaletteColour(rightColour);
             leftTrail.SetPaletteColour(leftColour, coloursMatchAtSettingsPrecision(leftColour, LEFT_COLOUR));
             rightTrail.SetPaletteColour(rightColour, coloursMatchAtSettingsPrecision(rightColour, RIGHT_COLOUR));
             leftRelaxDirectionLine.Colour = leftColour;
@@ -297,7 +332,16 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             AddRangeInternal(new Drawable[]
             {
-                ring(GUIDE_RADIUS, Color4.White.Opacity(0.55f)),
+                new SticksSkinnedSprite("sticks-playfield-background")
+                {
+                    Size = new Vector2(SIZE),
+                    Depth = 30,
+                },
+                new SticksSkinnedSprite("sticks-playfield", ring(GUIDE_RADIUS, Color4.White.Opacity(0.55f)))
+                {
+                    Size = new Vector2(SIZE),
+                },
+                new PlayfieldSkinObserver(skinChanged),
                 leftRelaxDirectionLine = relaxDirectionLine(LEFT_COLOUR),
                 rightRelaxDirectionLine = relaxDirectionLine(RIGHT_COLOUR),
                 radialPathBuffer = new SticksRibbonBuffer()
@@ -321,11 +365,13 @@ namespace osu.Game.Rulesets.Sticks.UI
                 noteOverlapLayer = new SticksCenterOutNoteOverlapLayer(this),
                 contactBurstLayer = new SticksContactBurstLayer(),
                 judgementDisplay = new SticksJudgementDisplay(),
-                leftTrail = new SticksCursorTrail("Cursors/blue"),
-                rightTrail = new SticksCursorTrail("Cursors/red"),
-                leftCursor = cursor(LEFT_COLOUR, out leftCursorFill),
-                rightCursor = cursor(RIGHT_COLOUR, out rightCursorFill),
+                leftTrail = new SticksCursorTrail("Cursors/blue", "sticks-cursortrail-left"),
+                rightTrail = new SticksCursorTrail("Cursors/red", "sticks-cursortrail-right"),
+                leftCursor = new SticksStickCursor(StickSide.Left, LEFT_COLOUR),
+                rightCursor = new SticksStickCursor(StickSide.Right, RIGHT_COLOUR),
             });
+            leftTrail.SetPaletteColour(leftColour, preserveAuthored: true);
+            rightTrail.SetPaletteColour(rightColour, preserveAuthored: true);
             updateRadialPresentationMode();
         }
 
@@ -1151,33 +1197,17 @@ namespace osu.Game.Rulesets.Sticks.UI
             Depth = 10,
         };
 
-        private static CircularContainer cursor(Color4 colour, out Box fill)
+        private sealed partial class PlayfieldSkinObserver : SticksSkinReloadableDrawable
         {
-            fill = new Box
-            {
-                RelativeSizeAxes = Axes.Both,
-                Colour = colour,
-            };
+            private readonly Action<ISkinSource> changed;
 
-            return new CircularContainer
+            public PlayfieldSkinObserver(Action<ISkinSource> changed)
             {
-            Anchor = Anchor.TopLeft,
-            Origin = Anchor.Centre,
-            Size = new Vector2(24),
-            Masking = true,
-            BorderThickness = 3,
-            BorderColour = Color4.White,
-            EdgeEffect = new EdgeEffectParameters
-            {
-                Type = EdgeEffectType.Shadow,
-                Colour = Color4.Black.Opacity(0.7f),
-                Offset = new Vector2(0, 3),
-                Radius = 5,
-                Hollow = true,
-            },
-            Depth = -20,
-                Child = fill,
-            };
+                this.changed = changed;
+                AlwaysPresent = true;
+            }
+
+            protected override void SkinChanged(ISkinSource skin) => changed(skin);
         }
 
         private static SticksHitObject headHitObjectFor(DrawableHitObject drawable) => drawable switch

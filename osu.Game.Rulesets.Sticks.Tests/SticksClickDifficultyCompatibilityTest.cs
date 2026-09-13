@@ -20,37 +20,36 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [TestCase(0, 79.5, 139.5, 199.5)]
         [TestCase(5, 49.5, 99.5, 149.5)]
         [TestCase(10, 19.5, 59.5, 99.5)]
-        public void GreatLookupPreservesClickTimingAndGrades(double difficulty, double perfect, double good, double ok)
+        public void GreatLookupPreservesClickTimingAndGrades(double difficulty, double great, double ok, double meh)
         {
-            var windows = new SticksClickHitWindows();
+            var windows = new SticksHitWindows();
             windows.SetDifficulty(difficulty);
             var scoreProcessor = new SticksScoreProcessor(new SticksRuleset());
 
             Assert.Multiple(() =>
             {
-                Assert.That(windows.WindowFor(HitResult.Great), Is.EqualTo(perfect));
-                Assert.That(windows.IsHitResultAllowed(HitResult.Great), Is.False);
+                Assert.That(windows.IsHitResultAllowed(HitResult.Great), Is.True);
                 Assert.That(windows.GetAllAvailableWindows().Select(window => window.result),
-                    Is.EquivalentTo(new[] { HitResult.Perfect, HitResult.Good, HitResult.Ok, HitResult.Miss }));
-                Assert.That(windows.WindowFor(HitResult.Perfect), Is.EqualTo(perfect));
-                Assert.That(windows.WindowFor(HitResult.Good), Is.EqualTo(good));
+                    Is.EquivalentTo(new[] { HitResult.Great, HitResult.Ok, HitResult.Meh, HitResult.Miss }));
+                Assert.That(windows.WindowFor(HitResult.Great), Is.EqualTo(great));
                 Assert.That(windows.WindowFor(HitResult.Ok), Is.EqualTo(ok));
+                Assert.That(windows.WindowFor(HitResult.Meh), Is.EqualTo(meh));
                 Assert.That(windows.WindowFor(HitResult.Miss), Is.EqualTo(400));
             });
 
             foreach (int sign in new[] { -1, 1 })
             {
-                Assert.That(windows.ResultFor(sign * perfect), Is.EqualTo(HitResult.Perfect));
-                Assert.That(windows.ResultFor(sign * (perfect + 0.001)), Is.EqualTo(HitResult.Good));
-                Assert.That(windows.ResultFor(sign * good), Is.EqualTo(HitResult.Good));
-                Assert.That(windows.ResultFor(sign * (good + 0.001)), Is.EqualTo(HitResult.Ok));
+                Assert.That(windows.ResultFor(sign * great), Is.EqualTo(HitResult.Great));
+                Assert.That(windows.ResultFor(sign * (great + 0.001)), Is.EqualTo(HitResult.Ok));
                 Assert.That(windows.ResultFor(sign * ok), Is.EqualTo(HitResult.Ok));
-                Assert.That(windows.ResultFor(sign * (ok + 0.001)), Is.EqualTo(HitResult.Miss));
+                Assert.That(windows.ResultFor(sign * (ok + 0.001)), Is.EqualTo(HitResult.Meh));
+                Assert.That(windows.ResultFor(sign * meh), Is.EqualTo(HitResult.Meh));
+                Assert.That(windows.ResultFor(sign * (meh + 0.001)), Is.EqualTo(HitResult.Miss));
             }
 
-            Assert.That(scoreProcessor.GetBaseScoreForResult(HitResult.Perfect), Is.EqualTo(300));
-            Assert.That(scoreProcessor.GetBaseScoreForResult(HitResult.Good), Is.EqualTo(100));
+            Assert.That(scoreProcessor.GetBaseScoreForResult(HitResult.Great), Is.EqualTo(150));
             Assert.That(scoreProcessor.GetBaseScoreForResult(HitResult.Ok), Is.EqualTo(50));
+            Assert.That(scoreProcessor.GetBaseScoreForResult(HitResult.Meh), Is.EqualTo(25));
         }
 
         [TestCase(1)]
@@ -60,11 +59,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var click = new SticksClick { StartTime = 1000 };
             click.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty { OverallDifficulty = 5 });
 
-            // The base constructor requests Great even though clicks award Perfect for their best grade.
+            // The upstream preprocessor reads the same Great window used in gameplay.
             var difficultyObject = new DifficultyHitObject(click, click, clockRate, new List<DifficultyHitObject>(), 0);
 
             Assert.That(difficultyObject.HitWindowGreat,
-                Is.EqualTo(2 * click.HitWindows.WindowFor(HitResult.Perfect) / clockRate));
+                Is.EqualTo(2 * click.HitWindows.WindowFor(HitResult.Great) / clockRate));
         }
 
         [TestCase(false, false)]

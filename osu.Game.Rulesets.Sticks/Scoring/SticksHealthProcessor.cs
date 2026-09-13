@@ -34,10 +34,12 @@ namespace osu.Game.Rulesets.Sticks.Scoring
 
         protected override double GetHealthIncreaseFor(JudgementResult result)
         {
+            if (result.HitObject is SticksClick.TimingWeight)
+                return 0;
+
             double increase;
 
-            HitResult grade = result.HitObject is SticksClick ? SticksClick.TimingGrade(result.Type) : result.Type;
-            switch (grade)
+            switch (result.Type)
             {
                 case HitResult.LargeTickMiss:
                     increase = IBeatmapDifficultyInfo.DifficultyRange(Beatmap.Difficulty.DrainRate, -0.02, -0.075, -0.14);

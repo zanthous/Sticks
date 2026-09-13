@@ -239,6 +239,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 arc.Colour = colour;
                 leadingCap.Colour = colour;
                 trailingCap.Colour = colour;
+                collar.TextureColour = colour;
             }
 
             public void SetGeometry(

@@ -47,10 +47,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(input.Update(true, true, true, false), Is.True, "Held L1/L2 must not swallow L3.");
         }
 
-        [TestCase(0, HitResult.Perfect, 300)]
-        [TestCase(75, HitResult.Good, 100)]
-        [TestCase(-75, HitResult.Good, 100)]
-        [TestCase(125, HitResult.Ok, 50)]
+        [TestCase(0, HitResult.Great, 300)]
+        [TestCase(75, HitResult.Ok, 100)]
+        [TestCase(-75, HitResult.Ok, 100)]
+        [TestCase(125, HitResult.Meh, 50)]
         [TestCase(160, HitResult.Miss, 0)]
         public void TimingGradesHaveFullNoteWeight(double offset, HitResult expected, int points)
         {
@@ -60,14 +60,26 @@ namespace osu.Game.Rulesets.Sticks.Tests
             processor.ApplyBeatmap(beatmap);
             HitResult grade = click.HitWindows.ResultFor(offset);
             Assert.That(grade, Is.EqualTo(expected));
-            Assert.That(click.NestedHitObjects, Is.Empty, "Click notes must have no aim judgement.");
+            Assert.That(click.NestedHitObjects.OfType<SticksAngleComponent>(), Is.Empty, "Click notes must have no aim judgement.");
+            var weight = click.NestedHitObjects.Single();
+            var weightResult = new JudgementResult(weight, weight.Judgement) { Type = grade };
             var result = new JudgementResult(click, click.Judgement) { Type = grade };
             processor.ApplyResult(result);
-            Assert.That(processor.GetBaseScoreForResult(grade), Is.EqualTo(points));
+            processor.ApplyResult(weightResult);
+            Assert.That(processor.GetScoreProcessorStatistics().BaseScore, Is.EqualTo(points));
             Assert.That(processor.Accuracy.Value, Is.EqualTo(points / 300.0).Within(0.000001));
             Assert.That(processor.Combo.Value, Is.EqualTo(points > 0 ? 1 : 0));
+            var score = new ScoreInfo();
+            processor.PopulateScore(score);
+            Assert.That(StandardisedScoreMigrationTools.ComputeAccuracy(score, processor), Is.EqualTo(points / 300.0).Within(0.000001));
+            Assert.That(score.Statistics.GetValueOrDefault(expected), Is.EqualTo(2));
+            Assert.That(score.Statistics.GetValueOrDefault(HitResult.Perfect), Is.Zero);
+            processor.RevertResult(weightResult);
             processor.RevertResult(result);
             Assert.That(processor.Combo.Value, Is.Zero);
+            Assert.That(processor.GetScoreProcessorStatistics().BaseScore, Is.Zero);
+            Assert.That(processor.GetScoreProcessorStatistics().MaximumBaseScore, Is.Zero);
+            Assert.That(processor.Accuracy.Value, Is.EqualTo(1));
         }
 
         [Test]

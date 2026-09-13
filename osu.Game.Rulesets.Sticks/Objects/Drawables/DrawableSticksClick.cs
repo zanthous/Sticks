@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Shapes;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Audio;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Scoring;
@@ -14,10 +14,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     public partial class DrawableSticksClick : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
     {
-        private const float halo_thickness = 5;
-        private readonly CircularContainer halo;
+        private readonly SticksClickHalo halo;
         private SticksPlayfield playfield = null!;
         private HitResult? pendingResult;
+        private readonly Container nestedContainer;
+        private DrawableTimingWeight timingWeight = null!;
 
         public new SticksClick HitObject => (SticksClick)base.HitObject;
 
@@ -29,14 +30,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             : base(hitObject)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
-            AddInternal(halo = new CircularContainer
+            AddInternal(nestedContainer = new Container());
+            AddInternal(halo = new SticksClickHalo
             {
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
-                Masking = true,
-                BorderThickness = halo_thickness,
-                Child = new Box { RelativeSizeAxes = Axes.Both, Alpha = 0, AlwaysPresent = true },
-                // An unfilled border is the entire note, including its timing cue.
             });
         }
 
@@ -52,18 +50,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             {
                 pendingResult = null;
                 if (!Judged)
-                    ApplyResult(pending);
+                    applyClickResult(pending);
             }
             float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
                 Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
-            float thickness = System.Math.Min(halo_thickness, radius);
-            // Masked borders draw inward from their bounds. Centre this stroke on the same
-            // approach radius as regular note arcs instead of placing its outer edge there.
-            halo.Size = new Vector2(radius * 2 + thickness);
-            halo.BorderThickness = thickness;
-            halo.BorderColour = playfield.ClickColourFor(HitObject);
+            halo.SetGeometry(radius, playfield.ClickColourFor(HitObject));
             if (!Judged && playfield.RelaxMode && Time.Current >= HitObject.StartTime)
-                ApplyResult(HitResult.Perfect);
+                applyClickResult(HitResult.Great);
         }
 
         internal bool TryHit(double time)
@@ -82,7 +75,55 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         protected override void CheckForResult(bool userTriggered, double timeOffset)
         {
             if (!Judged && HitObject.HitWindows != null && !HitObject.HitWindows.CanBeHit(timeOffset))
-                ApplyMinResult();
+                applyClickResult(HitResult.Miss);
+        }
+
+        private void applyClickResult(HitResult result)
+        {
+            ApplyResult(result);
+            timingWeight.ApplyTimingResult(result);
+        }
+
+        protected override DrawableHitObject CreateNestedHitObject(HitObject hitObject) => hitObject switch
+        {
+            SticksClick.TimingWeight weight => new DrawableTimingWeight(weight),
+            _ => base.CreateNestedHitObject(hitObject),
+        };
+
+        protected override void AddNestedHitObject(DrawableHitObject hitObject)
+        {
+            base.AddNestedHitObject(hitObject);
+            nestedContainer.Add(hitObject);
+            timingWeight = (DrawableTimingWeight)hitObject;
+        }
+
+        protected override void ClearNestedHitObjects()
+        {
+            base.ClearNestedHitObjects();
+            nestedContainer.Clear(false);
+            timingWeight = null!;
+            pendingResult = null;
+        }
+
+        private partial class DrawableTimingWeight : DrawableHitObject<SticksClick.TimingWeight>
+        {
+            public override bool DisplayResult => false;
+            public override bool HandlePositionalInput => false;
+
+            public DrawableTimingWeight(SticksClick.TimingWeight hitObject) : base(hitObject)
+            {
+                Alpha = 0;
+                AlwaysPresent = true;
+            }
+
+            public void ApplyTimingResult(HitResult result) => ApplyResult(result);
+
+            protected override void CheckForResult(bool userTriggered, double timeOffset)
+            {
+                // The click resolves both scoring halves from the same button press.
+            }
+
+            protected override void UpdateHitStateTransforms(ArmedState state) => Expire();
         }
 
         protected override double InitialLifetimeOffset => HitObject.ApproachDuration;

@@ -147,6 +147,12 @@ namespace osu.Game.Rulesets.Sticks
                     HintText = "Keep controller input for completed plays and failed plays you explicitly save. Scores are still saved when this is disabled.",
                     Current = config.GetBindable<bool>(SticksRulesetSetting.SaveReplays),
                 }),
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Use skin colours",
+                    HintText = "Use Sticks colours from the selected skin when available. Turn off to always use your colours below.",
+                    Current = config.GetBindable<bool>(SticksRulesetSetting.UseSkinColours),
+                }),
                 new SettingsColour
                 {
                     LabelText = "Left stick color",

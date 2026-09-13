@@ -74,6 +74,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 ConversionMode = SticksConversionMode.Standard,
                 DisableBeatmapHitsounds = disableHitsounds,
+                UseCounterpoint = false,
             };
             SticksHitObject[] baseline = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             converter.ConversionMode = SticksConversionMode.Duet;
@@ -114,6 +115,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(map(native), new SticksRuleset())
             {
                 DisableReversals = disableReversals,
+                UseCounterpoint = false,
             };
             SticksHitObject[] duet = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider primary = duet.OfType<SticksSlider>().Single();
@@ -162,7 +164,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestReusingConverterClearsAccompanimentBetweenModes()
         {
             Beatmap<HitObject> source = map(slider(1000, 500));
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard };
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false };
             string[] baseline = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(signature).ToArray();
             converter.ConversionMode = SticksConversionMode.Duet;
             string[] first = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(signature).ToArray();
@@ -205,7 +207,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
         private static SticksHitObject[] convert(Beatmap<HitObject> source, bool duet)
         {
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            // Isolate the former duet accompaniment templates from the newer arrangement pass.
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = false };
             if (!duet)
                 converter.ConversionMode = SticksConversionMode.Standard;
             return converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();

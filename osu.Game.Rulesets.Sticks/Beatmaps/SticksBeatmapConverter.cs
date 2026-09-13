@@ -61,10 +61,10 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         public bool AddClickNotes { get; set; }
 
         /// <summary>
-        /// Applies the next experimental arrangement after the base conversion.
-        /// Independent of the angle strategy so Parity can apply afterwards in either mod order.
+        /// Applies the default Counterpoint arrangement before Parity and Encore.
+        /// Disabled only for historical conversion comparisons and retired DU/PD mods.
         /// </summary>
-        public bool UseCounterpoint { get; set; }
+        public bool UseCounterpoint { get; set; } = true;
 
         /// <summary>
         /// DA's visual angle override, used before hit-object defaults are applied.

@@ -8,12 +8,13 @@ using osu.Game.Rulesets.Sticks.Beatmaps;
 
 namespace osu.Game.Rulesets.Sticks.Mods
 {
+    // Retired from the mod selector. System registration preserves existing saved CP acronyms.
     public class SticksModCounterpoint : Mod, IApplicableToBeatmapConverter
     {
         public override string Name => "Counterpoint";
         public override string Acronym => "CP";
-        public override LocalisableString Description => "Experimental conversion with independent two-stick phrases and occasional double accents.";
-        public override ModType Type => ModType.Conversion;
+        public override LocalisableString Description => "The two-stick arrangement now used by default.";
+        public override ModType Type => ModType.System;
         public override bool Ranked => false;
         public override Type[] IncompatibleMods => new[] { typeof(SticksModDuet), typeof(SticksModParityDuet) };
 

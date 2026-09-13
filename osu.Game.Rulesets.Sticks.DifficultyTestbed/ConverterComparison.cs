@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.IO.Compression;
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using osu.Framework.Localisation;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.Formats;
@@ -35,8 +35,7 @@ internal static class ConverterComparison
         var inputs = new List<string>();
         string? output = null;
         bool parity = false;
-        bool counterpoint = false;
-        bool legacyDuetBase = false;
+        bool legacyBase = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -57,16 +56,18 @@ internal static class ConverterComparison
                     parity = true;
                     break;
 
-                case "--legacy-duet-base":
-                    legacyDuetBase = true;
+                case "--include-legacy-base":
+                    legacyBase = true;
                     break;
 
+                case "--legacy-duet-base":
                 case "--include-counterpoint":
-                    counterpoint = true;
+                    legacyBase = true;
+                    Console.WriteLine($"{args[i]} now aliases --include-legacy-base: Default uses Counterpoint; historical outputs are labelled LegacyBase.");
                     break;
 
                 default:
-                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-counterpoint] [--legacy-duet-base].");
+                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-legacy-base].");
                     return 2;
             }
         }
@@ -74,7 +75,7 @@ internal static class ConverterComparison
         if (inputs.Count == 0)
             return 2;
 
-        var report = new ComparisonReport { UsesExplicitDuetBaseline = legacyDuetBase };
+        var report = new ComparisonReport { IncludesLegacyBase = legacyBase };
         var hashes = new HashSet<string>(StringComparer.Ordinal);
         try
         {
@@ -218,7 +219,7 @@ internal static class ConverterComparison
                 SourceTimeline = source.HitObjects.Select(note => describeSource(note, source)).ToArray(),
             };
 
-            var modes = new List<(string Name, bool Parity, bool Encore, bool Counterpoint)>
+            var modes = new List<(string Name, bool Parity, bool Encore, bool LegacyBase)>
             {
                 ("Default", false, false, false),
                 ("Encore", false, true, false),
@@ -228,14 +229,14 @@ internal static class ConverterComparison
                 modes.Add(("Parity", true, false, false));
                 modes.Add(("ParityEncore", true, true, false));
             }
-            if (counterpoint)
+            if (legacyBase)
             {
-                modes.Add(("Counterpoint", false, false, true));
-                modes.Add(("CounterpointEncore", false, true, true));
+                modes.Add(("LegacyBase", false, false, true));
+                modes.Add(("LegacyBaseEncore", false, true, true));
                 if (parity)
                 {
-                    modes.Add(("CounterpointParity", true, false, true));
-                    modes.Add(("CounterpointParityEncore", true, true, true));
+                    modes.Add(("LegacyBaseParity", true, false, true));
+                    modes.Add(("LegacyBaseParityEncore", true, true, true));
                 }
             }
             var ruleset = new SticksRuleset();
@@ -249,10 +250,9 @@ internal static class ConverterComparison
             {
                 var selectedMods = new List<Mod>();
                 var arrangements = new List<ArrangementDescription>();
-                if (legacyDuetBase)
+                if (mode.LegacyBase)
                 {
-                    // A saved pre-promotion DLL defaults to the older single-stick strategy.
-                    // Override it explicitly when comparing click changes against that build.
+                    // Historical strategies explicitly opt out of the current arrangement pass.
                     selectedMods.Add(ReferenceConversionMod.Create(mode.Parity ? SticksConversionMode.ParityDuet : SticksConversionMode.Duet));
                 }
                 else if (mode.Parity)
@@ -260,8 +260,12 @@ internal static class ConverterComparison
 
                 if (mode.Encore)
                     selectedMods.Add(new SticksModEncore());
-                if (mode.Counterpoint)
-                    selectedMods.Add(createCounterpointMod(arrangements));
+                if (!mode.LegacyBase)
+                    selectedMods.Add(new ArrangementObserverMod
+                    {
+                        ArrangementObserved = (family, start, end, changedHands, addedHeads) =>
+                            arrangements.Add(new ArrangementDescription(family, start, end, changedHands, addedHeads)),
+                    });
                 Mod[] mods = selectedMods.ToArray();
                 // WorkingBeatmap executes the same mod -> converter -> processor -> defaults
                 // pipeline as gameplay, including applying IApplicableToBeatmapConverter mods.
@@ -276,6 +280,7 @@ internal static class ConverterComparison
                     SourceIdentity = preflight.IsAuthoredCarrier ? null : measureSourceIdentity(result.SourceCircleStartTimes, result.SourceTimeline, notes),
                     Patterns = measurePatterns(notes),
                     Arrangements = convertedArrangements,
+                    ConversionStrategy = mode.LegacyBase ? "LegacyDuet" : "Counterpoint",
                 });
             }
 
@@ -308,14 +313,26 @@ internal static class ConverterComparison
         }
     }
 
-    // Keep the new type out of evaluate()'s JIT dependencies. Existing commands can then
-    // still load a saved pre-Counterpoint ruleset DLL for the explicit legacy comparison.
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static Mod createCounterpointMod(List<ArrangementDescription> arrangements) => new SticksModCounterpoint
+    /// <summary>
+    /// Observes the ordinary gameplay converter without selecting or enabling a strategy.
+    /// </summary>
+    private sealed class ArrangementObserverMod : Mod, IApplicableToBeatmapConverter
     {
-        ArrangementObserved = (family, start, end, changedHands, addedHeads) =>
-            arrangements.Add(new ArrangementDescription(family, start, end, changedHands, addedHeads)),
-    };
+        public ArrangementObserverMod() { }
+
+        public override string Name => "Arrangement observer";
+        public override string Acronym => "REF-OBS";
+        public override LocalisableString Description => "Records converter arrangements for local comparisons.";
+        public override ModType Type => ModType.System;
+
+        public Action<string, double, double, int, int>? ArrangementObserved { get; init; }
+
+        public void ApplyToBeatmapConverter(IBeatmapConverter converter)
+        {
+            if (converter is SticksBeatmapConverter sticks)
+                sticks.CounterpointArrangementObserved = ArrangementObserved;
+        }
+    }
 
     private static IEnumerable<string> findFiles(string input)
     {
@@ -634,11 +651,12 @@ internal static class ConverterComparison
 
     private sealed class ComparisonReport
     {
-        public int SchemaVersion { get; } = 4;
+        public int SchemaVersion { get; } = 5;
         public double RapidJumpMaximumIntervalMs { get; } = SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD;
         public int RapidJumpMinimumHeads { get; } = 4;
         public string ConverterAssemblySha256 { get; } = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(SticksBeatmapConverter).Assembly.Location))).ToLowerInvariant();
-        public bool UsesExplicitDuetBaseline { get; init; }
+        public bool IncludesLegacyBase { get; init; }
+        public string DefaultConversionStrategy { get; } = "Counterpoint";
         public string ChangedHeadFractionDefinition { get; } = "1 - matching / multiset-union of Default and compared objects; equality includes kind, start/end time, side, angle and slider arcs rounded to 0.001, plus exact timed segment weights.";
         public string ClickClearanceDefinition { get; } = "Minimum distance in milliseconds from each click to any other note's occupied start-to-end interval, on either hand, including other clicks. Simultaneous or sustaining gestures give zero; absent finite measurements give null.";
         public string SourceIdentityDefinition { get; } = "Unique start times of source objects without IHasDuration are circle onsets. An onset is retained if any converted top-level manual head starts within 0.01 ms; nested ticks, reversals and tails do not count. Generated sustains are positive-duration holds or sliders starting at a source circle onset. Within-primary-window means their full unwrapped angular excursion (maximum minus minimum cumulative signed segment angle; zero for holds) is at most the object's actual full PrimaryHitAngle plus 0.001 degrees. One stationary aim could therefore cover the entire path within the primary window; this is a geometric observation, not a quality judgement. Authored bypass metrics are null.";
@@ -675,6 +693,7 @@ internal static class ConverterComparison
 
     private sealed record ModeComparison(string Mode, double Stars, Counts Counts, ValidationResult Validation, ObjectDescription[] Objects)
     {
+        public string ConversionStrategy { get; init; } = string.Empty;
         public SourceIdentityMetrics? SourceIdentity { get; init; }
         public PatternMetrics Patterns { get; init; } = null!;
         public ArrangementDescription[] Arrangements { get; init; } = Array.Empty<ArrangementDescription>();

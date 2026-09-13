@@ -164,6 +164,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, new SticksRuleset())
             {
                 ConversionMode = SticksConversionMode.Standard,
+                UseCounterpoint = false,
             };
             SticksHitObject[] historical = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             converter.ConversionMode = SticksConversionMode.Duet;

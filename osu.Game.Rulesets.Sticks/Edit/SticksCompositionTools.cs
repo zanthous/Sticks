@@ -17,6 +17,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksFlickCompositionTool()
             : base("Flick")
         {
+#if STICKS_RULESET_API_2026_818
+            Action = SticksAction.EditorFlickTool;
+#endif
             TooltipText = "Place a flick near the ring: outside selects the left stick, inside selects the right stick, farther outside selects both";
         }
 
@@ -30,6 +33,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksClickCompositionTool()
             : base("Click")
         {
+#if STICKS_RULESET_API_2026_818
+            Action = SticksAction.EditorClickTool;
+#endif
             TooltipText = "Place a button note near the ring: outside selects the left stick, inside selects the right stick, farther outside selects both. No aim required.";
         }
 
@@ -43,6 +49,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksSliderCompositionTool()
             : base("Slider")
         {
+#if STICKS_RULESET_API_2026_818
+            Action = SticksAction.EditorSliderTool;
+#endif
             TooltipText = "Click near the ring (farther outside selects both sticks), trace the path, and scroll to its end time. Left-click finishes; right-click places the point and continues. Keep the same angle for a stationary slider; Escape cancels the pending point";
         }
 

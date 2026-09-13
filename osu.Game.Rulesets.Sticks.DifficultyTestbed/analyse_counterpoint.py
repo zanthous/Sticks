@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare actual gameplay-pipeline Counterpoint exports, without treating density as quality."""
+"""Compare the current arrangement converter with its historical base, without treating density as quality."""
 
 import argparse
 from bisect import bisect_left
@@ -18,6 +18,17 @@ PAIRS = (
     ("Parity", "CounterpointParity"),
     ("ParityEncore", "CounterpointParityEncore"),
 )
+PROMOTED_PAIRS = (
+    ("LegacyBase", "Default"),
+    ("LegacyBaseEncore", "Encore"),
+    ("LegacyBaseParity", "Parity"),
+    ("LegacyBaseParityEncore", "ParityEncore"),
+)
+
+
+def mode_pairs(schema):
+    """Schema 5 promotes Counterpoint and labels the historical base explicitly."""
+    return PROMOTED_PAIRS if schema >= 5 else PAIRS
 
 
 def delta(a, b):
@@ -534,7 +545,7 @@ def compare_pair(map_data, baseline, experimental):
     }
 
 
-def saved_baseline_check(current_maps, saved):
+def saved_baseline_check(current_maps, saved, current_schema=4):
     old_maps = {map_data["sha256"]: map_data for map_data in saved["maps"]}
     matched = []
     for map_data in current_maps:
@@ -543,12 +554,14 @@ def saved_baseline_check(current_maps, saved):
             continue
         old_modes = {mode["mode"]: mode for mode in old["modes"]}
         mode_checks = []
-        for mode in map_data["modes"]:
-            if mode["mode"] not in old_modes or mode["mode"].startswith("Counterpoint"):
+        current_modes = {mode["mode"]: mode for mode in map_data["modes"]}
+        for (name, _), (old_name, _) in zip(mode_pairs(current_schema), mode_pairs(saved.get("schemaVersion", 4))):
+            if name not in current_modes or old_name not in old_modes:
                 continue
-            before = old_modes[mode["mode"]]
+            mode = current_modes[name]
+            before = old_modes[old_name]
             equal = Counter(shape(note) for note in before["objects"]) == Counter(shape(note) for note in mode["objects"])
-            mode_checks.append({"mode": mode["mode"], "objectsUnchanged": equal,
+            mode_checks.append({"mode": name, "savedMode": old_name, "objectsUnchanged": equal,
                                 "objectsExactlyUnchanged": before["objects"] == mode["objects"],
                                 "starsDelta": mode["stars"] - before["stars"]})
         matched.append({"sha256": map_data["sha256"], "beatmapId": map_data.get("beatmapId"), "modes": mode_checks})
@@ -561,7 +574,7 @@ def saved_baseline_check(current_maps, saved):
             "maps": matched}
 
 
-def previous_experiment_check(current_maps, previous):
+def previous_experiment_check(current_maps, previous, current_schema=4):
     """Revision differences are descriptive; superseded experimental additions may disappear."""
     old_maps = {entry["sha256"]: entry for entry in previous["maps"]}
     rows = []
@@ -571,19 +584,20 @@ def previous_experiment_check(current_maps, previous):
             continue
         old_modes = {mode["mode"]: mode for mode in old["modes"]}
         checks = []
-        for mode in current["modes"]:
-            name = mode["mode"]
-            if not name.startswith("Counterpoint") or name not in old_modes:
+        current_modes = {mode["mode"]: mode for mode in current["modes"]}
+        for (_, name), (_, old_name) in zip(mode_pairs(current_schema), mode_pairs(previous.get("schemaVersion", 4))):
+            if name not in current_modes or old_name not in old_modes:
                 continue
-            before, after = old_modes[name]["objects"], mode["objects"]
+            mode = current_modes[name]
+            before, after = old_modes[old_name]["objects"], mode["objects"]
             matches, removed, added = match_existing(before, after)
             counts = Counter(category for _, _, category in matches)
-            checks.append({"mode": name, "before": len(before), "after": len(after),
+            checks.append({"mode": name, "previousMode": old_name, "before": len(before), "after": len(after),
                            "exactRetained": counts["exact"], "handOnlyChanges": counts["handOnly"],
                            "modifiedAtSameOnset": counts["modified"],
                            "removedHeads": [before[index] for index in removed],
                            "addedHeads": [after[index] for index in added],
-                           "starsDelta": mode["stars"] - old_modes[name]["stars"]})
+                           "starsDelta": mode["stars"] - old_modes[old_name]["stars"]})
         rows.append({"sha256": current["sha256"], "beatmapId": current.get("beatmapId"),
                      "title": current["title"], "difficulty": current["difficulty"], "modes": checks})
     return {"matchedMaps": len(rows), "maps": rows}
@@ -648,27 +662,27 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", nargs="?", type=Path, default=ROOT / "mapreference/counterpoint/iteration-01.json")
     parser.add_argument("--baseline", type=Path, default=ROOT / "mapreference/converter-jump-revision/after.json")
-    parser.add_argument("--previous-experiment", type=Path, help="Earlier Counterpoint export to compare experimental revisions separately from ordinary modes.")
+    parser.add_argument("--previous-experiment", type=Path, help="Earlier export to compare arrangement revisions, including Counterpoint before its promotion to Default.")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     actual = json.loads(args.input.read_text())
     if actual.get("schemaVersion", 0) < 4:
-        parser.error("The current export must be schema 4 for source checkpoint analysis.")
+        parser.error("The current export must be schema 4 or newer for source checkpoint analysis.")
     entries = []
     for map_data in actual["maps"]:
         map_data["_rapidJumpMaximumIntervalMs"] = actual.get("rapidJumpMaximumIntervalMs", 260)
         map_data["_rapidJumpMinimumHeads"] = actual.get("rapidJumpMinimumHeads", 4)
         modes = {mode["mode"]: mode for mode in map_data["modes"]}
-        comparisons = [compare_pair(map_data, modes[before], modes[after]) for before, after in PAIRS if before in modes and after in modes]
+        comparisons = [compare_pair(map_data, modes[before], modes[after]) for before, after in mode_pairs(actual["schemaVersion"]) if before in modes and after in modes]
         if comparisons:
             entries.append({"sha256": map_data["sha256"], "beatmapId": map_data.get("beatmapId"), "artist": map_data["artist"],
                             "title": map_data["title"], "difficulty": map_data["difficulty"], "conversion": map_data["conversion"],
                             "overallDifficulty": map_data["overallDifficulty"], "comparisons": comparisons})
     if not entries:
-        parser.error("No Counterpoint pairs found. Export with --include-counterpoint.")
+        parser.error("No arrangement/base pairs found. Export with --include-legacy-base (or --include-counterpoint on historical builds).")
     saved = json.loads(args.baseline.read_text()) if args.baseline.exists() else None
     report = {
-        "analysisVersion": 3, "input": str(args.input), "sourceSchema": actual["schemaVersion"],
+        "analysisVersion": 4, "input": str(args.input), "sourceSchema": actual["schemaVersion"],
         "converterAssemblySha256": actual.get("converterAssemblySha256"),
         "definitions": {
             "matching": "Exact objects first, then geometry-preserving hand changes, then remaining heads at equal 0.001ms-rounded onsets, prioritizing preserved kind, duration and signed paths before final hand and angle. This distinguishes simultaneous sliders that exchange hands and receive Parity rotations. Shape comparison includes kind, timing, angle, arcs (0.001 precision), exact duration weights and primary angle window. Remaining after objects are additions, not merely changed originals.",
@@ -681,15 +695,15 @@ def main():
             "protectedJumps": "Independently reconstructs protected rapid source jump runs from source position, circle diameter, timing and duration. Every baseline directional head in those runs must retain kind, hand, timing and signed path. Plain CP angles must also remain, except a bounded midpoint rotation into a qualifying exact stack. Parity angle histories may change. Heads changed to/from Encore clicks, and independent click-side changes, are reported separately because Encore selects them after directional arrangements; the plain CP pair checks the underlying directional protection. Older exports without geometry report this check unavailable.",
             "chordReadability": "Final simultaneous opposite-hand directional pairs whose angular windows intersect by at least half the narrower full PrimaryHitAngle should be exactly stacked. Equal widths W imply separation <= W/2, inclusive. Uses final exported gameplay widths. Authored maps bypass this rule. Allowed-stack rotation classification requires a final exact stack and limits each existing head's rotation to one quarter of the wider window; it does not reconstruct the unsnapped candidate.",
             "manualCadence": "Each added head records its nearest distinct final onset gap divided by the median baseline onset gap within four local beats either side. This describes new subdivisions; it is not a pass/fail musical rule, and simultaneous chords have no additional distinct onset.",
-            "revisionComparison": "savedBaseline compares ordinary modes only. previousExperiment separately reports changes between experimental revisions; removing an old experimental addition is not evidence of losing a source note. Source preservation is assessed against each revision's ordinary paired baseline.",
+            "revisionComparison": "savedBaseline compares the historical base modes. previousExperiment separately compares arrangement revisions. Schema-4 Default/Encore/Parity modes map to schema-5 LegacyBase variants; schema-4 Counterpoint variants map to schema-5 Default/Encore/Parity modes. Removing an earlier arrangement addition is not evidence of losing a source note. Source preservation is assessed against each revision's paired historical base.",
             "selectedArrangements": "Optional converter observations report families actually selected in the gameplay conversion, their timing extent, changed-hand assignments and added heads. Captured before difficulty calculation can request conversion again. These establish implementation coverage; separate actual-object checks establish preservation, cadence, readability and the resulting playable relationships. Older exports lack this field.",
         },
         "inputErrors": actual.get("errors", []), "skipped": actual.get("skipped", []),
-        "savedBaseline": saved_baseline_check(actual["maps"], saved) if saved else {"missing": str(args.baseline)},
+        "savedBaseline": saved_baseline_check(actual["maps"], saved, actual["schemaVersion"]) if saved else {"missing": str(args.baseline)},
         "summary": summarize(entries), "maps": entries,
     }
     if args.previous_experiment:
-        report["previousExperiment"] = previous_experiment_check(actual["maps"], json.loads(args.previous_experiment.read_text()))
+        report["previousExperiment"] = previous_experiment_check(actual["maps"], json.loads(args.previous_experiment.read_text()), actual["schemaVersion"])
     output = args.output or args.input.with_name(args.input.stem + "-analysis.json")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")

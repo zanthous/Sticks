@@ -229,7 +229,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestRepeatedConversionDoesNotAccumulateOrLeakArrangementChanges()
         {
             Beatmap<HitObject> source = longSliderMap(3);
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = false };
             string[] baseline = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(note => signature(note, true)).ToArray();
             converter.UseCounterpoint = true;
             string[] first = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(note => signature(note, true)).ToArray();

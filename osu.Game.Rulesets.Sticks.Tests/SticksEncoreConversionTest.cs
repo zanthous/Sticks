@@ -206,14 +206,19 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void IsolatedPhraseOpeningRetainsItsTimestampAndSamples()
+        public void IsolatedClickRetainsSourceTimingAndSamplesAfterGeneratedOpeningDouble()
         {
             Beatmap<HitObject> source = map(circle(6000, 47, true), circle(8000, 213));
             source.Difficulty.OverallDifficulty = 2;
-            SticksClick click = convert(source).OfType<SticksClick>().Single();
-            Assert.That(click.StartTime, Is.EqualTo(6000));
+            SticksHitObject[] converted = convert(source);
+            SticksFlick[] opening = converted.OfType<SticksFlick>().Where(note => note.StartTime == 6000).ToArray();
+            Assert.That(opening, Has.Length.EqualTo(2));
+            Assert.That(opening.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
+            Assert.That(SticksHitObject.DeltaAngle(opening[0].Angle, opening[1].Angle), Is.Zero.Within(0.001));
+            SticksClick click = converted.OfType<SticksClick>().Single();
+            Assert.That(click.StartTime, Is.EqualTo(8000), "Encore must keep the opening double intact and use the next eligible source note.");
             Assert.That(click.Samples.Select(sample => (sample.Name, sample.Volume)),
-                Is.EqualTo(source.HitObjects[0].Samples.Select(sample => (sample.Name, sample.Volume))));
+                Is.EqualTo(source.HitObjects[1].Samples.Select(sample => (sample.Name, sample.Volume))));
         }
 
         [TestCase(2)]

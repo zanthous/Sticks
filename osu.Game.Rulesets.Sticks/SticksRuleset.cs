@@ -136,9 +136,9 @@ namespace osu.Game.Rulesets.Sticks
                 new MultiMod(new SticksModSuddenDeath(), new SticksModPerfect()),
                 new SticksModDoubleTime(),
             },
-            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust(), new SticksModParity(), new SticksModEncore(), new SticksModCounterpoint() },
+            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust(), new SticksModParity(), new SticksModEncore() },
             ModType.Fun => new Mod[] { new SticksModStrum() },
-            ModType.System => new Mod[] { new SticksModDuet(), new SticksModParityDuet() },
+            ModType.System => new Mod[] { new SticksModDuet(), new SticksModParityDuet(), new SticksModCounterpoint() },
             _ => Array.Empty<Mod>(),
         };
 
@@ -262,10 +262,22 @@ namespace osu.Game.Rulesets.Sticks
             return chart;
         }
 
-        public override IEnumerable<KeyBinding> GetDefaultKeyBindings(int variant = 0) => new[]
+        public override IEnumerable<KeyBinding> GetDefaultKeyBindings(int variant = 0)
         {
-            new KeyBinding(InputKey.Space, SticksAction.Focus),
-        };
+#if STICKS_RULESET_API_2026_818
+            if (variant == EDITOR_VARIANT)
+            {
+                return new[]
+                {
+                    new KeyBinding(InputKey.Number2, SticksAction.EditorFlickTool),
+                    new KeyBinding(InputKey.Number3, SticksAction.EditorSliderTool),
+                    new KeyBinding(InputKey.Number4, SticksAction.EditorClickTool),
+                };
+            }
+#endif
+
+            return new[] { new KeyBinding(InputKey.Space, SticksAction.Focus) };
+        }
 
         public override Drawable CreateIcon() => new SticksRulesetIcon();
 

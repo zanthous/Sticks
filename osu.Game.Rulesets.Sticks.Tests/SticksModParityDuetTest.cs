@@ -170,12 +170,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestDefaultConversionIncludesFormerDuetPatterns()
+        public void TestDefaultConversionKeepsFormerDuetPatternsWithCounterpoint()
         {
             Beatmap<HitObject> source = chordPhrase();
             source.HitObjects.Add(slider(5000, 1000));
             SticksHitObject[] legacy = convert(source, SticksConversionMode.Standard);
-            SticksHitObject[] expected = convert(source, SticksConversionMode.Duet);
+            SticksHitObject[] expected = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = true }.Convert()
+                .HitObjects.Cast<SticksHitObject>().ToArray();
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert()
                 .HitObjects.Cast<SticksHitObject>().ToArray();
 
@@ -201,6 +202,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(mod.Type, Is.EqualTo(ModType.System));
                 Assert.That(mod.Ranked, Is.False);
+                Assert.That(converter.UseCounterpoint, Is.False, "Retired mods must retain their historical replay conversion.");
                 Assert.That(ruleset.GetModsFor(ModType.Conversion).Select(candidate => candidate.Acronym), Does.Not.Contain(acronym));
                 Assert.That(signature(converter.Convert().HitObjects.Cast<SticksHitObject>()),
                     Is.EqualTo(signature(convert(source, mode))));
@@ -212,7 +214,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Beatmap<HitObject> source = chordPhrase();
             source.HitObjects.Add(slider(5000, 500));
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard };
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false };
             string[] standard = signature(converter.Convert().HitObjects.Cast<SticksHitObject>());
             new SticksModDuet().ApplyToBeatmapConverter(converter);
             string[] duet = signature(converter.Convert().HitObjects.Cast<SticksHitObject>());
@@ -235,7 +237,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestGameplayPipelineUsesTwoStickBaseBeforeCreatingSliderNestedObjects(bool parity)
         {
             Beatmap<HitObject> source = map(circle(500, 0), circle(500, 0), slider(1000, 2000));
-            SticksHitObject[] expected = convert(source, parity ? SticksConversionMode.ParityDuet : SticksConversionMode.Duet);
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            if (parity)
+                new SticksModParity().ApplyToBeatmapConverter(converter);
+            SticksHitObject[] expected = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             foreach (SticksHitObject note in expected)
                 note.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
             var working = new FlatWorkingBeatmap(source);
@@ -260,7 +265,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksBeatmapConverter.AlignNearbyChordHeads(expected);
             SticksBeatmapConverter.AssignSyncedNoteLinks(expected);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { DisableReversals = disableReversals };
-            new SticksModParity().ApplyToBeatmapConverter(converter);
+            new SticksModParityDuet().ApplyToBeatmapConverter(converter);
             SticksHitObject[] combined = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             Assert.Multiple(() =>
             {
@@ -301,7 +306,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private static int chordCount(IEnumerable<SticksHitObject> notes) => notes.GroupBy(note => note.StartTime).Count(group => group.Select(note => note.Side).Distinct().Count() == 2);
 
         private static SticksHitObject[] convert(Beatmap<HitObject> source, SticksConversionMode mode, bool disableReversals = false) =>
-            new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = mode, DisableReversals = disableReversals }
+            new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = mode, DisableReversals = disableReversals, UseCounterpoint = false }
                 .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
         private static Beatmap<HitObject> chordPhrase()

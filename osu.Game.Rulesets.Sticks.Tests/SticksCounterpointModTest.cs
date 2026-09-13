@@ -20,17 +20,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
     public class SticksCounterpointModTest
     {
         [Test]
-        public void CounterpointIsSelectableUnrankedAndCompatibleWithCurrentConversionMods()
+        public void RetiredCounterpointRemainsLoadableAndCompatibleWithCurrentConversionMods()
         {
             var ruleset = new SticksRuleset();
             Mod[] visible = ruleset.GetModsFor(ModType.Conversion).ToArray();
-            SticksModCounterpoint counterpoint = visible.OfType<SticksModCounterpoint>().Single();
+            SticksModCounterpoint counterpoint = ruleset.GetModsFor(ModType.System).OfType<SticksModCounterpoint>().Single();
             Assert.Multiple(() =>
             {
                 Assert.That(counterpoint.Ranked, Is.False);
-                Assert.That(counterpoint.Type, Is.EqualTo(ModType.Conversion));
+                Assert.That(counterpoint.Type, Is.EqualTo(ModType.System));
                 Assert.That(ruleset.CreateModFromAcronym("CP"), Is.TypeOf<SticksModCounterpoint>());
-                Assert.That(visible.Select(mod => mod.Acronym), Does.Not.Contain("DU").And.Not.Contain("PD"));
+                Assert.That(visible.Select(mod => mod.Acronym), Does.Not.Contain("DU").And.Not.Contain("PD").And.Not.Contain("CP"));
                 Assert.That(counterpoint.IncompatibleMods, Does.Contain(typeof(SticksModDuet)).And.Contain(typeof(SticksModParityDuet)));
             });
             foreach (Mod mod in new Mod[] { new SticksModParity(), new SticksModEncore(), new SticksModDifficultyAdjust() })
@@ -45,9 +45,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [TestCase(SticksConversionMode.Parity)]
         [TestCase(SticksConversionMode.Duet)]
         [TestCase(SticksConversionMode.ParityDuet)]
-        public void CounterpointEnablesAnIndependentPassWithoutReplacingBaseMode(SticksConversionMode mode)
+        public void RetiredCounterpointEnablesItsPassWithoutReplacingBaseMode(SticksConversionMode mode)
         {
-            var converter = new SticksBeatmapConverter(sourcePhrase(), new SticksRuleset()) { ConversionMode = mode };
+            var converter = new SticksBeatmapConverter(sourcePhrase(), new SticksRuleset()) { ConversionMode = mode, UseCounterpoint = false };
             Assert.That(converter.UseCounterpoint, Is.False);
             new SticksModCounterpoint().ApplyToBeatmapConverter(converter);
             Assert.Multiple(() =>
@@ -63,14 +63,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Beatmap<HitObject> source = sourcePhrase();
             string[] expected = null;
-            foreach (int[] order in permutations(new[] { 0, 1, 2, 3 }))
+            foreach (int[] order in permutations(new[] { 0, 1, 2 }))
             {
                 var adjust = new SticksModDifficultyAdjust();
                 adjust.DisableReversals.Value = true;
                 adjust.PrimaryHitAngle.Value = primaryHitAngle;
                 IApplicableToBeatmapConverter[] mods =
                 {
-                    new SticksModCounterpoint(), new SticksModParity(), new SticksModEncore(), adjust,
+                    new SticksModParity(), new SticksModEncore(), adjust,
                 };
                 var converter = new SticksBeatmapConverter(source, new SticksRuleset());
                 foreach (int index in order)
@@ -90,11 +90,18 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void ParityProcessesTheCompleteCounterpointArrangement()
+        public void DefaultAndParityUseTheCompleteCounterpointArrangement()
         {
             Beatmap<HitObject> source = sourcePhrase();
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = true };
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            Assert.That(converter.UseCounterpoint, Is.True);
             SticksHitObject[] expected = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            var previousConverter = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = false };
+            string[] previousBase = signature(previousConverter.Convert().HitObjects.Cast<SticksHitObject>());
+            new SticksModCounterpoint().ApplyToBeatmapConverter(previousConverter);
+            Assert.That(signature(expected), Is.EqualTo(signature(previousConverter.Convert().HitObjects.Cast<SticksHitObject>())),
+                "The new default must match the previous Counterpoint mod's complete arrangement.");
+            Assert.That(signature(expected), Is.Not.EqualTo(previousBase), "The fixture must exercise Counterpoint's additional arrangement pass.");
             SticksParityConversion.Apply(expected, source, CancellationToken.None,
                 readableChords: true, fullHitAngle: converter.CounterpointHitAngleFor(source.Difficulty));
             SticksBeatmapConverter.AssignSyncedNoteLinks(expected);
@@ -146,6 +153,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
             if (parity)
                 new SticksModParity().ApplyToBeatmapConverter(converter);
+            converter.UseCounterpoint = false;
             string[] baseline = signature(converter.Convert().HitObjects.Cast<SticksHitObject>());
 
             new SticksModCounterpoint().ApplyToBeatmapConverter(converter);

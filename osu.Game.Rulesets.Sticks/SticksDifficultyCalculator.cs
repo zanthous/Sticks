@@ -24,8 +24,8 @@ namespace osu.Game.Rulesets.Sticks
 {
     public class SticksDifficultyCalculator : DifficultyCalculator
     {
-        // Recalculate after promoting two-stick conversion and revising Encore's click placement.
-        public override int Version => 202609134;
+        // Recalculate converted maps after promoting Counterpoint to the default arrangement.
+        public override int Version => 202609140;
 
         private SticksDifficultyModel.IncrementalState incrementalState;
         private IBeatmap incrementalBeatmap;

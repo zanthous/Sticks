@@ -19,7 +19,10 @@ namespace osu.Game.Rulesets.Sticks.Mods
         public void ApplyToBeatmapConverter(IBeatmapConverter beatmapConverter)
         {
             if (beatmapConverter is SticksBeatmapConverter sticksConverter)
+            {
                 sticksConverter.ConversionMode = SticksConversionMode.Duet;
+                sticksConverter.UseCounterpoint = false;
+            }
         }
     }
 }

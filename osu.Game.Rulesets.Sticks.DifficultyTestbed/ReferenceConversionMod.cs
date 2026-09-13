@@ -23,7 +23,10 @@ internal abstract class ReferenceConversionMod : Mod, IApplicableToBeatmapConver
     public void ApplyToBeatmapConverter(IBeatmapConverter converter)
     {
         if (converter is SticksBeatmapConverter sticks)
+        {
             sticks.ConversionMode = mode;
+            sticks.UseCounterpoint = false;
+        }
     }
 
     public static Mod Create(SticksConversionMode mode) => mode switch

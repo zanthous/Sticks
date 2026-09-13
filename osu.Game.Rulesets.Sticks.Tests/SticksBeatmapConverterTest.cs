@@ -79,13 +79,16 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 27) },
             });
 
-            SticksHitObject converted = (SticksHitObject)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
-
-            Assert.Multiple(() =>
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            Assert.That(converted, Is.Not.Empty);
+            foreach (SticksHitObject note in converted)
             {
-                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
-                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(27));
-            });
+                Assert.Multiple(() =>
+                {
+                    Assert.That(note.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
+                    Assert.That(note.Samples.Single().Volume, Is.EqualTo(27));
+                });
+            }
         }
 
         [Test]
@@ -99,16 +102,19 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Samples = new[] { new HitSampleInfo(HitSampleInfo.HIT_CLAP, volume: 27) },
             });
 
-            SticksHitObject converted = (SticksHitObject)new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
             {
                 DisableBeatmapHitsounds = true,
-            }.Convert().HitObjects.Single();
-
-            Assert.Multiple(() =>
+            }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            Assert.That(converted, Is.Not.Empty);
+            foreach (SticksHitObject note in converted)
             {
-                Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
-                Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
-            });
+                Assert.Multiple(() =>
+                {
+                    Assert.That(note.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
+                    Assert.That(note.Samples.Single().Volume, Is.EqualTo(100));
+                });
+            }
         }
 
         [Test]
@@ -222,7 +228,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.Multiple(() =>
             {
-                Assert.That(converted, Has.Exactly(1).TypeOf<SticksFlick>());
+                Assert.That(converted.OfType<SticksFlick>(), Is.Not.Empty);
                 Assert.That(converted, Has.Exactly(3).TypeOf<SticksSlider>());
                 Assert.That(converted.OfType<SticksSlider>().Count(slider => slider.IsStationary), Is.EqualTo(1));
                 Assert.That(converted.OfType<SticksHold>(), Is.Empty);
@@ -546,7 +552,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Beatmap source = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
             if (mode == SticksConversionMode.Standard)
+            {
                 converter.ConversionMode = mode;
+                converter.UseCounterpoint = false;
+            }
             IBeatmap converted = converter.Convert();
             SticksDifficultyBreakdown difficulty = SticksDifficultyCalculator.CalculateDifficulty(
                 converted.HitObjects.Cast<SticksHitObject>(),
@@ -562,16 +571,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
             }
             else
             {
-                SticksHitObject[] previousDuet = new SticksBeatmapConverter(source, new SticksRuleset())
+                SticksHitObject[] previousCounterpoint = new SticksBeatmapConverter(source, new SticksRuleset())
                 {
                     ConversionMode = SticksConversionMode.Duet,
+                    UseCounterpoint = true,
                 }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
                 System.Func<SticksHitObject, string> shape = note =>
                     $"{note.GetType().Name}:{note.StartTime}:{note.Side}:{note.Angle}:"
                     + (note is SticksSlider slider ? $"{slider.Duration}:{slider.RepeatCount}:{string.Join(",", slider.SegmentArcAngles)}" : string.Empty);
-                Assert.That(converted.HitObjects.Cast<SticksHitObject>().Select(shape), Is.EqualTo(previousDuet.Select(shape)));
+                Assert.That(converted.HitObjects.Cast<SticksHitObject>().Select(shape), Is.EqualTo(previousCounterpoint.Select(shape)));
                 Assert.That(difficulty.StarRating, Is.EqualTo(SticksDifficultyCalculator.CalculateDifficulty(
-                    previousDuet, overallDifficulty: source.Difficulty.OverallDifficulty).StarRating));
+                    previousCounterpoint, overallDifficulty: source.Difficulty.OverallDifficulty).StarRating));
             }
 
             Assert.That(converted.HitObjects.OfType<SticksSlider>(), Is.Not.Empty);
@@ -1520,7 +1530,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2000, Position = new Vector2(256, 0) });
 
             // This checks the historical accompaniment; the current base can add independent accents.
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard }
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             var slider = (SticksSlider)converted[0];
             SticksFlick[] taps = converted.OfType<SticksFlick>().ToArray();
@@ -1549,7 +1559,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 });
             }
 
-            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard }
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false }
                                       .Convert().HitObjects.Cast<SticksFlick>().ToArray();
 
             Assert.Multiple(() =>

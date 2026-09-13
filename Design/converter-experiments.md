@@ -1,17 +1,19 @@
 # Converter experiments
 
-As of 2026-09-13, the former Duet conversion is the default. Parity (`PA`) applies
-its angle changes to that complete output, including slider partners and
-accompaniment. The separate Duet (`DU`) and Parity + Duet (`PD`) selections are
-retired. The Conversion category now contains Difficulty Adjust, Parity, Encore and the
-experimental Counterpoint (`CP`) arrangement mod.
-Encore remains opt-in for additional note types. Authored Sticks maps retain their
-authored objects.
+Counterpoint is now the default conversion, building on the earlier Duet base.
+Parity (`PA`) applies its angle changes to the complete arrangement, including
+slider partners, accompaniment and deliberate stacked doubles. The separate
+Duet (`DU`), Parity + Duet (`PD`) and Counterpoint (`CP`) selections are retired;
+CP remains hidden for compatibility with older scores. The Conversion category
+contains Difficulty Adjust, Parity and Encore. Encore remains opt-in for
+additional note types. Authored Sticks maps retain their authored objects.
 
-The observations and dated comparisons below retain their original mode names:
-historical “Standard” means the converter before Duet became the default, and
-historical “Parity” means Parity on that older base. These names describe the
-measurements at the time, rather than the current mod selection.
+The observations and dated comparisons below retain their original mode names
+and measurements. In the original parity audits, “Standard” means the converter
+before Duet became the default, and “Parity” means Parity on that older base.
+In the Counterpoint comparisons, “Default” is the previous Duet-based converter
+and “CP” is the candidate arrangement tested alongside it. Those results predate
+Counterpoint's promotion; they are not new measurements of today's mod selection.
 
 ## Encore click placement — 2026-09-13
 
@@ -30,10 +32,11 @@ for rounded half-beat timestamps on harder maps. Hitsounds cannot bypass spacing
 OD expresses intended difficulty here; actual source and converted spacing still
 decide whether any individual accent is suitable. A map can receive no clicks.
 
-Verification used the same 43-map local corpus and a saved pre-promotion ruleset
-DLL. Default and Parity each match all 32,985 heads and star ratings of the former
-Duet and Parity + Duet outputs respectively. Encore clicks fall from 2,431 to 411
-across the corpus; in the five OD ≤4 maps they fall from 107 to 15, with at least
+Verification of the earlier Duet promotion used the same 43-map local corpus and
+a saved ruleset DLL. Default and Parity each match all 32,985 heads and star
+ratings of the former Duet and Parity + Duet outputs respectively. Encore clicks
+fall from 2,431 to 411 across the corpus; in the five OD ≤4 maps they fall from
+107 to 15, with at least
 600 ms of clearance to any other occupied gesture in that sample. There are no
 remaining click overlaps with directional gestures, and Parity leaves click times
 and hand assignments identical. These are corpus observations, not a guarantee of
@@ -127,7 +130,8 @@ anchored to its source heading. This approach reinterprets the source's spatial
 contour: accumulated headings can drift farther from the original angles even
 though their turning direction is retained. That is a playtesting tradeoff.
 
-This is an angle experiment, separate from Duet's two-stick pattern selection.
+This is an angle experiment, applied after the base converter's two-stick
+pattern selection.
 The Beat Saber forehand/backhand illustration motivates the trial; it does not
 establish an equivalent ergonomic rule for a joystick that rearms through its
 neutral region. Compare the resulting feel, readability, and preservation of
@@ -406,10 +410,11 @@ Local captures are under `mapreference/duet-unsmoothed/` and remain gitignored.
 
 ## Counterpoint experiment
 
-Counterpoint (`CP`) is an optional, unranked conversion experiment built on the
-current default. It tests additional arrangements without changing the default
-converter. Parity can adjust the completed arrangement, and Encore can add its
-optional note types afterward. Authored Sticks maps retain their authored objects.
+Counterpoint began as the optional `CP` experiment on the Duet-based converter.
+The arrangement logic described here is now enabled by default and is the base
+for Parity. Encore can add its optional note types afterward. Authored Sticks
+maps retain their authored objects. The iteration records below preserve the
+comparisons made while Counterpoint was a separate mod.
 
 The human references suggest distinct roles for the two hands: *Flower Dance*
 uses a lead hand with sparse opposite-hand accents and recognizable repeated
@@ -418,7 +423,7 @@ the first and hands off at releases; *Hyperspeed* places a separate pulse beneat
 longer tracking gestures and reserves exact stacked doubles for selected accents.
 These are arrangement ideas, not templates to copy onto every passage.
 
-The experiment compares seven candidate families:
+The arrangement planner considers seven candidate families:
 
 - **Rhythm answer:** opposite-hand flicks at existing source slider repeats,
   ticks or tails, supported by a recurring nearby source-head pulse or a specific
@@ -532,8 +537,8 @@ four checkpoint/release responses and retains every jump attack.
 The measurements establish preservation and the kinds of coordination generated.
 They do not establish that a passage feels better on a controller. In particular,
 release answers are still the most common addition and supporting phrases remain
-rare. Use the separate mod for playtesting those choices before promoting them to
-the default converter.
+rare. These measurements preceded the follow-up changes and eventual promotion
+to the default converter.
 
 A separate, preselected holdout used six Featured Artist Insane difficulties from
 Creo, Frums, cYsmix, Kurokotei, Silentroom and Rameses B, selected before checking

@@ -34,7 +34,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 source.HitObjects.Add(note);
             }
 
-            SticksHitObject[] standard = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard }.Convert()
+            SticksHitObject[] standard = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false }.Convert()
                 .HitObjects.Cast<SticksHitObject>().ToArray();
             SticksHitObject[] duet = convert(source);
             SticksHitObject[] baselineChords = standard.GroupBy(note => note.StartTime)
@@ -62,7 +62,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             // whose held outer voice would absorb just one of the two final source heads.
             Beatmap<HitObject> source = phrase(new[] { 1000d, 1625, 2250, 2875, 2875 },
                 new[] { 0f, 90, 150, 0, 180 });
-            SticksHitObject[] standard = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard }.Convert()
+            SticksHitObject[] standard = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false }.Convert()
                 .HitObjects.Cast<SticksHitObject>().ToArray();
             SticksHitObject[] baselineChord = standard.Where(note => note.StartTime == 2875).ToArray();
             SticksHitObject[] duet = convert(source);
@@ -249,6 +249,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 ConversionMode = SticksConversionMode.Duet,
                 DisableReversals = true,
+                UseCounterpoint = false,
             }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             // The single-sustain accompaniment remains eligible, while both turning
@@ -348,6 +349,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 ConversionMode = SticksConversionMode.Duet,
                 DisableReversals = disableReversals,
+                UseCounterpoint = false,
             };
 
             SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
@@ -428,7 +430,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Beatmap<HitObject> source = phrase(new[] { 0d, 500, 1000, 1500, 2000, 2500 }, new[] { 0f, 180, 30, 150, 60, 120 });
             source.HitObjects.Add(nativeSlider(6000, 2000, 0));
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard };
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false };
             string[] standard = signature(converter.Convert().HitObjects.Cast<SticksHitObject>());
             new SticksModDuet().ApplyToBeatmapConverter(converter);
             SticksHitObject[] first = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
@@ -477,7 +479,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 ? $"{string.Join(",", slider.SegmentArcAngles)}:{string.Join(",", slider.SegmentDurationWeights ?? Array.Empty<double>())}"
                 : string.Empty)).ToArray();
 
-        private static SticksHitObject[] convert(Beatmap<HitObject> source) => new SticksBeatmapConverter(source, new SticksRuleset())
+        // These regressions isolate the historical duet pass before the Counterpoint arrangement.
+        private static SticksHitObject[] convert(Beatmap<HitObject> source) => new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = false }
             .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
         private static Beatmap<HitObject> unclaimedInterleavedPhrase(float[] angles = null)

@@ -339,6 +339,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(beatmap, new SticksRuleset());
 
             Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.Duet));
+            Assert.That(converter.UseCounterpoint, Is.True);
             SticksHitObject[] standard = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             new SticksModParity().ApplyToBeatmapConverter(converter);
             SticksHitObject[] parity = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
@@ -409,7 +410,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestConversionSelectorRetainsParityAndEncoreAndRetiresDuetMods()
+        public void TestConversionSelectorRetainsParityAndEncoreAndRetiresPromotedMods()
         {
             Mod[] mods = new SticksRuleset().GetModsFor(ModType.Conversion).ToArray();
             var parity = mods.OfType<SticksModParity>().Single();
@@ -422,9 +423,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(parity.Ranked, Is.False);
                 Assert.That(mods.Select(mod => mod.GetType()), Is.EqualTo(new[]
                 {
-                    typeof(SticksModDifficultyAdjust), typeof(SticksModParity), typeof(SticksModEncore), typeof(SticksModCounterpoint),
+                    typeof(SticksModDifficultyAdjust), typeof(SticksModParity), typeof(SticksModEncore),
                 }));
                 Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.ParityDuet));
+                Assert.That(converter.UseCounterpoint, Is.True);
             });
         }
 

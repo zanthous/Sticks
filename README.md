@@ -40,14 +40,14 @@ Star difficulty is NOT currently well calibrated and needs significant work to b
 
 The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Converted sliders use consistent, speed-limited circular arcs chosen from their duration and source pattern.
 
-The default converter builds coordinated two-stick patterns, including slider-head chords, independent accompaniment, interleaved sustains and paired sliders. Moving voices preserve source directions and timing, including speed changes, pauses and reversals.
+The default converter now includes the former Counterpoint arrangements: coordinated two-stick patterns, independent accompaniment, interleaved sustains, paired sliders and occasional exact stacked doubles. Source phrases can give each hand a distinct role while preserving manual attacks and protected jump patterns. Moving voices retain source timing, including speed changes, pauses and reversals. Parity uses this complete conversion as its base; Counterpoint is no longer a separate selectable mod.
 
 The **Conversion** category contains **Difficulty Adjust**, **Parity** and **Encore**:
 
 - **Parity (PA)** expands each stick's original turns using a flexible 135° preference. It operates on the complete default conversion, preserving timing, stick assignments and slider shapes. Local rhythm and movement adjust its strength; slider endpoints count, and two beats of rest start a new phrase.
 - **Encore (EN)** enables additional note types during conversion. It can be combined with Parity or Difficulty Adjust.
 
-Both conversion mods preserve authored Sticks maps. Procedural conversion aligns simultaneous opposite-stick heads within 5° to their circular midpoint, so nearly overlapping doubles render at exactly the same angle. In Center Out, exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
+Both conversion mods preserve authored Sticks maps. Simultaneous opposite-stick directional heads align to their circular midpoint when their visible arcs overlap by at least half of the narrower arc. These doubles render at exactly the same angle, and intentional exact stacks survive Parity. In Center Out, exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
 
 ## Build and install
 

@@ -113,6 +113,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private Color4? skinRightColour;
         private Color4? skinOverlapColour;
         private bool useSkinColours = true;
+        private SticksHitEffectMode hitEffects = SticksHitEffectMode.Perfect;
 
         public bool UseSkinColours
         {
@@ -168,6 +169,21 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// Shows restrained contact feedback while center-out objects are successfully played.
         /// </summary>
         public bool SliderTrackingSparks { get; set; }
+
+        public SticksHitEffectMode HitEffects
+        {
+            get => hitEffects;
+            set
+            {
+                if (hitEffects == value)
+                    return;
+
+                hitEffects = value;
+                perfectHitTracker.Clear();
+                if (value == SticksHitEffectMode.Never)
+                    perfectContactLayer.Clear();
+            }
+        }
 
         public float NoteCircleScale
         {
@@ -486,8 +502,17 @@ namespace osu.Game.Rulesets.Sticks.UI
         private void onHeadJudged(SticksHitObject source, HitResult result)
         {
             // Clicks have no contact angle. This first pass accents aimed heads only.
-            if (source is not SticksAngleComponent || IsPausedEditorPreview)
+            if (HitEffects == SticksHitEffectMode.Never || !CenterOutPresentation || source is not SticksAngleComponent || IsPausedEditorPreview)
                 return;
+
+            // Always responds to each successful head immediately, including one hand of
+            // a stack whose other hand misses. Perfect mode still waits for both grades.
+            if (HitEffects == SticksHitEffectMode.Always)
+            {
+                if (result.IsHit())
+                    perfectContactLayer.Trigger(source.Angle, source.PrimaryHitAngle, ColourFor(source.Side));
+                return;
+            }
 
             SticksHitObject partner = null;
             foreach (DrawableHitObject drawable in ((SticksHitObjectContainer)HitObjectContainer).VisibleObjects)
@@ -507,7 +532,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             }
 
             bool perfect = perfectHitTracker.TryResolve(source, result, partner, out bool bothSticks);
-            if (perfect && CenterOutPresentation && SliderTrackingSparks)
+            if (perfect)
                 perfectContactLayer.Trigger(source.Angle, source.PrimaryHitAngle, bothSticks ? OverlapColour : ColourFor(source.Side));
         }
 

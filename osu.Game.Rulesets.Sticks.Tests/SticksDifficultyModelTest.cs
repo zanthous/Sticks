@@ -105,48 +105,46 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestAngularNoveltyIsReadingStrainRatherThanRawTravel()
+        public void TestReadingDistinguishesOwnStickMovementFromSeparationBetweenSticks()
         {
             const int count = 24;
             const double interval = 180;
             float[] scatteredAngles = { 0, 75, 215, 310, 125, 265, 30, 190, 335, 145, 280, 55 };
 
-            double clustered = rate(flicks(count, interval,
+            double clustered = SticksDifficultyCalculator.CalculateDifficulty(flicks(count, interval,
                 i => i % 2 == 0 ? StickSide.Left : StickSide.Right,
-                _ => 0));
-            double repeatedWidePattern = rate(flicks(count, interval,
+                _ => 0)).Reading;
+            double repeatedWidePattern = SticksDifficultyCalculator.CalculateDifficulty(flicks(count, interval,
                 i => i % 2 == 0 ? StickSide.Left : StickSide.Right,
-                i => i % 2 == 0 ? 0 : 180));
-            double scattered = rate(flicks(count, interval,
+                i => i % 2 == 0 ? 0 : 180)).Reading;
+            double scattered = SticksDifficultyCalculator.CalculateDifficulty(flicks(count, interval,
                 i => i % 2 == 0 ? StickSide.Left : StickSide.Right,
-                i => scatteredAngles[i % scatteredAngles.Length]));
+                i => scatteredAngles[i % scatteredAngles.Length])).Reading;
 
             Assert.Multiple(() =>
             {
                 Assert.That(repeatedWidePattern, Is.GreaterThan(clustered));
 
-                // The repeated pattern travels 180 degrees on every transition. The scattered
-                // pattern has less raw travel on average, but still requires somewhat more reading.
+                // Alternating between two fixed targets separates the hands visually but
+                // does not require either hand to acquire a new direction.
                 Assert.That(scattered, Is.GreaterThan(repeatedWidePattern));
-                Assert.That(scattered - repeatedWidePattern, Is.LessThan(0.75),
-                    "A predictable 180-degree pattern should only receive a modest reading discount.");
             });
         }
 
         [Test]
-        public void TestSpatialSearchKeepsLargeJumpCostBeforeBroadRegionBonus()
+        public void TestCoordinationSpatialWorkRetainsItsCalibration()
         {
             Assert.Multiple(() =>
             {
-                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(1, 0.5, 2), Is.GreaterThan(1),
+                Assert.That(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(1, 0.5, 2), Is.GreaterThan(1),
                     "A predictable two-region 180-degree pattern must retain its large-jump cost.");
-                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(0, 1, 8), Is.EqualTo(1),
+                Assert.That(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(0, 1, 8), Is.EqualTo(1),
                     "Region coverage alone must not matter without an angular jump.");
-                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(0.5, 0.5, 3), Is.GreaterThan(1));
-                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(0.5, 0.5, 6),
-                    Is.GreaterThan(SticksDifficultyModel.SpatialSearchMultiplier(0.5, 0.5, 3)));
-                Assert.That(SticksDifficultyModel.SpatialSearchMultiplier(1, 1, 8),
-                    Is.EqualTo(SticksDifficultyModel.SpatialSearchMultiplier(1, 1, 6)),
+                Assert.That(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(0.5, 0.5, 3), Is.GreaterThan(1));
+                Assert.That(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(0.5, 0.5, 6),
+                    Is.GreaterThan(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(0.5, 0.5, 3)));
+                Assert.That(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(1, 1, 8),
+                    Is.EqualTo(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(1, 1, 6)),
                     "The search term should saturate once the pattern already covers most of the circle.");
             });
         }

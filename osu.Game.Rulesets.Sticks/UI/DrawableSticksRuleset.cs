@@ -44,6 +44,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             new Bindable<SticksNotePresentation>(SticksNotePresentation.CenterOut);
         private readonly BindableBool hideInactiveCursors = new BindableBool();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
+        private readonly Bindable<SticksHitEffectMode> hitEffects = new Bindable<SticksHitEffectMode>(SticksHitEffectMode.Perfect);
         private readonly BindableBool showCursorTrails = new BindableBool();
         private readonly BindableBool useSkinColours = new BindableBool(true);
         private readonly BindableBool saveReplays = new BindableBool(true);
@@ -101,6 +102,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.SliderTrackingSparks, sliderTrackingSparks);
             sliderTrackingSparks.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).SliderTrackingSparks = enabled.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.HitEffects, hitEffects);
+            hitEffects.BindValueChanged(mode =>
+                ((SticksPlayfield)Playfield).HitEffects = mode.NewValue, true);
             Config.BindWith(SticksRulesetSetting.ShowCursorTrails, showCursorTrails);
             showCursorTrails.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).ShowCursorTrails = enabled.NewValue, true);

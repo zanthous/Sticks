@@ -84,6 +84,12 @@ namespace osu.Game.Rulesets.Sticks
                 HintText = "Show restrained contact feedback when hitting notes and tracking or completing sliders and holds in center-out mode.",
                 Current = config.GetBindable<bool>(SticksRulesetSetting.SliderTrackingSparks),
             });
+            var hitEffects = new SettingsItemV2(new FormEnumDropdown<SticksHitEffectMode>
+            {
+                Caption = "Hit effects",
+                HintText = "Show the ring accent for perfect hits, every successful hit, or never.",
+                Current = config.GetBindable<SticksHitEffectMode>(SticksRulesetSetting.HitEffects),
+            });
             var hideInactiveCursors = new SettingsItemV2(new FormCheckBox
             {
                 Caption = "Hide inactive cursors",
@@ -172,6 +178,7 @@ namespace osu.Game.Rulesets.Sticks
                     Current = config.GetBindable<Colour4>(SticksRulesetSetting.OverlapColour),
                 },
                 contactEffects,
+                hitEffects,
                 chordLinkPresentation,
                 stackedNotePresentationSetting,
                 radialApproachDistance,
@@ -222,6 +229,7 @@ namespace osu.Game.Rulesets.Sticks
 
                 hideInactiveCursors.CanBeShown.Value = centerOut;
                 contactEffects.CanBeShown.Value = centerOut;
+                hitEffects.CanBeShown.Value = centerOut;
                 chordLinkPresentation.CanBeShown.Value = brackets;
                 stackedNotePresentationSetting.CanBeShown.Value = brackets;
                 radialApproachDistance.CanBeShown.Value = showRadialApproachControls;

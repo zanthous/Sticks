@@ -32,6 +32,10 @@ bursts and sustained density relevant, with diminishing growth from length.
 
 ## Measuring shared work
 
+Ordinary reading uses [per-stick target sequences and additive burst strain](reading-sequence-proposal.md)
+as of difficulty version `202609150`. Coordination retains its calibrated local
+visual workload; the new reading skill does not change those workload units.
+
 Head and reversal work occupies a local rhythmic window. Its half-width is half
 the shorter gap to the neighbouring gameplay event, using heads, actual reversals
 and sustain ends as boundaries. Slider ticks and non-reversing path subdivisions
@@ -79,6 +83,9 @@ coordination event strain count remains solely for the performance miss penalty;
 its strain magnitudes do not set star difficulty or coordination magnitude.
 
 ## September 14 comparison
+
+These are historical values before the September 15 reading update. Current
+before/after ratings are in the [reading comparison](reading-sequence-proposal.md#results-through-actual-default-conversion).
 
 All 53 maps went through the actual default gameplay conversion pipeline. The
 static difficulty result and the full calculator pipeline agreed within `1e-9`.

@@ -35,6 +35,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             SetDefault(SticksRulesetSetting.NotePresentation, SticksNotePresentation.CenterOut);
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
+            SetDefault(SticksRulesetSetting.HitEffects, SticksHitEffectMode.Perfect);
             SetDefault(SticksRulesetSetting.ShowCursorTrails, false);
             SetDefault(SticksRulesetSetting.UseSkinColours, true);
             SetDefault(SticksRulesetSetting.DisableBeatmapHitsounds, false);
@@ -101,6 +102,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks cursor trails",
                 value: enabled ? "enabled" : "disabled"
             )),
+            new TrackedSetting<SticksHitEffectMode>(SticksRulesetSetting.HitEffects, mode => new SettingDescription(
+                rawValue: mode,
+                name: "Sticks hit effects",
+                value: mode.GetDescription()
+            )),
             new TrackedSetting<bool>(SticksRulesetSetting.DisableBeatmapHitsounds, disabled => new SettingDescription(
                 rawValue: disabled,
                 name: "Sticks disable beatmap hitsounds",
@@ -158,6 +164,14 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         RightStickColour,
         OverlapColour,
         UseSkinColours,
+        HitEffects,
+    }
+
+    public enum SticksHitEffectMode
+    {
+        Perfect,
+        Always,
+        Never,
     }
 
     public enum SticksChordLinkPresentation

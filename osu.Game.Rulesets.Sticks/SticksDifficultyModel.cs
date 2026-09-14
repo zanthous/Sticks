@@ -38,7 +38,6 @@ namespace osu.Game.Rulesets.Sticks
         private const double reorientation_scale = 11;
 
         private const double mechanical_decay = 0.3;
-        private const double reading_decay = 0.8;
         private const double control_decay = 0.45;
         private const double coordination_decay = 0.55;
 
@@ -47,8 +46,8 @@ namespace osu.Game.Rulesets.Sticks
         private const double control_harmonic_scale = 5;
         private const double coordination_harmonic_scale = 5;
 
-        // Large angular jumps remain demanding even when they repeat between two predictable
-        // regions. Broadly scattered patterns add a smaller visual-search demand on top.
+        // Retained calibration of local visual workload for coordination. Ordinary reading
+        // uses SticksReadingDifficulty's per-hand sequences instead of this spatial multiplier.
         private const double large_jump_search_scale = 3.3;
         private const double broad_region_search_scale = 2.5;
 
@@ -83,7 +82,7 @@ namespace osu.Game.Rulesets.Sticks
             internal long CoordinationIntervalUpdateCount => coordinationWork.IntervalUpdateCount;
 
             private PerSideStrainAccumulator mechanical;
-            private ScalarStrainAccumulator reading;
+            private SticksReadingDifficulty reading;
             private ScalarStrainAccumulator reorientation;
             private PerSideStrainAccumulator control;
             private ScalarStrainAccumulator coordination;
@@ -117,7 +116,7 @@ namespace osu.Game.Rulesets.Sticks
                 fullGreatWindow = 2 * SticksDifficultyScaling.GreatWindowFor(this.overallDifficulty) / this.clockRate;
 
                 mechanical = new PerSideStrainAccumulator(mechanical_decay, this.clockRate);
-                reading = new ScalarStrainAccumulator(reading_decay, this.clockRate);
+                reading = new SticksReadingDifficulty(this.clockRate, breaks);
                 reorientation = new ScalarStrainAccumulator(mechanical_decay, this.clockRate);
                 control = new PerSideStrainAccumulator(control_decay, this.clockRate);
                 coordination = new ScalarStrainAccumulator(coordination_decay, this.clockRate);
@@ -236,12 +235,13 @@ namespace osu.Game.Rulesets.Sticks
                 if (controlImpulses.Count > 0)
                     controlStrains.Add(control.Process(timestamp, controlImpulses));
 
-                double readingImpulse = calculateReadingImpulse(group, timestamp, readingHistory, activeTracking, clockRate);
-                readingStrains.Add(reading.Process(timestamp, readingImpulse * 2.5));
+                ReadingContext readingContext = calculateReadingContext(group, timestamp, readingHistory, activeTracking, clockRate);
+                readingStrains.Add(reading.Process(group, timestamp, readingContext.PreviousGroupDistance,
+                    readingContext.ObjectTypeBonus, readingContext.ChordBonus, readingContext.FollowsActiveSliderArc));
 
                 bool coordinatedHead = mechanicalImpulses.Count > 1 || group.Any(head => activeTracking.Any(active =>
                     active.Object.Side != head.Side && active.Object.StartTime + simultaneous_epsilon < timestamp));
-                coordinationWork.AddGroup(group, timestamp, headWork, readingImpulse, controlImpulses, coordinatedHead);
+                coordinationWork.AddGroup(group, timestamp, headWork, readingContext.CoordinationWorkload, controlImpulses, coordinatedHead);
 
                 // Retain the existing event-based miss-penalty count for performance only.
                 // These legacy strain magnitudes no longer contribute stars or skill ratings.
@@ -325,7 +325,7 @@ namespace osu.Game.Rulesets.Sticks
             private sealed record GroupCheckpoint(
                 PerSideStrainAccumulator Mechanical,
                 ScalarStrainAccumulator Reorientation,
-                ScalarStrainAccumulator Reading,
+                SticksReadingDifficulty Reading,
                 PerSideStrainAccumulator Control,
                 ScalarStrainAccumulator Coordination,
                 int MechanicalStrainCount,
@@ -428,10 +428,10 @@ namespace osu.Game.Rulesets.Sticks
             return (0.3 + motion + reversal) * endurance;
         }
 
-        private static double calculateReadingImpulse(IReadOnlyList<SticksHitObject> group, double timestamp,
-                                                      IReadOnlyList<PatternGroup> history,
-                                                      IReadOnlyList<ActiveTrackingObject> activeTracking,
-                                                      double clockRate)
+        private static ReadingContext calculateReadingContext(IReadOnlyList<SticksHitObject> group, double timestamp,
+                                                              IReadOnlyList<PatternGroup> history,
+                                                              IReadOnlyList<ActiveTrackingObject> activeTracking,
+                                                              double clockRate)
         {
             PatternGroup? previous = history.Count > 0 ? history[^1] : null;
             PatternGroup? twoBack = history.Count > 1 ? history[^2] : null;
@@ -494,7 +494,9 @@ namespace osu.Game.Rulesets.Sticks
             }
 
             double chordBonus = group.Count > 1 ? 0.12 : 0;
-            double spatialSearchMultiplier = SpatialSearchMultiplier(jumpDemand, novelty, distinctRegions);
+            // Coordination's local workload keeps its existing units and calibration.
+            // Only the bounded context fields below feed the ordinary reading skill.
+            double spatialSearchMultiplier = CoordinationSpatialSearchMultiplier(jumpDemand, novelty, distinctRegions);
             double impulse = (0.3 + novelty * 0.95 + regionComplexity + objectTypeBonus + chordBonus)
                              * density
                              * spatialSearchMultiplier;
@@ -508,10 +510,10 @@ namespace osu.Game.Rulesets.Sticks
             if (followsActiveSliderArc)
                 impulse *= 0.85;
 
-            return impulse;
+            return new ReadingContext(jumpDemand, objectTypeBonus, chordBonus, followsActiveSliderArc, impulse);
         }
 
-        internal static double SpatialSearchMultiplier(double jumpDemand, double novelty, int distinctRegions)
+        internal static double CoordinationSpatialSearchMultiplier(double jumpDemand, double novelty, int distinctRegions)
         {
             jumpDemand = Math.Clamp(jumpDemand, 0, 1);
             novelty = Math.Clamp(novelty, 0, jumpDemand);
@@ -608,6 +610,8 @@ namespace osu.Game.Rulesets.Sticks
             Hold,
         }
 
+        private readonly record struct ReadingContext(double PreviousGroupDistance, double ObjectTypeBonus, double ChordBonus,
+                                                      bool FollowsActiveSliderArc, double CoordinationWorkload);
         private readonly record struct PreviousSideObject(double EndTime, float EndAngle);
         private readonly record struct PatternGroup(double Time, float[] Angles, ObjectKind[] Kinds);
         private readonly record struct ActiveTrackingObject(SticksHitObject Object, double EndTime, double AngularVelocity);

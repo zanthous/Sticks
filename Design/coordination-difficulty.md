@@ -1,9 +1,34 @@
-# Coordination difficulty
+# Coordination and ordinary difficulty
 
-The September 2026 calculation combines an ordinary-skill baseline with a bounded
-addition for work performed by both hands together. It uses the same mechanical,
-reading and control demands as the ordinary difficulty model: note density,
-angular spacing, aim precision, slider speed and reversals all matter.
+The September 2026 calculation combines mechanical, reading, control and
+coordination skills before the shared star calibration. Dense solo patterns do
+not need a coordination addition to receive difficulty.
+
+## Rapid target changes
+
+Mechanical difficulty retains the existing per-hand neutral-reset speed demand.
+It also measures how quickly the target changes for each stick across the head
+sequence. The previous direction is the preceding gesture's **endpoint**, including
+slider movement. Clicks contribute their existing button demand without inventing
+an angle.
+
+```text
+gap = max(50 ms, previous head-group gap, same-hand recovery gap / 2)
+displacement = sin(abs(same-hand angular change) / 2)
+reorientation = 11 * (125 ms / gap)^3 * displacement^2
+```
+
+Gaps use real playback time and the existing OD-aware speed adjustment. The rate
+term couples squared displacement at speed with event frequency. There is no
+pattern-predictability factor in this term. Using the same hand's recovery gap
+prevents a tiny offset from an otherwise slow opposite-hand pattern from creating
+artificially fast movement demand.
+
+The strongest reorientation demand in a head group is accumulated with the existing
+mechanical decay. Mechanical strain takes the stronger of this and the per-hand
+reset strain, rather than summing two assessments of the same head sequence.
+Simultaneous heads form one group. The existing ranked strain aggregation keeps
+bursts and sustained density relevant, with diminishing growth from length.
 
 ## Measuring shared work
 
@@ -17,63 +42,68 @@ Coordination is enabled around simultaneous heads, heads played during an
 opposite-hand sustain, and intervals with both hands sustaining. If the work rates
 are `L` and `R`, the shared rate is `4 * L * R / (L + R)`. This cannot exceed their
 combined work, and a slow held task cannot inherit the other hand's full workload.
+Head work includes the stronger of reset and reorientation demand. Reading,
+angular precision, slider speed and reversals remain part of shared work.
 Directionless clicks use neutral angular precision.
 
 Explicit mapped breaks are merged and excluded from both work and playable time.
 Event work removed by a break is not redistributed onto the remaining time.
 Playable time runs from the first head to the last head or sustain end.
 
-## Approved normalization
+## Combining the skills
 
 ```text
 demandRate = coordinatedWork / playableSeconds
 p = demandRate / (demandRate + 7.449578513114503)
 response = 6*p*p / (6*p*p + 1 - p)
-addition = 1.9804203856707803 * response
-stars = min(30, baseline + addition)
+coordinationSkill = 8 * response^(1 / 3.3)
+combined = (mechanical^3.3 + reading^3.3 + control^3.3
+            + coordinationSkill^3.3)^(1 / 3.3)
 ```
 
-Zero playable time or zero work produces no addition. The response starts gently,
-reaches 75% at `p = 0.5`, and approaches its fixed maximum smoothly. `p` is a demand
-index, not a percentage of map time. The constants were frozen from the approved
-Want You Gone comparison to preserve its preceding proposed rating. They are not
-recomputed per map or corpus. Harder unrelated solo passages cannot increase or
-dilute the coordination addition through the map's ordinary-skill rating.
+Zero playable time or zero work produces no coordination skill. The retained
+response starts gently, reaches 75% at `p = 0.5`, and approaches its fixed maximum
+smoothly. `p` is a demand index, not a percentage of map time. The constants are
+fixed across maps; no title, beatmap ID or current corpus statistic affects them.
 
-The baseline combines mechanical, reading and control ratings with the existing
-3.3-norm, multiplied by `0.89` before the existing timing and star calibration and
-angular adjustment. The former coordination strain is excluded from that norm.
+The response controls coordination's contribution to the norm's sum. Its raw skill
+is bounded at 8; that is **not eight stars**. The combined result receives the
+existing `0.89` scale, timing multiplier, star calibration and angular adjustment,
+with the overall 30-star ceiling. The old fixed addition of up to 1.98 stars has
+been removed. The diagnostic `CoordinationStarAddition` now reports the difference
+between calibrating all four skills and calibrating the three ordinary skills.
+It is not an extra operation applied after calculating the rating.
 
-For performance calculation, the additive stars are expressed as an equivalent
-fourth skill in the existing norm. This preserves the ordinary components' share
-and gives coordination the additional performance. The existing coordination
-event strain count remains solely for the performance miss penalty; its strain
-magnitudes no longer set star difficulty or the coordination skill rating.
+Performance uses these same four skill ratings directly. The historical
+coordination event strain count remains solely for the performance miss penalty;
+its strain magnitudes do not set star difficulty or coordination magnitude.
 
-## Verification
+## September 14 comparison
 
-The production conversion/difficulty pipeline was compared with all 52 saved
-normalization-proposal results, with a maximum star difference below `1e-9`.
+All 53 maps went through the actual default gameplay conversion pipeline. The
+static difficulty result and the full calculator pipeline agreed within `1e-9`.
 
-| Reference difficulty | Previous stars | Applied stars | Coordination addition |
+| Reference difficulty | Previous stars | Revised stars | Coordination share in stars |
 | --- | ---: | ---: | ---: |
-| Want You Gone — Collab Potato | 3.90 | 3.95 | +0.650 |
-| Masterpiece BPM180 — AR10 | 7.98 | 6.79 | +0.000 |
-| Story of my Wife — Warota | 6.34 | 5.43 | +0.037 |
-| Exit This Earth's Atomosphere — GiRLC's Intangible | 7.29 | 6.32 | +0.125 |
-| Blue Zenith — Easy | 3.56 | 4.07 | +1.052 |
-| Blue Zenith — Akaphyxia's Normal | 3.97 | 4.23 | +0.868 |
-| Blue Zenith — Hard | 5.08 | 4.93 | +0.621 |
+| Spider Dance — Spider IV. | 4.96 | 6.34 | +0.018 |
+| Masterpiece BPM180 — AR10 | 6.79 | 7.66 | +0.000 |
+| Want You Gone — Collab Potato | 3.95 | 4.12 | +0.741 |
+| Story of my Wife — Warota | 5.43 | 5.77 | +0.024 |
+| Exit This Earth's Atomosphere — GiRLC's Intangible | 6.32 | 7.61 | +0.059 |
+| Blue Zenith — Easy | 4.07 | 3.82 | +0.811 |
+| Blue Zenith — Akaphyxia's Normal | 4.23 | 4.08 | +0.720 |
+| Blue Zenith — Hard | 4.93 | 4.98 | +0.487 |
+| Blue Zenith — FOUR DIMENSIONS | 6.77 | 10.29 | +0.023 |
+| FREEDOM DiVE — FOUR DIMENSIONS | 6.45 | 10.10 | +0.029 |
 
-Local comparison artifacts remain under `mapreference/coordination-normalization-proposal/`.
-Regression checks cover break exclusions, density and movement sensitivity,
-directionless clicks, bounded normalization, and exact timed-prefix results after
-simultaneous groups and overlapping sliders. Coordination intervals are updated
-incrementally so querying each prefix does not replay the whole map.
+Spider Dance remains below the suggested approximately 7-star target. Faster stream
+references rise substantially; these are calculated outcomes requiring playtesting,
+not independent evidence that every revised rating is correct. No per-map target
+or exception was added to obtain the table.
 
-Validation passed 908 regression tests on the stable package and 121 targeted
-checks against the cached Tachyon checkout. A local 4,000-note timed benchmark
-went from 2.58 s to 2.74 s (about 6%); the existing timed path still allocates
-heavily. The new coordination interval updates scale with local changes, as
-checked separately from the ordinary-skill and framework work. Full-map
-calculation for that synthetic benchmark took 49 ms.
+Local analysis and full comparison results are gitignored under
+`mapreference/density-coordination-revision/`. Regression coverage includes dense
+alternating target changes, shared calibration, break exclusions, rate and movement
+sensitivity, directionless clicks, bounded normalization and exact timed prefixes.
+The new accumulator is reversible with its simultaneous group; querying a prefix
+does not replay the map.

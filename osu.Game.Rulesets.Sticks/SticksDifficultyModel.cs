@@ -34,6 +34,8 @@ namespace osu.Game.Rulesets.Sticks
     {
         private const double simultaneous_epsilon = 0.01;
         private const double skill_norm_exponent = 3.3;
+        private const double maximum_coordination_skill = 8;
+        private const double reorientation_scale = 11;
 
         private const double mechanical_decay = 0.3;
         private const double reading_decay = 0.8;
@@ -82,6 +84,7 @@ namespace osu.Game.Rulesets.Sticks
 
             private PerSideStrainAccumulator mechanical;
             private ScalarStrainAccumulator reading;
+            private ScalarStrainAccumulator reorientation;
             private PerSideStrainAccumulator control;
             private ScalarStrainAccumulator coordination;
 
@@ -115,6 +118,7 @@ namespace osu.Game.Rulesets.Sticks
 
                 mechanical = new PerSideStrainAccumulator(mechanical_decay, this.clockRate);
                 reading = new ScalarStrainAccumulator(reading_decay, this.clockRate);
+                reorientation = new ScalarStrainAccumulator(mechanical_decay, this.clockRate);
                 control = new PerSideStrainAccumulator(control_decay, this.clockRate);
                 coordination = new ScalarStrainAccumulator(coordination_decay, this.clockRate);
                 coordinationWork = new SticksCoordinationDifficulty(this.clockRate, breaks);
@@ -168,15 +172,15 @@ namespace osu.Game.Rulesets.Sticks
                 double calibratedBaseStars = SticksDifficultyScaling.CalibrateStarRating(0.89 * combined * timingPrecision);
                 double angularAdjustment = SticksDifficultyScaling.AngularPrecisionStarAdjustment(calibratedBaseStars, angularPrecision);
                 double baseStars = Math.Clamp(calibratedBaseStars + angularAdjustment, 0, 30);
-                double addition = Math.Min(30 - baseStars, coordinationWork.StarAddition);
-                double stars = baseStars + addition;
 
-                // Express the additive stars in the existing skill norm for performance.
-                // This leaves the ordinary skills' calibrated share unchanged, instead of
-                // letting the retired coordination impulse determine the PP distribution.
-                double coordinationRating = baseStars > 0 && addition > 0
-                    ? combined * Math.Pow(Math.Pow(stars / baseStars, skill_norm_exponent) - 1, 1 / skill_norm_exponent)
-                    : 0;
+                // Coordination is a bounded fourth skill before the shared calibration.
+                // The response controls its contribution to the norm's sum, so high solo
+                // demand remains valuable and small shared workloads stay small.
+                double coordinationRating = maximum_coordination_skill * Math.Pow(coordinationWork.Participation, 1 / skill_norm_exponent);
+                double coordinated = pNorm(skill_norm_exponent, mechanicalRating, readingRating, controlRating, coordinationRating);
+                double calibrated = SticksDifficultyScaling.CalibrateStarRating(0.89 * coordinated * timingPrecision);
+                double stars = Math.Clamp(calibrated + SticksDifficultyScaling.AngularPrecisionStarAdjustment(calibrated, angularPrecision), 0, 30);
+                double addition = stars - baseStars;
 
                 return new SticksDifficultyBreakdown(
                     stars,
@@ -209,10 +213,15 @@ namespace osu.Game.Rulesets.Sticks
 
                 var mechanicalImpulses = new Dictionary<StickSide, double>();
                 var controlImpulses = new Dictionary<StickSide, double>();
+                var headWork = new Dictionary<StickSide, double>();
+                double reorientationImpulse = 0;
 
                 foreach (SticksHitObject current in group)
                 {
-                    double impulse = mechanicalImpulse(current, timestamp, previousBySide, fullGreatWindow, clockRate);
+                    double impulse = mechanicalImpulse(current, timestamp, previousBySide, fullGreatWindow, clockRate,
+                        readingHistory.Count > 0 ? readingHistory[^1].Time : timestamp, out double transition);
+                    reorientationImpulse = Math.Max(reorientationImpulse, transition);
+                    headWork[current.Side] = Math.Max(headWork.GetValueOrDefault(current.Side), Math.Max(impulse, transition));
                     mechanicalImpulses[current.Side] = Math.Max(mechanicalImpulses.GetValueOrDefault(current.Side), impulse);
 
                     double continuousImpulse = controlImpulse(current, clockRate);
@@ -220,7 +229,9 @@ namespace osu.Game.Rulesets.Sticks
                         controlImpulses[current.Side] = Math.Max(controlImpulses.GetValueOrDefault(current.Side), continuousImpulse);
                 }
 
-                mechanicalStrains.Add(mechanical.Process(timestamp, mechanicalImpulses));
+                // Reset speed and rapid target changes are two assessments of the same
+                // head sequence. Keep the stronger local demand instead of adding both.
+                mechanicalStrains.Add(Math.Max(mechanical.Process(timestamp, mechanicalImpulses), reorientation.Process(timestamp, reorientationImpulse)));
 
                 if (controlImpulses.Count > 0)
                     controlStrains.Add(control.Process(timestamp, controlImpulses));
@@ -230,7 +241,7 @@ namespace osu.Game.Rulesets.Sticks
 
                 bool coordinatedHead = mechanicalImpulses.Count > 1 || group.Any(head => activeTracking.Any(active =>
                     active.Object.Side != head.Side && active.Object.StartTime + simultaneous_epsilon < timestamp));
-                coordinationWork.AddGroup(group, timestamp, mechanicalImpulses, readingImpulse, controlImpulses, coordinatedHead);
+                coordinationWork.AddGroup(group, timestamp, headWork, readingImpulse, controlImpulses, coordinatedHead);
 
                 // Retain the existing event-based miss-penalty count for performance only.
                 // These legacy strain magnitudes no longer contribute stars or skill ratings.
@@ -241,7 +252,7 @@ namespace osu.Game.Rulesets.Sticks
                 foreach (var sideGroup in group.GroupBy(hitObject => (hitObject.Side, Click: hitObject is SticksClick)))
                 {
                     SticksHitObject latestEnding = sideGroup.OrderByDescending(endTimeOf).First();
-                    previousBySide[sideGroup.Key] = new PreviousSideObject(endTimeOf(latestEnding));
+                    previousBySide[sideGroup.Key] = new PreviousSideObject(endTimeOf(latestEnding), latestEnding is SticksSlider slider ? slider.AngleAt(slider.EndTime) : latestEnding.Angle);
                 }
 
                 foreach (SticksHitObject current in group)
@@ -275,6 +286,7 @@ namespace osu.Game.Rulesets.Sticks
 
             private GroupCheckpoint captureCheckpoint() => new GroupCheckpoint(
                 mechanical.Clone(),
+                reorientation.Clone(),
                 reading.Clone(),
                 control.Clone(),
                 coordination.Clone(),
@@ -290,6 +302,7 @@ namespace osu.Game.Rulesets.Sticks
             private void restoreCheckpoint(GroupCheckpoint checkpoint)
             {
                 mechanical.CopyFrom(checkpoint.Mechanical);
+                reorientation.CopyFrom(checkpoint.Reorientation);
                 reading.CopyFrom(checkpoint.Reading);
                 control.CopyFrom(checkpoint.Control);
                 coordination.CopyFrom(checkpoint.Coordination);
@@ -311,6 +324,7 @@ namespace osu.Game.Rulesets.Sticks
 
             private sealed record GroupCheckpoint(
                 PerSideStrainAccumulator Mechanical,
+                ScalarStrainAccumulator Reorientation,
                 ScalarStrainAccumulator Reading,
                 PerSideStrainAccumulator Control,
                 ScalarStrainAccumulator Coordination,
@@ -326,8 +340,9 @@ namespace osu.Game.Rulesets.Sticks
 
         private static double mechanicalImpulse(SticksHitObject current, double timestamp,
                                                 IReadOnlyDictionary<(StickSide Side, bool Click), PreviousSideObject> previousBySide,
-                                                double fullGreatWindow, double clockRate)
+                                                double fullGreatWindow, double clockRate, double previousGroupTime, out double transition)
         {
+            transition = 0;
             double impulse;
 
             if (!previousBySide.TryGetValue((current.Side, current is SticksClick), out PreviousSideObject previous))
@@ -353,6 +368,21 @@ namespace osu.Game.Rulesets.Sticks
                     : 0;
 
                 impulse = 250 / Math.Max(25, gap) * (1 + speedBonus);
+
+                // Reorientation couples the same stick's target displacement with the
+                // pace of the head sequence. Alternation gives the hand more recovery,
+                // but does not remove the need to acquire rapidly changing targets.
+                if (current is not SticksClick && previousGroupTime < timestamp)
+                {
+                    // A tiny offset from the other hand must not turn two widely-spaced
+                    // patterns into a fast stream. Retain at least half this hand's gap.
+                    double transitionGap = Math.Max(50, Math.Max(effectiveInterval(timestamp - previousGroupTime, clockRate),
+                        effectiveInterval(timestamp - previous.EndTime, clockRate) / 2));
+                    transitionGap /= Math.Clamp((transitionGap / Math.Max(1, fullGreatWindow)) / 0.93, 0.92, 1);
+                    double displacement = Math.Sin(Math.Abs(SticksHitObject.DeltaAngle(previous.EndAngle, current.Angle)) * Math.PI / 360);
+                    // Squared displacement at speed, weighted by event frequency.
+                    transition = reorientation_scale * Math.Pow(125 / transitionGap, 3) * displacement * displacement;
+                }
             }
 
             if (isStationarySustain(current))
@@ -578,7 +608,7 @@ namespace osu.Game.Rulesets.Sticks
             Hold,
         }
 
-        private readonly record struct PreviousSideObject(double EndTime);
+        private readonly record struct PreviousSideObject(double EndTime, float EndAngle);
         private readonly record struct PatternGroup(double Time, float[] Angles, ObjectKind[] Kinds);
         private readonly record struct ActiveTrackingObject(SticksHitObject Object, double EndTime, double AngularVelocity);
 

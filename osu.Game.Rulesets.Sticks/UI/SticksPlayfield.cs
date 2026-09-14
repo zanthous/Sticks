@@ -63,6 +63,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksRibbonBuffer radialPathBuffer;
         private readonly SticksCenterOutNoteOverlapLayer noteOverlapLayer;
         private readonly SticksContactBurstLayer contactBurstLayer;
+        private readonly SticksPerfectContactLayer perfectContactLayer;
+        private readonly SticksPerfectHitTracker perfectHitTracker = new SticksPerfectHitTracker();
         private readonly SticksJudgementDisplay judgementDisplay;
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
@@ -364,6 +366,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 HitObjectContainer,
                 noteOverlapLayer = new SticksCenterOutNoteOverlapLayer(this),
                 contactBurstLayer = new SticksContactBurstLayer(),
+                perfectContactLayer = new SticksPerfectContactLayer(),
                 judgementDisplay = new SticksJudgementDisplay(),
                 leftTrail = new SticksCursorTrail("Cursors/blue", "sticks-cursortrail-left"),
                 rightTrail = new SticksCursorTrail("Cursors/red", "sticks-cursortrail-right"),
@@ -455,12 +458,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             base.LoadComplete();
             NewResult += onNewResult;
+            judgementDisplay.HeadJudged += onHeadJudged;
             RevertResult += onRevertResult;
         }
 
         protected override void Dispose(bool isDisposing)
         {
             NewResult -= onNewResult;
+            judgementDisplay.HeadJudged -= onHeadJudged;
             RevertResult -= onRevertResult;
             base.Dispose(isDisposing);
         }
@@ -474,15 +479,43 @@ namespace osu.Game.Rulesets.Sticks.UI
             else if (judgedObject is DrawableSticksHoldTail holdTail && result.Type == HitResult.SliderTailHit)
                 TriggerContactBurst(holdTail.HitObject.Side, holdTail.HitObject.Angle, holdTail.HitObject.PrimaryHitAngle, completion: true);
 
-            if (!DisplayJudgements.Value)
+            // Contact feedback also needs the complete grade when correction dots are hidden.
+            judgementDisplay.Process(result, DisplayJudgements.Value);
+        }
+
+        private void onHeadJudged(SticksHitObject source, HitResult result)
+        {
+            // Clicks have no contact angle. This first pass accents aimed heads only.
+            if (source is not SticksAngleComponent || IsPausedEditorPreview)
                 return;
 
-            judgementDisplay.Process(result);
+            SticksHitObject partner = null;
+            foreach (DrawableHitObject drawable in ((SticksHitObjectContainer)HitObjectContainer).VisibleObjects)
+            {
+                SticksHitObject head = drawable switch
+                {
+                    DrawableSticksFlick flick => flick.HitObject,
+                    DrawableSticksSlider slider => slider.HitObject.NestedHitObjects.OfType<SticksSliderHead>().FirstOrDefault(),
+                    DrawableSticksHold hold => hold.HitObject.NestedHitObjects.OfType<SticksHoldHead>().FirstOrDefault(),
+                    _ => null,
+                };
+                if (!SticksPerfectHitTracker.IsExactStack(source, head))
+                    continue;
+                partner = head.NestedHitObjects.OfType<SticksAngleComponent>().FirstOrDefault();
+                if (partner != null)
+                    break;
+            }
+
+            bool perfect = perfectHitTracker.TryResolve(source, result, partner, out bool bothSticks);
+            if (perfect && CenterOutPresentation && SliderTrackingSparks)
+                perfectContactLayer.Trigger(source.Angle, source.PrimaryHitAngle, bothSticks ? OverlapColour : ColourFor(source.Side));
         }
 
         private void onRevertResult(JudgementResult result)
         {
             contactBurstLayer.ClearBursts();
+            perfectContactLayer.Clear();
+            perfectHitTracker.Clear();
             judgementDisplay.Revert(result);
         }
 

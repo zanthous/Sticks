@@ -33,6 +33,22 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestCoordinationEntersTheSameCalibrationAsTheOtherSkills()
+        {
+            var result = difficulty(doubles(60, 150, 120));
+            double combined = Math.Pow(new[] { result.Mechanical, result.Reading, result.Control, result.Coordination }
+                                       .Sum(skill => Math.Pow(skill, 3.3)), 1 / 3.3);
+            double calibrated = SticksDifficultyScaling.CalibrateStarRating(0.89 * combined * result.TimingPrecision);
+            double expected = Math.Clamp(calibrated + SticksDifficultyScaling.AngularPrecisionStarAdjustment(calibrated, result.AngularPrecision), 0, 30);
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.StarRating, Is.EqualTo(expected).Within(1e-9));
+                Assert.That(result.Coordination, Is.GreaterThan(0).And.LessThanOrEqualTo(8));
+                Assert.That(result.CoordinationStarAddition, Is.EqualTo(result.StarRating - result.BaseStarRating).Within(1e-9));
+            });
+        }
+
+        [Test]
         public void TestBreaksRemoveWorkAndTimeWithoutMovingWorkOntoRemainingWindows()
         {
             // Two unit-work heads on each hand: [0,500] and [500,1000].
@@ -62,16 +78,16 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(full.CoordinatedWork, Is.EqualTo(4).Within(1e-9));
                 Assert.That(partial.CoordinatedWork, Is.EqualTo(2).Within(1e-9));
                 Assert.That(partial.PlayableSeconds, Is.EqualTo(0.5));
-                Assert.That(partial.StarAddition, Is.EqualTo(full.StarAddition).Within(1e-9));
+                Assert.That(partial.Participation, Is.EqualTo(full.Participation).Within(1e-9));
                 Assert.That(silent.CoordinatedWork, Is.Zero);
-                Assert.That(silent.StarAddition, Is.Zero);
+                Assert.That(silent.Participation, Is.Zero);
             });
         }
 
         [Test]
         public void TestCoordinationRespondsToDensityAndAngularSpacingWithinTheSamePatternType()
         {
-            double bonus(double interval, float angleStep) => difficulty(doubles(40, interval, angleStep)).CoordinationStarAddition;
+            double bonus(double interval, float angleStep) => difficulty(doubles(40, interval, angleStep)).Coordination;
             Assert.That(bonus(150, 90), Is.GreaterThan(bonus(300, 90)));
             Assert.That(bonus(300, 90), Is.GreaterThan(bonus(600, 90)));
             Assert.That(bonus(300, 160), Is.GreaterThan(bonus(300, 90)));
@@ -88,7 +104,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 StartTime = 1000, Side = side, Angle = side == StickSide.Left ? 0 : 180,
                 Duration = 4000, ArcAngle = velocity * 4 / (turns + 1), RepeatCount = turns,
-            })).CoordinationStarAddition;
+            })).Coordination;
 
             Assert.That(bonus(0), Is.LessThan(bonus(30)));
             Assert.That(bonus(30), Is.LessThan(bonus(120)));

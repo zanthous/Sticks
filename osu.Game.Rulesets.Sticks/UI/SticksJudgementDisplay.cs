@@ -36,6 +36,9 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public HitResult? LastResult { get; private set; }
 
+        /// <summary>One complete head result, after both timing and aim are known.</summary>
+        public event Action<SticksHitObject, HitResult> HeadJudged;
+
         public SticksJudgementDisplay()
         {
             Anchor = Anchor.TopLeft;
@@ -61,7 +64,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// their combined grade once both have arrived. Results are paired by the generated
         /// angle hit object, so simultaneous notes cannot overwrite one shared pending value.
         /// </summary>
-        public void Process(JudgementResult result)
+        public void Process(JudgementResult result, bool showDots = true)
         {
             if (result.HitObject is SticksClick click)
             {
@@ -70,7 +73,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 {
                     HitResult.Great => HitResult.Perfect,
                     _ => result.Type,
-                });
+                }, showDots);
                 return;
             }
 
@@ -84,7 +87,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                     return;
 
                 if (pendingAngleResults.Remove(angleComponent, out HitResult angleResult))
-                    displayResult(angleComponent, CombinedResult(result.Type, angleResult));
+                    displayResult(angleComponent, CombinedResult(result.Type, angleResult), showDots);
                 else
                     pendingTimingResults[angleComponent] = result.Type;
 
@@ -95,7 +98,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 return;
 
             if (pendingTimingResults.Remove(angleHitObject, out HitResult timingResult))
-                displayResult(angleHitObject, CombinedResult(timingResult, result.Type));
+                displayResult(angleHitObject, CombinedResult(timingResult, result.Type), showDots);
             else
                 pendingAngleResults[angleHitObject] = result.Type;
         }
@@ -106,11 +109,12 @@ namespace osu.Game.Rulesets.Sticks.UI
             ResetDisplay();
         }
 
-        private void displayResult(SticksHitObject source, HitResult result)
+        private void displayResult(SticksHitObject source, HitResult result, bool showDots)
         {
+            HeadJudged?.Invoke(source, result);
             // Successful action checkpoints and perfect heads need no accuracy correction.
             // Misses retain their existing audio feedback rather than adding a dot.
-            if (result == HitResult.Perfect || !result.IsHit())
+            if (!showDots || result == HitResult.Perfect || !result.IsHit())
                 return;
 
             LastResult = result;

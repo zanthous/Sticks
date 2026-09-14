@@ -140,6 +140,33 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(display.LastResult, Is.Null);
         }
 
+        [TestCase(false, HitResult.Great, HitResult.Perfect)]
+        [TestCase(true, HitResult.Ok, HitResult.Great)]
+        public void TestHeadFeedbackWaitsForBothGradesWhenDotsAreHidden(bool angleFirst, HitResult aim, HitResult expected)
+        {
+            var display = new TestDisplay();
+            SticksHitObject head = createHead();
+            HitResult? resolved = null;
+            int count = 0;
+            display.HeadJudged += (source, grade) =>
+            {
+                Assert.That(source, Is.SameAs(angleOf(head)));
+                resolved = grade;
+                count++;
+            };
+            JudgementResult timing = result(head, HitResult.Great);
+            JudgementResult angle = result(angleOf(head), aim);
+            display.Process(angleFirst ? angle : timing, showDots: false);
+            Assert.That(resolved, Is.Null);
+            display.Process(angleFirst ? timing : angle, showDots: false);
+            Assert.Multiple(() =>
+            {
+                Assert.That(count, Is.EqualTo(1));
+                Assert.That(resolved, Is.EqualTo(expected));
+                Assert.That(visible(display), Is.Empty);
+            });
+        }
+
         private static Drawable[] visible(SticksJudgementDisplay display) => display.Children.Where(dot => dot.Alpha > 0).ToArray();
 
         private static SticksAngleComponent angleOf(SticksHitObject head) => head.NestedHitObjects.OfType<SticksAngleComponent>().Single();

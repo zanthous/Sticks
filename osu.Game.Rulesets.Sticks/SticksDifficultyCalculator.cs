@@ -26,7 +26,7 @@ namespace osu.Game.Rulesets.Sticks
     public class SticksDifficultyCalculator : DifficultyCalculator
     {
         // Recalculate for normalized coordination work and the revised ordinary-skill baseline.
-        public override int Version => 202609141;
+        public override int Version => 202609142;
 
         private SticksDifficultyModel.IncrementalState incrementalState;
         private IBeatmap incrementalBeatmap;

@@ -17,10 +17,9 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
         private const double reading_scale = 2.5 * 0.85 * 0.85;
         private const double control_scale = 1.55 * 1.55;
 
-        // Frozen calibration from the approved Want You Gone comparison. Neither constant
-        // depends on the current map's solo difficulty, identity, or the conversion corpus.
+        // Frozen demand reference from the approved Want You Gone comparison. It does
+        // not depend on the current map's solo difficulty, identity, or the corpus.
         internal const double REFERENCE_WORK_PER_SECOND = 7.449578513114503;
-        internal const double MAXIMUM_STARS = 1.9804203856707803;
 
         private readonly double clockRate;
         private readonly SortedSet<Boundary> boundaries = new SortedSet<Boundary>(Comparer<Boundary>.Create((a, b) => a.Time.CompareTo(b.Time)));
@@ -35,7 +34,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
 
         public double NormalizedDemand => Normalize(CoordinatedWork, PlayableSeconds);
 
-        public double StarAddition => MAXIMUM_STARS * Response(NormalizedDemand);
+        public double Participation => Response(NormalizedDemand);
 
         internal long IntervalUpdateCount => timeline.UpdateCount;
 

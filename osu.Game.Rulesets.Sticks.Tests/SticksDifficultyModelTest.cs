@@ -85,6 +85,26 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestDenseAlternatingTargetChangesHaveMechanicalDemandWithoutCoordination()
+        {
+            SticksDifficultyBreakdown sample(double interval, bool moving) => SticksDifficultyCalculator.CalculateDifficulty(
+                flicks(80, interval, i => i % 2 == 0 ? StickSide.Left : StickSide.Right,
+                    i => moving ? (i / 2 * 120) % 360 : 0));
+
+            var slow = sample(250, true);
+            var fast = sample(125, true);
+            var repeated = sample(125, false);
+            Assert.Multiple(() =>
+            {
+                Assert.That(fast.Coordination, Is.Zero);
+                Assert.That(fast.Mechanical, Is.GreaterThan(slow.Mechanical * 1.5),
+                    "Rapid target changes must retain their demand when the heads alternate hands.");
+                Assert.That(fast.Mechanical, Is.GreaterThan(repeated.Mechanical * 1.5));
+                Assert.That(fast.StarRating, Is.GreaterThan(slow.StarRating));
+            });
+        }
+
+        [Test]
         public void TestAngularNoveltyIsReadingStrainRatherThanRawTravel()
         {
             const int count = 24;

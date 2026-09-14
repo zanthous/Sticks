@@ -6,6 +6,7 @@ using System.Threading;
 using osu.Framework.Audio.Track;
 using osu.Framework.Graphics.Textures;
 using osu.Game.Beatmaps;
+using osu.Game.Beatmaps.Timing;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Difficulty.Preprocessing;
 using osu.Game.Rulesets.Difficulty.Skills;
@@ -24,8 +25,8 @@ namespace osu.Game.Rulesets.Sticks
 {
     public class SticksDifficultyCalculator : DifficultyCalculator
     {
-        // Recalculate converted maps after promoting Counterpoint to the default arrangement.
-        public override int Version => 202609140;
+        // Recalculate for normalized coordination work and the revised ordinary-skill baseline.
+        public override int Version => 202609141;
 
         private SticksDifficultyModel.IncrementalState incrementalState;
         private IBeatmap incrementalBeatmap;
@@ -93,6 +94,9 @@ namespace osu.Game.Rulesets.Sticks
                 ReadingDifficulty = difficulty.Reading,
                 ControlDifficulty = difficulty.Control,
                 CoordinationDifficulty = difficulty.Coordination,
+                BaseStarRating = difficulty.BaseStarRating,
+                CoordinationStarAddition = difficulty.CoordinationStarAddition,
+                NormalizedCoordinationDemand = difficulty.NormalizedCoordinationDemand,
                 AngularPrecision = difficulty.AngularPrecision,
                 TimingPrecision = difficulty.TimingPrecision,
                 AccuracyObjectCount = objects.Count(hitObject => hitObject is SticksHitObject),
@@ -128,7 +132,7 @@ namespace osu.Game.Rulesets.Sticks
 
             if (!prefixMatches)
             {
-                incrementalState = new SticksDifficultyModel.IncrementalState(clockRate, overallDifficulty);
+                incrementalState = new SticksDifficultyModel.IncrementalState(clockRate, overallDifficulty, beatmap.Breaks);
                 incrementalBeatmap = beatmap;
                 processedTopLevelObjectCount = 0;
                 firstProcessedObject = null;
@@ -203,11 +207,11 @@ namespace osu.Game.Rulesets.Sticks
         }
 
         public static double CalculateStarRating(IEnumerable<SticksHitObject> hitObjects, double clockRate = 1,
-                                                 double overallDifficulty = double.NaN) =>
-            CalculateDifficulty(hitObjects, clockRate, overallDifficulty).StarRating;
+                                                 double overallDifficulty = double.NaN, IEnumerable<BreakPeriod> breaks = null) =>
+            CalculateDifficulty(hitObjects, clockRate, overallDifficulty, breaks).StarRating;
 
         public static SticksDifficultyBreakdown CalculateDifficulty(IEnumerable<SticksHitObject> hitObjects, double clockRate = 1,
-                                                                    double overallDifficulty = double.NaN)
+                                                                    double overallDifficulty = double.NaN, IEnumerable<BreakPeriod> breaks = null)
         {
             SticksHitObject[] objects = hitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
             if (objects.Length == 0)
@@ -219,7 +223,7 @@ namespace osu.Game.Rulesets.Sticks
 
             // This independent reference path owns its ordering. Timed calculation bypasses it
             // and appends directly to the calculator-owned incremental state.
-            return SticksDifficultyModel.CalculateOrdered(objects, clockRate, od);
+            return SticksDifficultyModel.CalculateOrdered(objects, clockRate, od, breaks);
         }
 
         /// <summary>
@@ -227,8 +231,8 @@ namespace osu.Game.Rulesets.Sticks
         /// tests and in-process comparison against lazer's incremental <c>CalculateTimed()</c> path.
         /// </summary>
         public static SticksDifficultyBreakdown CalculateDifficultyIndependent(IEnumerable<SticksHitObject> hitObjects, double clockRate = 1,
-                                                                               double overallDifficulty = double.NaN) =>
-            CalculateDifficulty(hitObjects, clockRate, overallDifficulty);
+                                                                               double overallDifficulty = double.NaN, IEnumerable<BreakPeriod> breaks = null) =>
+            CalculateDifficulty(hitObjects, clockRate, overallDifficulty, breaks);
 
         private static float inferOverallDifficulty(IEnumerable<SticksHitObject> objects)
         {

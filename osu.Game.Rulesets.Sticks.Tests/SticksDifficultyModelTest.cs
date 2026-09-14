@@ -6,6 +6,7 @@ using System.Threading;
 using NUnit.Framework;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
+using osu.Game.Beatmaps.Timing;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Difficulty;
 using osu.Game.Rulesets.Mods;
@@ -293,7 +294,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(adjusted.Mechanical, Is.EqualTo(reference.Mechanical).Within(0.0000001));
                 Assert.That(adjusted.Reading, Is.EqualTo(reference.Reading).Within(0.0000001));
                 Assert.That(adjusted.Control, Is.EqualTo(reference.Control).Within(0.0000001));
-                Assert.That(adjusted.Coordination, Is.EqualTo(reference.Coordination).Within(0.0000001));
+                Assert.That(Math.Sign(adjusted.CoordinatedWork - reference.CoordinatedWork),
+                    Is.EqualTo(Math.Sign(adjusted.AngularPrecision - reference.AngularPrecision)),
+                    "Shared work must reflect the angular precision required of each hand.");
                 Assert.That(adjusted.TimingPrecision, Is.EqualTo(reference.TimingPrecision).Within(0.0000001));
                 Assert.That(adjusted.MechanicalDifficultStrainCount, Is.EqualTo(reference.MechanicalDifficultStrainCount).Within(0.0000001));
                 Assert.That(adjusted.ReadingDifficultStrainCount, Is.EqualTo(reference.ReadingDifficultStrainCount).Within(0.0000001));
@@ -486,6 +489,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 flick(2600, StickSide.Right, 300),
             });
 
+            // Include overlapping breaks and a break across a head's rhythmic window.
+            beatmap.Breaks.Add(new BreakPeriod(1625, 1900));
+            beatmap.Breaks.Add(new BreakPeriod(1800, 2000));
+
             foreach (SticksHitObject hitObject in beatmap.HitObjects)
                 hitObject.ApplyDefaults(beatmap.ControlPointInfo, difficulty);
 
@@ -501,7 +508,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 SticksDifficultyBreakdown expected = SticksDifficultyCalculator.CalculateDifficultyIndependent(
                     beatmap.HitObjects.Take(i + 1),
-                    overallDifficulty: difficulty.OverallDifficulty);
+                    overallDifficulty: difficulty.OverallDifficulty, breaks: beatmap.Breaks);
                 var actual = (SticksDifficultyAttributes)timed[i].Attributes;
 
                 Assert.Multiple(() =>

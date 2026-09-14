@@ -134,7 +134,8 @@ internal static class Program
                                                        .ToArray();
         SticksDifficultyBreakdown difficulty = SticksDifficultyCalculator.CalculateDifficulty(
             objects,
-            overallDifficulty: convertedBeatmap.Difficulty.OverallDifficulty);
+            overallDifficulty: convertedBeatmap.Difficulty.OverallDifficulty,
+            breaks: convertedBeatmap.Breaks);
         StructuralCounts counts = countStructure(source, objects);
         Milestone? latestMilestone = calibrationCase.Milestones.LastOrDefault();
         double? milestoneDelta = latestMilestone == null ? null : difficulty.StarRating - latestMilestone.AfterStars;

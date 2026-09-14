@@ -16,6 +16,15 @@ namespace osu.Game.Rulesets.Sticks
 
         public double CoordinationDifficulty { get; set; }
 
+        /// <summary>Calibrated ordinary-skill stars before coordination.</summary>
+        public double BaseStarRating { get; set; }
+
+        /// <summary>Bounded additive coordination stars, after the global star cap.</summary>
+        public double CoordinationStarAddition { get; set; }
+
+        /// <summary>Fixed-reference demand index, not the fraction of map time occupied.</summary>
+        public double NormalizedCoordinationDemand { get; set; }
+
         public double AngularPrecision { get; set; } = 1;
 
         public double TimingPrecision { get; set; } = 1;

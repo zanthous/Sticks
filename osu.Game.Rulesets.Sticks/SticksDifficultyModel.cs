@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using osu.Game.Beatmaps.Timing;
+using osu.Game.Rulesets.Sticks.Difficulty;
 using osu.Game.Rulesets.Sticks.Objects;
 
 namespace osu.Game.Rulesets.Sticks
@@ -19,7 +21,14 @@ namespace osu.Game.Rulesets.Sticks
         double MechanicalDifficultStrainCount,
         double ReadingDifficultStrainCount,
         double ControlDifficultStrainCount,
-        double CoordinationDifficultStrainCount);
+        double CoordinationDifficultStrainCount)
+    {
+        public double BaseStarRating { get; init; }
+        public double CoordinationStarAddition { get; init; }
+        public double CoordinatedWork { get; init; }
+        public double PlayableSeconds { get; init; }
+        public double NormalizedCoordinationDemand { get; init; }
+    }
 
     internal static class SticksDifficultyModel
     {
@@ -44,12 +53,12 @@ namespace osu.Game.Rulesets.Sticks
         /// <summary>
         /// Calculates difficulty for hit objects already ordered by start time.
         /// </summary>
-        public static SticksDifficultyBreakdown CalculateOrdered(SticksHitObject[] objects, double clockRate, float overallDifficulty)
+        public static SticksDifficultyBreakdown CalculateOrdered(SticksHitObject[] objects, double clockRate, float overallDifficulty, IEnumerable<BreakPeriod> breaks = null)
         {
             if (objects.Length == 0)
                 return default;
 
-            var state = new IncrementalState(clockRate, overallDifficulty);
+            var state = new IncrementalState(clockRate, overallDifficulty, breaks);
 
             foreach (SticksHitObject hitObject in objects)
                 state.Append(hitObject);
@@ -67,6 +76,9 @@ namespace osu.Game.Rulesets.Sticks
             private readonly double clockRate;
             private readonly float overallDifficulty;
             private readonly double fullGreatWindow;
+            private readonly SticksCoordinationDifficulty coordinationWork;
+
+            internal long CoordinationIntervalUpdateCount => coordinationWork.IntervalUpdateCount;
 
             private PerSideStrainAccumulator mechanical;
             private ScalarStrainAccumulator reading;
@@ -95,7 +107,7 @@ namespace osu.Game.Rulesets.Sticks
             /// </summary>
             public int ObjectEvaluationCount { get; private set; }
 
-            public IncrementalState(double clockRate, float overallDifficulty)
+            public IncrementalState(double clockRate, float overallDifficulty, IEnumerable<BreakPeriod> breaks = null)
             {
                 this.clockRate = double.IsFinite(clockRate) && clockRate > 0 ? clockRate : 1;
                 this.overallDifficulty = float.IsFinite(overallDifficulty) ? overallDifficulty : SticksDifficultyScaling.REFERENCE_OVERALL_DIFFICULTY;
@@ -105,6 +117,7 @@ namespace osu.Game.Rulesets.Sticks
                 reading = new ScalarStrainAccumulator(reading_decay, this.clockRate);
                 control = new PerSideStrainAccumulator(control_decay, this.clockRate);
                 coordination = new ScalarStrainAccumulator(coordination_decay, this.clockRate);
+                coordinationWork = new SticksCoordinationDifficulty(this.clockRate, breaks);
             }
 
             public void Append(SticksHitObject hitObject)
@@ -123,10 +136,12 @@ namespace osu.Game.Rulesets.Sticks
                     currentGroupTimestamp = hitObject.StartTime;
                     currentGroup.Clear();
                     currentGroupCheckpoint = captureCheckpoint();
+                    coordinationWork.BeginGroup();
                 }
                 else
                 {
                     restoreCheckpoint(currentGroupCheckpoint);
+                    coordinationWork.RollbackGroup();
                 }
 
                 currentGroup.Add(hitObject);
@@ -147,14 +162,21 @@ namespace osu.Game.Rulesets.Sticks
                 double mechanicalRating = Math.Sqrt(mechanicalDifficulty);
                 double readingRating = Math.Sqrt(readingDifficulty) * 0.85;
                 double controlRating = Math.Sqrt(controlDifficulty) * 1.55;
-                double coordinationRating = Math.Sqrt(coordinationDifficulty) * 0.9;
-
-                double combined = pNorm(skill_norm_exponent, mechanicalRating, readingRating, controlRating, coordinationRating);
+                double combined = pNorm(skill_norm_exponent, mechanicalRating, readingRating, controlRating);
                 double angularPrecision = angularPrecisionValues.Median();
                 double timingPrecision = SticksDifficultyScaling.OverallDifficultyMultiplier(overallDifficulty);
-                double calibratedBaseStars = SticksDifficultyScaling.CalibrateStarRating(combined * timingPrecision);
+                double calibratedBaseStars = SticksDifficultyScaling.CalibrateStarRating(0.89 * combined * timingPrecision);
                 double angularAdjustment = SticksDifficultyScaling.AngularPrecisionStarAdjustment(calibratedBaseStars, angularPrecision);
-                double stars = Math.Clamp(calibratedBaseStars + angularAdjustment, 0, 30);
+                double baseStars = Math.Clamp(calibratedBaseStars + angularAdjustment, 0, 30);
+                double addition = Math.Min(30 - baseStars, coordinationWork.StarAddition);
+                double stars = baseStars + addition;
+
+                // Express the additive stars in the existing skill norm for performance.
+                // This leaves the ordinary skills' calibrated share unchanged, instead of
+                // letting the retired coordination impulse determine the PP distribution.
+                double coordinationRating = baseStars > 0 && addition > 0
+                    ? combined * Math.Pow(Math.Pow(stars / baseStars, skill_norm_exponent) - 1, 1 / skill_norm_exponent)
+                    : 0;
 
                 return new SticksDifficultyBreakdown(
                     stars,
@@ -167,7 +189,14 @@ namespace osu.Game.Rulesets.Sticks
                     mechanicalStrains.CountTopWeightedStrains(mechanicalDifficulty),
                     readingStrains.CountTopWeightedStrains(readingDifficulty),
                     controlStrains.CountTopWeightedStrains(controlDifficulty),
-                    coordinationStrains.CountTopWeightedStrains(coordinationDifficulty));
+                    coordinationStrains.CountTopWeightedStrains(coordinationDifficulty))
+                {
+                    BaseStarRating = baseStars,
+                    CoordinationStarAddition = addition,
+                    CoordinatedWork = coordinationWork.CoordinatedWork,
+                    PlayableSeconds = coordinationWork.PlayableSeconds,
+                    NormalizedCoordinationDemand = coordinationWork.NormalizedDemand,
+                };
             }
 
             private void processCurrentGroup()
@@ -199,6 +228,12 @@ namespace osu.Game.Rulesets.Sticks
                 double readingImpulse = calculateReadingImpulse(group, timestamp, readingHistory, activeTracking, clockRate);
                 readingStrains.Add(reading.Process(timestamp, readingImpulse * 2.5));
 
+                bool coordinatedHead = mechanicalImpulses.Count > 1 || group.Any(head => activeTracking.Any(active =>
+                    active.Object.Side != head.Side && active.Object.StartTime + simultaneous_epsilon < timestamp));
+                coordinationWork.AddGroup(group, timestamp, mechanicalImpulses, readingImpulse, controlImpulses, coordinatedHead);
+
+                // Retain the existing event-based miss-penalty count for performance only.
+                // These legacy strain magnitudes no longer contribute stars or skill ratings.
                 double coordinationImpulse = calculateCoordinationImpulse(group, timestamp, activeTracking);
                 if (coordinationImpulse > 0)
                     coordinationStrains.Add(coordination.Process(timestamp, coordinationImpulse));

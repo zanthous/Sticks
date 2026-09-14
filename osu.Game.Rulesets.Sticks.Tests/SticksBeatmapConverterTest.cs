@@ -25,6 +25,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
     [TestFixture]
     public partial class SticksBeatmapConverterTest
     {
+        // Pattern-specific fixtures opt out of the beginner frequency ramp so their
+        // tiny source phrases continue exercising the full arrangement mechanics.
         [Test]
         public void TestConvertsFlicksAndSliderWithCoordinatedSticks()
         {
@@ -35,7 +37,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             source.HitObjects.Add(new TestDurationHitObject { StartTime = 2000, Duration = 2000, Position = new Vector2(0, 192) });
             source.HitObjects.Add(new TestPositionedHitObject { StartTime = 2500, Position = new Vector2(256, 0) });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider slider = converted.OfType<SticksSlider>().Single();
             slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
@@ -135,7 +137,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             sourceSlider.NodeSamples.Add(new[] { new HitSampleInfo(HitSampleInfo.HIT_WHISTLE, volume: 53) });
             source.HitObjects.Add(sourceSlider);
 
-            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }.Convert().HitObjects.OfType<SticksSlider>().ToArray();
             Assert.That(sliders, Has.Length.EqualTo(2));
             Assert.That(sliders.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
             foreach (SticksSlider converted in sliders)
@@ -184,6 +186,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset())
             {
+                LimitBeginnerCoordination = false,
                 DisableBeatmapHitsounds = true,
             }.Convert().HitObjects.OfType<SticksSlider>().ToArray();
             Assert.That(sliders, Has.Length.EqualTo(2));
@@ -218,7 +221,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             source.HitObjects.Add(new TestDurationHitObject { StartTime = 3000, Duration = 1000, Position = new Vector2(256, 384) });
             source.HitObjects.Add(new TestHoldDurationHitObject { StartTime = 6000, Duration = 1000, Position = new Vector2(0, 192) });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             foreach (SticksHitObject hitObject in converted)
@@ -1077,7 +1080,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.Multiple(() =>
@@ -1129,7 +1132,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(256, 384),
             });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.Multiple(() =>
@@ -1203,7 +1206,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(0, 192),
             });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.Multiple(() =>
@@ -1235,7 +1238,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(256, 0),
             });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider slider = converted.OfType<SticksSlider>().Single();
             SticksFlick[] flicks = converted.OfType<SticksFlick>().ToArray();
@@ -1286,7 +1289,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 });
             }
 
-            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                       .Convert().HitObjects.OfType<SticksFlick>().ToArray();
             SticksFlick[] linkOwners = converted.Where(flick => flick.SyncedNoteSide.HasValue).ToArray();
             IGrouping<double, SticksFlick>[] generatedChords = converted.GroupBy(flick => flick.StartTime)
@@ -1343,7 +1346,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 });
             }
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider hold = converted.OfType<SticksSlider>().First(note => note.IsStationary);
             SticksFlick[] accompaniment = converted.OfType<SticksFlick>()
@@ -1368,7 +1371,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             source.HitObjects.Add(new TestPositionedHitObject { StartTime = 3000, Position = new Vector2(0, 192) });
             source.HitObjects.Add(new TestPositionedHitObject { StartTime = 3500, Position = new Vector2(256, 0) });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider[] sliders = converted.OfType<SticksSlider>().OrderBy(slider => slider.StartTime).ToArray();
 
@@ -1401,7 +1404,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 });
             }
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
             SticksSlider sustain = converted.OfType<SticksSlider>().Single();
@@ -1432,7 +1435,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 });
             }
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider slider = converted.OfType<SticksSlider>().Single();
             SticksFlick[] accompaniment = converted.OfType<SticksFlick>().OrderBy(flick => flick.StartTime).ToArray();
@@ -1589,7 +1592,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             sourceSlider.NodeSamples.Add(new List<HitSampleInfo>());
             source.HitObjects.Add(sourceSlider);
 
-            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }.Convert().HitObjects.OfType<SticksSlider>().ToArray();
             Assert.That(sliders, Has.Length.EqualTo(2));
             Assert.That(sliders.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
             foreach (SticksSlider slider in sliders)
@@ -1633,7 +1636,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider slider = converted.OfType<SticksSlider>().Single();
             SticksFlick companion = converted.OfType<SticksFlick>().Single();
             Assert.That(companion.StartTime, Is.EqualTo(1100), "The first source repeat remains a musical accent on the free stick.");
@@ -1710,7 +1713,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }.Convert().HitObjects.OfType<SticksSlider>().ToArray();
 
             Assert.Multiple(() =>
             {
@@ -1760,8 +1763,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Position = new Vector2(512, 192),
             });
 
-            SticksSlider[] normal = new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.OfType<SticksSlider>().ToArray();
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset());
+            SticksSlider[] normal = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }.Convert().HitObjects.OfType<SticksSlider>().ToArray();
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false };
             var mod = new SticksModDifficultyAdjust { DisableReversals = { Value = true } };
             mod.ApplyToBeatmapConverter(converter);
             SticksSlider[] adjusted = converter.Convert().HitObjects.OfType<SticksSlider>().ToArray();

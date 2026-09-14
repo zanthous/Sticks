@@ -45,6 +45,13 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private readonly bool isAuthoredCarrier;
         private readonly string? authoredCarrierError;
 
+        private SticksConversionCoordinationAllowance? coordinationAllowance;
+
+        // Historical comparison tooling can isolate the arrangement from the beginner ramp.
+        internal bool LimitBeginnerCoordination { get; set; } = true;
+
+        private bool canIntroduceCoordination(double start) => coordinationAllowance?.CanIntroduce(start) != false;
+
         public bool DisableReversals { get; set; }
 
         /// <summary>
@@ -59,6 +66,12 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         /// This can accompany any of the angle/pattern conversion strategies.
         /// </summary>
         public bool AddClickNotes { get; set; }
+
+        /// <summary>
+        /// Keeps procedural conversion to one active gesture at a time, without added arrangements.
+        /// Independent of the angle strategy so it can be combined with Parity.
+        /// </summary>
+        public bool SoloConversion { get; set; }
 
         /// <summary>
         /// Applies the default Counterpoint arrangement before Parity and Encore.
@@ -167,14 +180,19 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             if (procedural)
             {
-                if (ConversionMode is SticksConversionMode.Duet or SticksConversionMode.ParityDuet)
+                if (SoloConversion)
+                    trimSoloSliders(converted, cancellationToken);
+                else
                 {
-                    addDuetDurationPartners(converted);
-                    addDuetAccompaniment(converted);
-                }
+                    if (ConversionMode is SticksConversionMode.Duet or SticksConversionMode.ParityDuet)
+                    {
+                        addDuetDurationPartners(converted);
+                        addDuetAccompaniment(converted);
+                    }
 
-                if (UseCounterpoint)
-                    applyCounterpoint(converted, original, cancellationToken);
+                    if (UseCounterpoint)
+                        applyCounterpoint(converted, original, cancellationToken);
+                }
 
                 // Apply parity to the complete arrangement, including added partners and accents.
                 if (ConversionMode is SticksConversionMode.Parity or SticksConversionMode.ParityDuet)
@@ -519,6 +537,10 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private void buildPlans(IBeatmap beatmap, CancellationToken cancellationToken)
         {
             HitObject[] objects = beatmap.HitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
+            coordinationAllowance = !SoloConversion && LimitBeginnerCoordination && UseCounterpoint && usesSourceAwarePatterns
+                ? new SticksConversionCoordinationAllowance(beatmap, objects,
+                    SticksConversionCoordinationAllowance.CalculateSourceStars(beatmap, cancellationToken))
+                : null;
             findRapidJumpRuns(objects, beatmap);
             var activeSliders = new List<(double endTime, StickSide side)>();
             var lastUsed = new Dictionary<StickSide, double>
@@ -556,7 +578,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                                         .Where(candidate => !occupied.Contains(candidate) && !usedSidesAtTimestamp.Contains(candidate))
                                         .ToArray();
 
-                if (available.Length == 0)
+                if (available.Length == 0 || SoloConversion && usedSidesAtTimestamp.Count > 0)
                 {
                     float suppressedAngle = sourceAngle(current, i);
                     float suppressedArc = isDuration ? generatedArc(current, beatmap, suppressedAngle, i) : 0;
@@ -609,9 +631,14 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 previousHeadTime = current.StartTime;
                 previousHeadSide = side;
 
-                if (current is IHasDuration activeDuration && activeDuration.Duration > 0)
+                // Solo clips each duration at the next head after conversion, so an earlier
+                // source slider must not reserve a hand or suppress later source attacks here.
+                if (!SoloConversion && current is IHasDuration activeDuration && activeDuration.Duration > 0)
                     activeSliders.Add((current.StartTime + activeDuration.Duration, side));
             }
+
+            if (SoloConversion)
+                return;
 
             applyGeneratedHoldSections(objects, beatmap);
             applyGeneratedOverlappingSliderPhrases(objects, beatmap);
@@ -705,6 +732,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     || !hasBreathingRoom
                     || !safeChordSpeed
                     || current.StartTime - lastChordStreakTime < minimumChordSpacing)
+                    continue;
+
+                if (!canIntroduceCoordination(current.StartTime))
                     continue;
 
                 float relationshipOffset = angleOffsets[chordStreakIndex % angleOffsets.Length];
@@ -865,7 +895,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     continue;
 
                 double duration = accompaniment[^1].StartTime - anchor.StartTime;
-                if (duration < beatLength * 1.5)
+                if (duration < beatLength * 1.5 || !canIntroduceCoordination(anchor.StartTime))
                     continue;
 
                 StickSide playingSide = other(anchorPlan.Side);
@@ -951,7 +981,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 float secondArc = (float)(angularVelocity * secondDuration);
 
                 if (Math.Abs(firstArc) < 1 || Math.Abs(secondArc) < 1
-                    || Math.Abs(secondArc) / secondDuration * 1000 > MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001)
+                    || Math.Abs(secondArc) / secondDuration * 1000 > MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001
+                    || !canIntroduceCoordination(firstHead.StartTime))
                     continue;
 
                 plans[secondHead] = plans[secondHead] with { Side = secondSide };
@@ -1008,7 +1039,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     continue;
 
                 float arc = generatedPhraseArc(head, tail, duration, beatLength, "accompaniment");
-                if (Math.Abs(arc) < 1)
+                if (Math.Abs(arc) < 1 || !canIntroduceCoordination(head.StartTime))
                     continue;
 
                 generatedSliders[head] = new GeneratedSliderSpec(duration, arc, tail);

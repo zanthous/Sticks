@@ -210,7 +210,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Beatmap<HitObject> source = map(circle(6000, 47, true), circle(8000, 213));
             source.Difficulty.OverallDifficulty = 2;
-            SticksHitObject[] converted = convert(source);
+            SticksHitObject[] converted = convert(source, beginner: false);
             SticksFlick[] opening = converted.OfType<SticksFlick>().Where(note => note.StartTime == 6000).ToArray();
             Assert.That(opening, Has.Length.EqualTo(2));
             Assert.That(opening.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
@@ -247,13 +247,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Beatmap<HitObject> source = accentedPhrase();
             source.Difficulty.OverallDifficulty = 8;
-            SticksHitObject[] baseline = new SticksBeatmapConverter(source, new SticksRuleset()).Convert()
+            SticksHitObject[] baseline = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }.Convert()
                 .HitObjects.Cast<SticksHitObject>().ToArray();
             double[] doubleTimes = baseline.GroupBy(hitObject => hitObject.StartTime)
                                           .Where(group => group.Count() == 2).Select(group => group.Key).ToArray();
             Assert.That(doubleTimes, Is.Not.Empty, "The control must contain generated doubles.");
 
-            SticksHitObject[] converted = convert(source);
+            SticksHitObject[] converted = convert(source, beginner: false);
             Assert.That(converted.OfType<SticksClick>().Any(click => doubleTimes.Contains(click.StartTime)), Is.False);
             Assert.That(signature(converted.Where(hitObject => doubleTimes.Contains(hitObject.StartTime))),
                 Is.EquivalentTo(signature(baseline.Where(hitObject => doubleTimes.Contains(hitObject.StartTime)))));
@@ -320,9 +320,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
             $"{hitObject.GetType().Name}:{hitObject.StartTime}:{hitObject.GetEndTime()}:{hitObject.Side}:{hitObject.Angle}:"
             + (hitObject is SticksSlider slider ? $"{slider.ArcAngle}:{slider.RepeatCount}" : "")).ToArray();
 
-        private static SticksHitObject[] convert(Beatmap<HitObject> source) => new SticksBeatmapConverter(source, new SticksRuleset())
+        private static SticksHitObject[] convert(Beatmap<HitObject> source, bool beginner = true) => new SticksBeatmapConverter(source, new SticksRuleset())
         {
             AddClickNotes = true,
+            LimitBeginnerCoordination = beginner,
         }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
         private static Beatmap<HitObject> accentedPhrase() => map(Enumerable.Range(0, 32)

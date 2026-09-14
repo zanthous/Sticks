@@ -423,7 +423,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(parity.Ranked, Is.False);
                 Assert.That(mods.Select(mod => mod.GetType()), Is.EqualTo(new[]
                 {
-                    typeof(SticksModDifficultyAdjust), typeof(SticksModParity), typeof(SticksModEncore),
+                    typeof(SticksModDifficultyAdjust), typeof(SticksModParity), typeof(SticksModEncore), typeof(SticksModSolo),
                 }));
                 Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.ParityDuet));
                 Assert.That(converter.UseCounterpoint, Is.True);

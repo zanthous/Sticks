@@ -150,7 +150,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         private static SticksHitObject[] convert(Beatmap<HitObject> source, bool experimental) =>
-            new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = experimental }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+            new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = experimental, LimitBeginnerCoordination = false }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
         private static StickSide other(StickSide side) => side == StickSide.Left ? StickSide.Right : StickSide.Left;
         private static Vector2 position(float angle) => SticksBeatmapConverter.STANDARD_CENTRE + new Vector2(MathF.Cos(angle * MathF.PI / 180), MathF.Sin(angle * MathF.PI / 180)) * 160;
 

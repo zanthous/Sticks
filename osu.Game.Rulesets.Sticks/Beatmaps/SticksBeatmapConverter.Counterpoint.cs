@@ -303,6 +303,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 if (candidate.Family == Family.RhythmicVoices
                     && candidate.Assignments.All(assignment => assignment.Note.Side != assignment.Side))
                     return false;
+                if (introducesCoordination(candidate) && !converter.canIntroduceCoordination(candidate.Start))
+                    return false;
                 double beat = beatAt(candidate.Start);
                 double cooldown = candidate.Additions.Length == 0 ? recoveryAt(beat) : Math.Max(2500, beat * (8 - 4 * intensity));
                 if (candidate.Start - lastPhraseEnd < cooldown)
@@ -348,6 +350,30 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     }
                 }
                 return true;
+            }
+
+            private bool introducesCoordination(Candidate candidate)
+            {
+                if (converter.coordinationAllowance?.IsRestricted != true)
+                    return false;
+
+                // A response on the release is sequential. Keep it, along with ordinary
+                // hand assignments; only an added head inside another gesture (or a
+                // same-time double) needs an opportunity for simultaneous play.
+                return candidate.Additions.Any(added => converted.HitObjects.Concat(candidate.Additions).Any(existing =>
+                    !ReferenceEquals(added, existing) && added.Side != sideAfterAssignment(existing)
+                    && (Math.Abs(added.StartTime - existing.StartTime) <= epsilon
+                        || added.StartTime < existing.GetEndTime() - epsilon && existing.StartTime < added.GetEndTime() - epsilon)));
+
+                StickSide sideAfterAssignment(SticksHitObject note)
+                {
+                    foreach (HandAssignment assignment in candidate.Assignments)
+                    {
+                        if (ReferenceEquals(assignment.Note, note))
+                            return assignment.Side;
+                    }
+                    return note.Side;
+                }
             }
 
             private double score(Candidate candidate)

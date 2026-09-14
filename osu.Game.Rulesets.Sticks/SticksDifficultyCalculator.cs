@@ -25,8 +25,8 @@ namespace osu.Game.Rulesets.Sticks
 {
     public class SticksDifficultyCalculator : DifficultyCalculator
     {
-        // Recalculate for per-stick reading sequences and accumulated burst demand.
-        public override int Version => 202609150;
+        // Recalculate for reduced introduced coordination in beginner conversions.
+        public override int Version => 202609152;
 
         private SticksDifficultyModel.IncrementalState incrementalState;
         private IBeatmap incrementalBeatmap;

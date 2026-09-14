@@ -21,9 +21,13 @@
   </ItemGroup>
   <ItemGroup Condition="'$(OsuSourceRoot)' == ''">
     <PackageReference Include="ppy.osu.Game" Version="$(OsuGameVersion)" />
+    <PackageReference Include="ppy.osu.Game.Rulesets.Osu" Version="$(OsuGameVersion)" />
   </ItemGroup>
   <ItemGroup Condition="'$(OsuSourceRoot)' != ''">
     <ProjectReference Include="$(OsuSourceRoot)\osu.Game\osu.Game.csproj">
+      <AdditionalProperties Condition="'$(OsuClientVersion)' != ''">Version=$(OsuClientVersion)</AdditionalProperties>
+    </ProjectReference>
+    <ProjectReference Include="$(OsuSourceRoot)\osu.Game.Rulesets.Osu\osu.Game.Rulesets.Osu.csproj">
       <AdditionalProperties Condition="'$(OsuClientVersion)' != ''">Version=$(OsuClientVersion)</AdditionalProperties>
     </ProjectReference>
   </ItemGroup>

@@ -5,8 +5,15 @@ Parity (`PA`) applies its angle changes to the complete arrangement, including
 slider partners, accompaniment and deliberate stacked doubles. The separate
 Duet (`DU`), Parity + Duet (`PD`) and Counterpoint (`CP`) selections are retired;
 CP remains hidden for compatibility with older scores. The Conversion category
-contains Difficulty Adjust, Parity and Encore. Encore remains opt-in for
+contains Difficulty Adjust, Parity, Encore and Solo. Encore remains opt-in for
 additional note types. Authored Sticks maps retain their authored objects.
+
+Solo (`SO`) converts source notes and sliders without added two-stick arrangements.
+Both sticks can still take turns, but only one gesture is active at a time.
+Simultaneous source heads keep the first head; overlapping source sliders end at
+the next head, preserving their motion and reversal timing up to that point.
+It combines with Parity's angle changes and Encore's isolated click replacements.
+Authored Sticks maps and conversion without Solo are unaffected.
 
 The observations and dated comparisons below retain their original mode names
 and measurements. In the original parity audits, “Standard” means the converter
@@ -14,6 +21,57 @@ before Duet became the default, and “Parity” means Parity on that older base
 In the Counterpoint comparisons, “Default” is the previous Duet-based converter
 and “CP” is the candidate arrangement tested alongside it. Those results predate
 Counterpoint's promotion; they are not new measurements of today's mod selection.
+
+## Beginner coordination allowance — 2026-09-15
+
+The default converter and Parity introduce simultaneous patterns less often on
+beginner osu!standard maps. The source rating is calculated using the matching
+osu!standard difficulty calculator, without mods. It does not use OD as a star
+estimate, optional cached ratings, or the resulting Sticks difficulty. Source
+maps at **3★ and above retain their full conversion**.
+
+The coordination allowance is **0% through 1.6★, 30% at 2★, and 100% at 3★**,
+with linear interpolation between these points (15% at 1.8★ and 65% at 2.5★).
+These percentages describe opportunities in occupied eight-beat windows, not
+quotas of notes to add. All existing source-pattern and playability checks still
+apply, and an allowed window can remain unused.
+
+The windows follow timing sections and use Counterpoint's existing eight-beat
+grouping. Only windows containing source heads count; breaks and empty time do
+not accumulate extra opportunities. Fractional allowance carries forward
+deterministically, without random selection. All passes share the opportunities:
+every pass uses the same permitted sections. Within a permitted section, complete
+patterns retain their existing arrangement and reservation checks. There is no
+additional one-pattern cap that would suppress maps just below the cutoff.
+
+Unselected source phrases retain their ordinary conversion. Existing source
+overlaps and simultaneous heads survive, as do sequential responses at slider
+releases. Native/authored Sticks maps bypass this planning. Ordinary flick
+density, angles, slider motion and the Sticks star formula are not reduced to
+force a particular rating.
+
+### Initial ramp comparison (superseded)
+
+The following measurements used the earlier `(source stars / 2.5)^2` allowance,
+before the anchors above were revised. They are historical results, not ratings
+for the current ramp. The 54-map comparison against the previous ruleset DLL used
+osu! 2026.730.0 and checked default and Parity. All 98 conversions of the 49 source maps at or above 2.5★ retained
+identical heads, hands, angles, paths and ratings. The five lower-rated maps:
+
+| Default conversion | osu!standard stars | Sticks before | Sticks after | Heads involved in simultaneous play, before → after |
+| --- | ---: | ---: | ---: | ---: |
+| Rainbow after snow [Easy] (293156) | 1.30 | 3.06 | 2.40 | 135 → 36 |
+| Flower Dance [Easy] (85995) | 1.59 | 3.22 | 2.82 | 268 → 118 |
+| Flower Dance [Normal] (85979) | 1.78 | 4.22 | 3.64 | 282 → 143 |
+| Harumachi Clover (Swing Arrangement) [Yuri's Normal] (1801936) | 1.95 | 2.74 | 2.42 | 30 → 16 |
+| Blue Zenith [Easy] (680919) | 2.12 | 4.19 | 3.99 | 545 → 398 |
+
+Each head is counted once if it shares a timestamp with the other hand or its
+gesture overlaps the other hand for positive time; release-only contacts are
+excluded. Rainbow after snow retains eight paired-slider passages, down from 18.
+Some naturally demanding conversions remain above 2★; their underlying
+one-stick demand is preserved. Local comparison data is saved in
+`mapreference/beginner-conversion/comparison.json`.
 
 ## Encore click placement — 2026-09-13
 

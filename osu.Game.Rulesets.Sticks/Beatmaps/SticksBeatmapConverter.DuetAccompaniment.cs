@@ -47,7 +47,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
                 double beatLength = validBeatLength(beatmap.ControlPointInfo.TimingPointAt(source.StartTime).BeatLength);
                 if (duration.Duration < 180 || duration.Duration > beatLength * 8
-                    || source.StartTime - lastPhraseStart < beatLength * 4)
+                    || source.StartTime - lastPhraseStart < beatLength * 4
+                    || !canIntroduceCoordination(source.StartTime))
                     continue;
 
                 // A BPM change ends this phrase's rhythmic context. The next source slider
@@ -84,7 +85,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 }
 
                 if (added > 0)
+                {
                     lastPhraseStart = source.StartTime;
+                }
             }
         }
 

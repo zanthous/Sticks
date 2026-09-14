@@ -174,6 +174,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             Beatmap<HitObject> source = chordPhrase();
             source.HitObjects.Add(slider(5000, 1000));
+            addHighDifficultySection(source);
             SticksHitObject[] legacy = convert(source, SticksConversionMode.Standard);
             SticksHitObject[] expected = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = true }.Convert()
                 .HitObjects.Cast<SticksHitObject>().ToArray();
@@ -237,6 +238,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestGameplayPipelineUsesTwoStickBaseBeforeCreatingSliderNestedObjects(bool parity)
         {
             Beatmap<HitObject> source = map(circle(500, 0), circle(500, 0), slider(1000, 2000));
+            addHighDifficultySection(source);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
             if (parity)
                 new SticksModParity().ApplyToBeatmapConverter(converter);
@@ -308,6 +310,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private static SticksHitObject[] convert(Beatmap<HitObject> source, SticksConversionMode mode, bool disableReversals = false) =>
             new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = mode, DisableReversals = disableReversals, UseCounterpoint = false }
                 .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
+
+        private static void addHighDifficultySection(Beatmap<HitObject> source)
+        {
+            // Keep full-arrangement pipeline fixtures above the beginner range using
+            // actual source difficulty, without relying on their OD or cached stars.
+            for (int i = 0; i < 96; i++)
+                source.HitObjects.Add(circle(20000 + i * 125, i % 2 == 0 ? 0 : 180));
+            Assert.That(SticksConversionCoordinationAllowance.CalculateSourceStars(source, CancellationToken.None), Is.GreaterThanOrEqualTo(3));
+        }
 
         private static Beatmap<HitObject> chordPhrase()
         {

@@ -81,6 +81,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     foreach (DuetCandidate candidate in duetCandidates(phrase, beatLength,
                                  SticksHitObject.HitAngleForCircleSize(beatmap.Difficulty.CircleSize)))
                     {
+                        if (!canIntroduceCoordination(phrase[0].StartTime))
+                            continue;
                         if (best != null && candidate.Score <= best.Score)
                             continue;
 
@@ -355,6 +357,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     new DuetGesture(source, tail, other(plans[source].Side), 0),
                 };
                 if (!duetCanReserve(gestures, new[] { source }, reservations))
+                    continue;
+
+                if (!canIntroduceCoordination(source.StartTime))
                     continue;
 
                 // Wide horizontal source placement suggests reflection; a central /

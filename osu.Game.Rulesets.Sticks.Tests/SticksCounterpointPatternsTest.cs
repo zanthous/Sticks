@@ -229,7 +229,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestRepeatedConversionDoesNotAccumulateOrLeakArrangementChanges()
         {
             Beatmap<HitObject> source = longSliderMap(3);
-            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = false };
+            var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { UseCounterpoint = false, LimitBeginnerCoordination = false };
             string[] baseline = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(note => signature(note, true)).ToArray();
             converter.UseCounterpoint = true;
             string[] first = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(note => signature(note, true)).ToArray();
@@ -350,6 +350,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, new SticksRuleset())
             {
                 UseCounterpoint = true,
+                LimitBeginnerCoordination = false,
                 CounterpointArrangementObserved = (family, _, _, _, _) => families.Add(family),
             };
             SticksHitObject[] result = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
@@ -431,6 +432,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private static SticksHitObject[] convert(Beatmap<HitObject> source, bool counterpoint) => new SticksBeatmapConverter(source, new SticksRuleset())
         {
             UseCounterpoint = counterpoint,
+            LimitBeginnerCoordination = false,
         }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
         private static Beatmap<HitObject> longSliderMap(int repeats = 0, double overallDifficulty = 9)

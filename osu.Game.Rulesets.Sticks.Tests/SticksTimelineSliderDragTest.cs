@@ -545,7 +545,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 EditorClock.Seek(1900);
             });
             AddUntilStep("mixed selection blueprints loaded", () => selectionBlueprints().Length == 4);
-            AddAssert("editor uses modern presentation", () => playfield().NotePresentation == SticksNotePresentation.CenterOut);
             AddStep("select all mixed notes", selectAllNotes);
 
             foreach (double time in new[] { 0d, 1900, 2000, 2500, 3500, 4500, 2500, 1900, 0, 3500 })
@@ -1171,7 +1170,5 @@ namespace osu.Game.Rulesets.Sticks.Tests
             return slider.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>()
                          .Any(marker => marker.Filename == SticksAuthoredBeatmapCodec.EncodeMarker(slider));
         }
-
-
     }
 }

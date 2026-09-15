@@ -47,29 +47,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             base.Update();
 
             marker.SetLaneAndDirection(HitObject.Side, HitObject.DirectionAfter, colourFor(HitObject.Side));
-            marker.Presentation = playfield.NotePresentation;
-            marker.TargetCircleScale = playfield.NoteCircleScale;
             marker.Angle = HitObject.Angle;
             marker.Span = HitObject.PrimaryHitAngle;
-            marker.ApproachCircleEnabled = false;
-            bool centerOut = playfield.CenterOutPresentation;
-            marker.SkinCentreOnly = centerOut;
+            marker.SkinCentreOnly = true;
             // A hidden optional marker still needs skin-change callbacks, otherwise adding
             // a reversal image while this pooled marker is alive cannot make it visible.
-            marker.AlwaysPresent = centerOut;
-            if (centerOut)
-            {
-                float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
-                    Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
-                marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
-                bool sliderEnded = ParentHitObject is DrawableSticksSlider slider && Time.Current > slider.HitObject.EndTime;
-                marker.Alpha = marker.HasSkinCentre && radius > 0 && !sliderEnded ? 1 : 0;
-            }
-            else
-            {
-                marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
-                marker.Alpha = 1;
-            }
+            marker.AlwaysPresent = true;
+
+            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
+                Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
+            marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
+            bool sliderEnded = ParentHitObject is DrawableSticksSlider slider && Time.Current > slider.HitObject.EndTime;
+            marker.Alpha = marker.HasSkinCentre && radius > 0 && !sliderEnded ? 1 : 0;
         }
 
         protected override double InitialLifetimeOffset => HitObject.PreemptDuration;

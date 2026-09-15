@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Utils;
 using osu.Game.Audio;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
@@ -17,12 +16,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     public partial class DrawableSticksFlick : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
     {
         private readonly SticksArcMarker marker;
-        private SticksSyncedNoteLink syncedNoteLink;
         private readonly Container nestedContainer;
         private DrawableSticksAngleComponent angleComponent = null!;
         private SticksPlayfield playfield = null!;
         private long observedSequence;
-        private bool visualRadialOffsetInitialised;
 
         public new SticksFlick HitObject => (SticksFlick)base.HitObject;
 
@@ -41,14 +38,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 AlwaysPresent = true,
             });
 
-            ensureSyncedNoteLink();
-
             AddInternal(marker = new SticksArcMarker(hitObject.Side, colourFor(hitObject.Side), true)
             {
                 Angle = hitObject.Angle,
-                Span = hitObject.PrimaryHitAngle * 0.2f,
+                Span = hitObject.PrimaryHitAngle,
             });
-
         }
 
         [BackgroundDependencyLoader]
@@ -67,56 +61,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 observedSequence = playfield.FlickSequence(HitObject.Side);
             }
             marker.SetLane(HitObject.Side, playfield.ColourFor(HitObject.Side));
-            marker.Presentation = playfield.NotePresentation;
-            marker.TargetCircleScale = playfield.NoteCircleScale;
             marker.Angle = HitObject.Angle;
 
-            double approachStart = HitObject.StartTime - HitObject.ApproachDuration;
-            bool useCenterOut = marker.Presentation == Configuration.SticksNotePresentation.CenterOut;
-
-            if (useCenterOut)
-            {
-                float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
-                marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
-            }
-            else if (playfield.RadialNoteApproach)
-            {
-                marker.SetRadialOffset(playfield.VisualRadialOffsetFor(this, HitObject), true);
-            }
-            else if (Time.Current < approachStart)
-            {
-                visualRadialOffsetInitialised = false;
-            }
-            else
-            {
-                marker.SetRadialOffset(playfield.VisualRadialOffsetFor(this, HitObject), !visualRadialOffsetInitialised);
-                visualRadialOffsetInitialised = true;
-            }
-
-            double approach = Math.Clamp((Time.Current - approachStart) / HitObject.ApproachDuration, 0, 1);
-            double growth = SticksHitObject.ApproachGrowthProgress(approach);
-            bool useApproachCircles = marker.Presentation == Configuration.SticksNotePresentation.ApproachCircles;
-
-            // Presentations with an independent timing cue keep the target at its final angular
-            // width: approach circles contract externally, while filling arcs fill internally.
-            marker.Span = SticksArcMarker.SpanForApproach(HitObject.PrimaryHitAngle, marker.Presentation, growth);
-            marker.ApproachCircleEnabled = useApproachCircles;
-            marker.ApproachProgress = (float)approach;
-            marker.ApproachAlpha = useApproachCircles && !Judged
-                ? 0.9f * (float)(1 - Math.Clamp((Time.Current - HitObject.StartTime) / 50, 0, 1))
-                : 0;
-
-            if (useCenterOut)
-            {
-                if (syncedNoteLink != null)
-                    syncedNoteLink.Alpha = 0;
-            }
-            else
-            {
-                ensureSyncedNoteLink();
-                if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                    syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtGrowth(growth);
-            }
+            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
+            marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
+            marker.Span = HitObject.PrimaryHitAngle;
 
             long sequence = playfield.FlickSequence(HitObject.Side);
             if (Judged)
@@ -168,36 +117,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 applyMisses();
         }
 
-        private void ensureSyncedNoteLink()
-        {
-            if (HitObject.SyncedNoteSide is not StickSide linkedSide)
-            {
-                if (syncedNoteLink != null)
-                    syncedNoteLink.Alpha = 0;
-                return;
-            }
-
-            if (syncedNoteLink == null)
-            {
-                AddInternal(syncedNoteLink = new SticksSyncedNoteLink(
-                    HitObject.Side,
-                    HitObject.Angle,
-                    linkedSide,
-                    HitObject.SyncedNoteAngle));
-            }
-            else
-            {
-                syncedNoteLink.SetGeometry(
-                    HitObject.Side,
-                    HitObject.Angle,
-                    linkedSide,
-                    HitObject.SyncedNoteAngle);
-            }
-
-            if (playfield != null)
-                syncedNoteLink.Presentation = playfield.ChordLinkPresentation;
-        }
-
         protected override void AddNestedHitObject(DrawableHitObject hitObject)
         {
             base.AddNestedHitObject(hitObject);
@@ -242,6 +161,5 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private static Color4 colourFor(StickSide side) => side == StickSide.Left
             ? SticksPlayfield.LEFT_COLOUR
             : SticksPlayfield.RIGHT_COLOUR;
-
     }
 }

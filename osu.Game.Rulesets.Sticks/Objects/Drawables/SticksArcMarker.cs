@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Lines;
-using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Utils;
-using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Skinning;
 using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
@@ -18,30 +16,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         private const float stroke_radius = 2.5f;
         private const float cap_half_length = 7;
-        internal const float HIT_CIRCLE_DIAMETER = 22;
-        internal const float APPROACH_CIRCLE_INITIAL_SCALE = 4;
-        internal const float BOX_OUTLINE_HALF_THICKNESS = 7;
-        internal const float BOX_FILL_HALF_THICKNESS = 4.5f;
         internal const float SKIN_CENTRE_DIAMETER = 22;
-        private static readonly Color4 box_empty_colour = new Color4(0.035f, 0.035f, 0.045f, 1);
         private StickSide side;
         private readonly SmoothPath arc;
         private readonly CircularProgress animatedArc;
-        private readonly CircularProgress boxInteriorArc;
-        private readonly CircularProgress boxFillArc;
         private readonly SmoothPath leadingCap;
         private readonly SmoothPath trailingCap;
         private readonly SmoothPath centerTick;
         private readonly SticksSkinnedSprite skinCentre;
-        private readonly Container hitCircle;
-        private readonly Circle hitCircleBody;
-        private readonly CircularContainer hitCircleRing;
-        private readonly CircularContainer approachCircle;
-        private SticksNotePresentation presentation;
-        private bool approachCircleEnabled;
-        private float approachProgress;
-        private float approachAlpha = 0.9f;
-        private float targetCircleScale = SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE;
         private float span;
         private float radialOffset;
         private float targetRadialOffset;
@@ -93,89 +75,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public StickSide Side => side;
 
-        public float TargetCircleScale
-        {
-            get => targetCircleScale;
-            set
-            {
-                value = Math.Clamp(value, SticksPlayfield.MIN_NOTE_CIRCLE_SCALE, SticksPlayfield.MAX_NOTE_CIRCLE_SCALE);
-                if (Math.Abs(targetCircleScale - value) < 0.001f)
-                    return;
-
-                targetCircleScale = value;
-                hitCircle.Size = new Vector2(HIT_CIRCLE_DIAMETER * targetCircleScale);
-                updateApproachCircle();
-            }
-        }
-
-        /// <summary>
-        /// Controls the independent timing ring. The target presentation and approach cue are
-        /// kept separate so active slider tracking markers can use a circular target without
-        /// displaying another approach animation.
-        /// </summary>
-        public bool ApproachCircleEnabled
-        {
-            get => approachCircleEnabled;
-            set
-            {
-                if (approachCircleEnabled == value)
-                    return;
-
-                approachCircleEnabled = value;
-                updatePresentation();
-            }
-        }
-
-        /// <summary>
-        /// Linear progress through the approach window. This drives the selected presentation's timing cue:
-        /// either the contracting approach circle or the center-out arc-container fill.
-        /// </summary>
-        public float ApproachProgress
-        {
-            get => approachProgress;
-            set
-            {
-                value = Math.Clamp(value, 0, 1);
-                if (Math.Abs(approachProgress - value) < 0.001f)
-                    return;
-
-                approachProgress = value;
-
-                if (presentation == SticksNotePresentation.ApproachCircles)
-                    updateApproachCircle();
-                else if (presentation == SticksNotePresentation.FillingArcs)
-                    updateBoxArcs();
-            }
-        }
-
-        public float ApproachAlpha
-        {
-            get => approachAlpha;
-            set
-            {
-                value = Math.Clamp(value, 0, 0.9f);
-                if (Math.Abs(approachAlpha - value) < 0.001f)
-                    return;
-
-                approachAlpha = value;
-                updatePresentation();
-            }
-        }
-
-        public SticksNotePresentation Presentation
-        {
-            get => presentation;
-            set
-            {
-                if (presentation == value)
-                    return;
-
-                presentation = value;
-                updatePresentation();
-                updateGeometry();
-            }
-        }
-
         public SticksArcMarker(StickSide side, Color4 colour, bool animatedSpan = false)
         {
             this.side = side;
@@ -185,25 +84,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             Position = new Vector2(SticksPlayfield.SIZE / 2);
             Size = new Vector2(SticksPlayfield.SIZE);
 
-            arc = animatedSpan ? null : createArc(colour, 0.72f);
-            animatedArc = animatedSpan ? createAnimatedArc(side, colour, 0.72f) : null;
-            boxInteriorArc = animatedSpan ? createAnimatedArc(side, box_empty_colour, 0, BOX_FILL_HALF_THICKNESS) : null;
-            boxFillArc = animatedSpan ? createAnimatedArc(side, colour, 0, BOX_FILL_HALF_THICKNESS) : null;
+            arc = animatedSpan ? null : createArc(colour, 1);
+            animatedArc = animatedSpan ? createAnimatedArc(side, colour, 1) : null;
 
             AddInternal(animatedSpan ? (Drawable)animatedArc : arc);
-            if (boxInteriorArc != null)
-            {
-                AddInternal(boxInteriorArc);
-                AddInternal(boxFillArc);
-            }
-
             AddRangeInternal(new Drawable[]
             {
                 leadingCap = createCap(colour),
                 trailingCap = createCap(colour),
                 centerTick = createCap(Color4.White, cap_half_length * 0.65f),
-                approachCircle = createApproachCircle(colour),
-                hitCircle = createHitCircle(colour, out hitCircleBody, out hitCircleRing),
                 skinCentre = new SticksSkinnedSprite("sticks-note-centre")
                 {
                     Origin = Anchor.Centre,
@@ -236,13 +125,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 arc.Colour = colour;
             if (animatedArc != null)
                 animatedArc.Colour = colour;
-            if (boxFillArc != null)
-                boxFillArc.Colour = colour;
 
             leadingCap.Colour = colour;
             trailingCap.Colour = colour;
-            approachCircle.BorderColour = colour;
-            hitCircleBody.Colour = colour;
             skinCentre.TextureColour = colour;
             updateGeometry();
         }
@@ -250,88 +135,29 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private void updateGeometry()
         {
             float radius = SticksPlayfield.RadiusFor(side) + radialOffset;
-            float outerHalfThickness = presentation == SticksNotePresentation.FillingArcs
-                ? BOX_OUTLINE_HALF_THICKNESS
-                : stroke_radius;
 
             if (animatedArc != null)
             {
-                setCircularArcRange(animatedArc, radius, outerHalfThickness, -span / 2, span);
+                setCircularArcRange(animatedArc, radius, stroke_radius, -span / 2, span);
             }
             else
             {
-                arc.PathRadius = outerHalfThickness;
+                arc.PathRadius = stroke_radius;
                 arc.Vertices = arcVertices(radius, span);
             }
-            if (presentation == SticksNotePresentation.FillingArcs)
-                updateBoxArcs(radius);
-
             positionCap(leadingCap, radius, -span / 2);
             positionCap(trailingCap, radius, span / 2);
             positionCap(centerTick, radius, 0);
             skinCentre.Position = SticksPlayfield.PointAt(0, radius);
             skinCentre.Size = SkinCentreSizeAt(radius, span);
-
-            if (presentation == SticksNotePresentation.ApproachCircles)
-            {
-                hitCircle.Position = SticksPlayfield.PointAt(0, radius);
-                approachCircle.Position = hitCircle.Position;
-            }
         }
 
         private void updatePresentation()
         {
-            Blending = BlendingParameters.Inherit;
-
-            bool showApproachTarget = presentation == SticksNotePresentation.ApproachCircles;
-            bool showBox = presentation == SticksNotePresentation.FillingArcs;
-            bool showBrackets = !showApproachTarget && !showBox;
-            leadingCap.Alpha = showBrackets ? 1 : 0;
-            trailingCap.Alpha = showBrackets ? 1 : 0;
-            bool showSkinCentre = presentation == SticksNotePresentation.CenterOut && skinCentre.UsesSkinTexture;
-            centerTick.Alpha = (showBrackets || showBox) && !showSkinCentre ? 1 : 0;
+            bool showSkinCentre = skinCentre.UsesSkinTexture;
+            centerTick.Alpha = showSkinCentre ? 0 : 1;
             skinCentre.Alpha = showSkinCentre ? 1 : 0;
-            hitCircle.Alpha = showApproachTarget ? 1 : 0;
-            approachCircle.Alpha = showApproachTarget && approachCircleEnabled ? approachAlpha : 0;
-
-            bool fullyOpaqueArc = showBox || presentation == SticksNotePresentation.CenterOut;
-            if (arc != null)
-                arc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
-            if (animatedArc != null)
-                animatedArc.Alpha = fullyOpaqueArc ? 1 : 0.72f;
-            if (boxInteriorArc != null)
-            {
-                boxInteriorArc.Alpha = showBox ? 1 : 0;
-                boxFillArc.Alpha = showBox ? 1 : 0;
-            }
         }
-
-        private void updateApproachCircle()
-        {
-            float scale = (float)Interpolation.Lerp(APPROACH_CIRCLE_INITIAL_SCALE, 1, approachProgress);
-            approachCircle.Size = new Vector2(HIT_CIRCLE_DIAMETER * targetCircleScale * scale);
-        }
-
-        private void updateBoxArcs() => updateBoxArcs(SticksPlayfield.RadiusFor(side) + radialOffset);
-
-        private void updateBoxArcs(float radius)
-        {
-            if (boxInteriorArc == null)
-                return;
-
-            setCircularArcRange(boxInteriorArc, radius, BOX_FILL_HALF_THICKNESS, -span / 2, span);
-            float progress = FillProgressFor(approachProgress);
-            float filledSpan = span * progress;
-            setCircularArcRange(boxFillArc, radius, BOX_FILL_HALF_THICKNESS, -filledSpan / 2, filledSpan);
-        }
-
-        internal static float FillProgressFor(float linearProgress) =>
-            (float)SticksHitObject.ApproachGrowthProgress(linearProgress);
-
-        internal static float SpanForApproach(float finalSpan, SticksNotePresentation presentation, double growth) =>
-            finalSpan * (presentation is SticksNotePresentation.ApproachCircles or SticksNotePresentation.FillingArcs or SticksNotePresentation.CenterOut
-                ? 1
-                : (float)(0.2 + growth * 0.8));
 
         internal static Vector2 SkinCentreSizeAt(float radius, float angularSpan)
         {
@@ -407,65 +233,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             {
                 new Vector2(pathRadius, pathRadius),
                 new Vector2(pathRadius + halfLength * 2, pathRadius),
-            },
-        };
-
-        private static Container createHitCircle(Color4 colour, out Circle body, out CircularContainer ring)
-        {
-            body = new Circle
-            {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                RelativeSizeAxes = Axes.Both,
-                Colour = colour,
-            };
-
-            ring = new CircularContainer
-            {
-                Anchor = Anchor.Centre,
-                Origin = Anchor.Centre,
-                RelativeSizeAxes = Axes.Both,
-                Masking = true,
-                BorderThickness = 2.5f,
-                BorderColour = Color4.White,
-                Child = new Box
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Alpha = 0,
-                    AlwaysPresent = true,
-                },
-            };
-
-            return new Container
-            {
-                Anchor = Anchor.TopLeft,
-                Origin = Anchor.Centre,
-                Size = new Vector2(HIT_CIRCLE_DIAMETER),
-                Alpha = 0,
-                Depth = -2,
-                Children = new Drawable[]
-                {
-                    body,
-                    ring,
-                },
-            };
-        }
-
-        private static CircularContainer createApproachCircle(Color4 colour) => new CircularContainer
-        {
-            Anchor = Anchor.TopLeft,
-            Origin = Anchor.Centre,
-            Size = new Vector2(HIT_CIRCLE_DIAMETER * APPROACH_CIRCLE_INITIAL_SCALE),
-            Masking = true,
-            BorderThickness = 2.5f,
-            BorderColour = colour,
-            Alpha = 0,
-            Depth = -1,
-            Child = new Box
-            {
-                RelativeSizeAxes = Axes.Both,
-                Alpha = 0,
-                AlwaysPresent = true,
             },
         };
 

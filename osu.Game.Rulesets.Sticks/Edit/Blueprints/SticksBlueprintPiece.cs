@@ -10,7 +10,6 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.UserInterface;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
-using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.UI;
@@ -140,10 +139,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             {
                 if (sliderHead == null)
                 {
-                    AddInternal(sliderHead = new SticksSliderHeadMarker(slider.Side, slider.InitialDirection, colour, true)
-                    {
-                        Presentation = SticksNotePresentation.CenterOut,
-                    });
+                    AddInternal(sliderHead = new SticksSliderHeadMarker(slider.Side, slider.InitialDirection, colour, true));
                 }
                 else if (changedColour || sliderHead.Direction != slider.InitialDirection)
                     sliderHead.SetLaneAndDirection(slider.Side, slider.InitialDirection, colour);
@@ -159,10 +155,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             {
                 if (head == null)
                 {
-                    AddInternal(head = new SticksArcMarker(hitObject.Side, colour, true)
-                    {
-                        Presentation = SticksNotePresentation.CenterOut,
-                    });
+                    AddInternal(head = new SticksArcMarker(hitObject.Side, colour, true));
                 }
                 else if (changedColour)
                     head.SetLane(hitObject.Side, colour);

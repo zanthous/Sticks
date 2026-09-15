@@ -8,13 +8,4 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     {
         bool TrackingAuthorised { get; }
     }
-
-    /// <summary>
-    /// Supplies one animated radial displacement to every visual belonging to a duration object.
-    /// Gameplay angles and controller thresholds remain on the ruleset's normal lane.
-    /// </summary>
-    internal interface ISticksVisualRadialOffsetSource
-    {
-        float VisualRadialOffset { get; }
-    }
 }

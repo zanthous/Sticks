@@ -25,9 +25,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Drawable overlap = pool(layer)[0];
             Drawable collar = field<Drawable>(overlap, "collar");
 
-            layer.UpdateOverlaps(heads, 400, true);
+            layer.UpdateOverlaps(heads, 400);
             assertPosition(collar, SticksPlayfield.PointAt(firstAngle, 115));
-            layer.UpdateOverlaps(heads, 1000, true);
+            layer.UpdateOverlaps(heads, 1000);
 
             Assert.Multiple(() =>
             {
@@ -51,7 +51,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] heads = { flick(StickSide.Left), flick(StickSide.Right, secondAngle) };
             heads[1].PrimaryHitAngle = secondSpan;
 
-            layer.UpdateOverlaps(heads, 1000, true);
+            layer.UpdateOverlaps(heads, 1000);
 
             Drawable overlap = pool(layer)[0];
             Assert.Multiple(() =>
@@ -74,9 +74,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             foreach (SticksHitObject[] heads in pairs)
             {
-                layer.UpdateOverlaps(new SticksHitObject[] { flick(StickSide.Left), flick(StickSide.Right) }, 1000, true);
+                layer.UpdateOverlaps(new SticksHitObject[] { flick(StickSide.Left), flick(StickSide.Right) }, 1000);
                 Assert.That(pool(layer).Count(overlap => overlap.Alpha > 0), Is.EqualTo(1));
-                layer.UpdateOverlaps(heads, 1000, true);
+                layer.UpdateOverlaps(heads, 1000);
                 Assert.That(pool(layer).Select(overlap => overlap.Alpha), Has.All.Zero);
             }
         }
@@ -89,14 +89,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Drawable collar = field<Drawable>(overlap, "collar");
             SticksHitObject[] heads = { flick(StickSide.Left), flick(StickSide.Right) };
 
-            layer.UpdateOverlaps(heads, 1000, true);
+            layer.UpdateOverlaps(heads, 1000);
             Assert.That(collar.Alpha, Is.EqualTo(1));
             heads[1].Angle = 5;
-            layer.UpdateOverlaps(heads, 1000, true);
+            layer.UpdateOverlaps(heads, 1000);
             Assert.That(overlap.Alpha, Is.EqualTo(1));
             Assert.That(collar.Alpha, Is.Zero);
             heads[0].Angle = heads[1].Angle = 120;
-            layer.UpdateOverlaps(heads, 1000, true);
+            layer.UpdateOverlaps(heads, 1000);
 
             Assert.Multiple(() =>
             {
@@ -109,7 +109,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestUnusedPoolEntriesAndDisabledPresentationHideImmediately()
+        public void TestUnusedPoolEntriesHideImmediately()
         {
             var layer = new SticksCenterOutNoteOverlapLayer(null!);
             SticksHitObject[] heads =
@@ -119,16 +119,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
             Drawable[] originalPool = pool(layer);
 
-            layer.UpdateOverlaps(heads, 1000, true);
+            layer.UpdateOverlaps(heads, 1000);
             Assert.That(originalPool.Count(overlap => overlap.Alpha > 0), Is.EqualTo(2));
-            layer.UpdateOverlaps(heads.AsSpan(2), 1000, true);
+            layer.UpdateOverlaps(heads.AsSpan(2), 1000);
             Assert.That(originalPool.Count(overlap => overlap.Alpha > 0), Is.EqualTo(1));
             assertPosition(field<Drawable>(originalPool[0], "collar"), SticksPlayfield.PointAt(90, SticksPlayfield.GUIDE_RADIUS));
-            layer.UpdateOverlaps(heads, 1000, false);
-            Assert.That(originalPool.Select(overlap => overlap.Alpha), Has.All.Zero);
-            layer.UpdateOverlaps(heads, 1000, true);
+            layer.UpdateOverlaps(heads, 1000);
             Assert.That(originalPool.Count(overlap => overlap.Alpha > 0), Is.EqualTo(2));
-            layer.UpdateOverlaps(ReadOnlySpan<SticksHitObject>.Empty, 1000, true);
+            layer.UpdateOverlaps(ReadOnlySpan<SticksHitObject>.Empty, 1000);
 
             Assert.Multiple(() =>
             {
@@ -153,7 +151,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject firstHead = SticksCenterOutNoteOverlapLayer.UnjudgedHeadOf(first);
 
             Assert.That(firstHead, Is.Not.Null);
-            layer.UpdateOverlaps(new[] { firstHead, SticksCenterOutNoteOverlapLayer.UnjudgedHeadOf(second) }, 1000, true);
+            layer.UpdateOverlaps(new[] { firstHead, SticksCenterOutNoteOverlapLayer.UnjudgedHeadOf(second) }, 1000);
             Assert.That(pool(layer)[0].Alpha, Is.EqualTo(1));
 
             if (first is DrawableSticksFlick)
@@ -171,7 +169,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(SticksCenterOutNoteOverlapLayer.UnjudgedHeadOf(first), Is.Null);
             Assert.That(SticksCenterOutNoteOverlapLayer.UnjudgedHeadOf(second), Is.SameAs(second.HitObject));
-            layer.UpdateOverlaps(new[] { SticksCenterOutNoteOverlapLayer.UnjudgedHeadOf(second) }, 1000, true);
+            layer.UpdateOverlaps(new[] { SticksCenterOutNoteOverlapLayer.UnjudgedHeadOf(second) }, 1000);
             Assert.That(pool(layer).Select(overlap => overlap.Alpha), Has.All.Zero);
         }
 

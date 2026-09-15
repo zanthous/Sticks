@@ -19,7 +19,6 @@ using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
 using osu.Game.Rulesets.UI;
 using osu.Game.Scoring;
-using osu.Game.Screens.Edit;
 using osu.Game.Screens.Play;
 
 namespace osu.Game.Rulesets.Sticks.UI
@@ -36,12 +35,6 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly BindableFloat approachRate = new BindableFloat();
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
-        private readonly Bindable<SticksChordLinkPresentation> chordLinkPresentation =
-            new Bindable<SticksChordLinkPresentation>(SticksChordLinkPresentation.FullToCentre);
-        private readonly Bindable<SticksStackedNotePresentation> stackedNotePresentation =
-            new Bindable<SticksStackedNotePresentation>(SticksStackedNotePresentation.RadialSpacing);
-        private readonly Bindable<SticksNotePresentation> notePresentation =
-            new Bindable<SticksNotePresentation>(SticksNotePresentation.CenterOut);
         private readonly BindableBool hideInactiveCursors = new BindableBool();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly Bindable<SticksHitEffectMode> hitEffects = new Bindable<SticksHitEffectMode>(SticksHitEffectMode.Perfect);
@@ -51,9 +44,6 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly Bindable<Colour4> leftStickColour = new Bindable<Colour4>((Colour4)SticksPlayfield.LEFT_COLOUR);
         private readonly Bindable<Colour4> rightStickColour = new Bindable<Colour4>((Colour4)SticksPlayfield.RIGHT_COLOUR);
         private readonly Bindable<Colour4> overlapColour = new Bindable<Colour4>((Colour4)SticksPlayfield.OVERLAP_COLOUR);
-        private readonly BindableFloat noteCircleScale = new BindableFloat(SticksPlayfield.DEFAULT_NOTE_CIRCLE_SCALE);
-        private readonly BindableFloat radialApproachDistance = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_DISTANCE);
-        private readonly BindableFloat radialApproachSpeed = new BindableFloat(SticksPlayfield.DEFAULT_RADIAL_APPROACH_SPEED);
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
         private SticksReplayStore replayStore;
         private SticksReplayPersistence replayPersistence;
@@ -63,9 +53,6 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         [Resolved(CanBeNull = true)]
         private Player player { get; set; }
-
-        [Resolved(CanBeNull = true)]
-        private Editor editor { get; set; }
 
         public DrawableSticksRuleset(SticksRuleset ruleset, IBeatmap beatmap, IReadOnlyList<Mod> mods = null)
             : base(ruleset, beatmap, mods)
@@ -84,18 +71,6 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.FlickActivationThreshold, flickActivationThreshold);
             flickActivationThreshold.BindValueChanged(threshold =>
                 ((SticksPlayfield)Playfield).FlickActivationThreshold = threshold.NewValue, true);
-            Config.BindWith(SticksRulesetSetting.ChordLinkPresentation, chordLinkPresentation);
-            chordLinkPresentation.BindValueChanged(presentation =>
-                ((SticksPlayfield)Playfield).ChordLinkPresentation = presentation.NewValue, true);
-            Config.BindWith(SticksRulesetSetting.StackedNotePresentation, stackedNotePresentation);
-            stackedNotePresentation.BindValueChanged(presentation =>
-                ((SticksPlayfield)Playfield).StackedNotePresentation = presentation.NewValue, true);
-            Config.BindWith(SticksRulesetSetting.NotePresentation, notePresentation);
-            notePresentation.BindValueChanged(presentation =>
-                ((SticksPlayfield)Playfield).NotePresentation = NotePresentationForContext(
-                    presentation.NewValue,
-                    editor != null,
-                    player != null), true);
             Config.BindWith(SticksRulesetSetting.HideInactiveCursors, hideInactiveCursors);
             hideInactiveCursors.BindValueChanged(hidden =>
                 ((SticksPlayfield)Playfield).HideInactiveCursors = hidden.NewValue, true);
@@ -118,15 +93,6 @@ namespace osu.Game.Rulesets.Sticks.UI
             leftStickColour.BindValueChanged(_ => applyColours(), true);
             rightStickColour.BindValueChanged(_ => applyColours(), true);
             overlapColour.BindValueChanged(_ => applyColours(), true);
-            Config.BindWith(SticksRulesetSetting.NoteCircleScale, noteCircleScale);
-            noteCircleScale.BindValueChanged(scale =>
-                ((SticksPlayfield)Playfield).NoteCircleScale = scale.NewValue, true);
-            Config.BindWith(SticksRulesetSetting.RadialApproachDistance, radialApproachDistance);
-            radialApproachDistance.BindValueChanged(distance =>
-                ((SticksPlayfield)Playfield).RadialApproachDistance = distance.NewValue, true);
-            Config.BindWith(SticksRulesetSetting.RadialApproachSpeed, radialApproachSpeed);
-            radialApproachSpeed.BindValueChanged(speed =>
-                ((SticksPlayfield)Playfield).RadialApproachSpeed = speed.NewValue, true);
         }
 
         public override PlayfieldAdjustmentContainer CreatePlayfieldAdjustmentContainer() => new SticksPlayfieldAdjustmentContainer();
@@ -242,14 +208,6 @@ namespace osu.Game.Rulesets.Sticks.UI
             leftStickColour.Value,
             rightStickColour.Value,
             overlapColour.Value);
-
-        internal static SticksNotePresentation NotePresentationForContext(
-            SticksNotePresentation selectedPresentation,
-            bool hasEditor,
-            bool hasPlayer) =>
-            hasEditor && !hasPlayer
-                ? SticksNotePresentation.CenterOut
-                : selectedPresentation;
 
         protected override void Dispose(bool isDisposing)
         {

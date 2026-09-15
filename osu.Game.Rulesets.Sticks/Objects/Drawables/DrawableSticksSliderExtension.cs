@@ -10,7 +10,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     public partial class DrawableSticksSliderExtension : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable
     {
         private SticksPlayfield playfield = null!;
-        private readonly SticksSliderHeadMarker marker;
 
         public new SticksSliderExtension HitObject => (SticksSliderExtension)base.HitObject;
 
@@ -25,33 +24,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             : base(hitObject)
         {
             Size = new Vector2(SticksPlayfield.SIZE);
-
-            StickSide side = hitObject?.Side ?? StickSide.Left;
-            int direction = hitObject?.Direction ?? 1;
-            AddInternal(marker = new SticksSliderHeadMarker(side, direction, colourFor(side))
-            {
-                Angle = hitObject?.Angle ?? 0,
-                Span = hitObject?.PrimaryHitAngle ?? SticksHitObject.VISIBLE_ARC_SPAN,
-            });
         }
 
         [BackgroundDependencyLoader]
         private void load(SticksPlayfield sticksPlayfield) => playfield = sticksPlayfield;
-
-        protected override void Update()
-        {
-            base.Update();
-
-            marker.SetLaneAndDirection(HitObject.Side, HitObject.Direction, colourFor(HitObject.Side));
-            marker.Presentation = playfield.NotePresentation;
-            marker.TargetCircleScale = playfield.NoteCircleScale;
-            marker.Angle = HitObject.Angle;
-            marker.Span = HitObject.PrimaryHitAngle;
-            marker.ApproachCircleEnabled = false;
-            marker.SetRadialOffset(ParentHitObject is ISticksVisualRadialOffsetSource source ? source.VisualRadialOffset : 0, true);
-
-            marker.Alpha = playfield.CenterOutPresentation ? 0 : 1;
-        }
 
         protected override double InitialLifetimeOffset => HitObject.PreemptDuration;
 
@@ -93,9 +69,5 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         }
 
         protected override void UpdateHitStateTransforms(ArmedState state) => this.FadeOut(180).Expire();
-
-        private osuTK.Graphics.Color4 colourFor(StickSide side) => playfield?.ColourFor(side) ?? (side == StickSide.Left
-            ? SticksPlayfield.LEFT_COLOUR
-            : SticksPlayfield.RIGHT_COLOUR);
     }
 }

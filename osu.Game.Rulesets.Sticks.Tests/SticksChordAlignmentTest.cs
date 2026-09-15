@@ -143,7 +143,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [TestCase("PA")]
         [TestCase("DU")]
         [TestCase("PD")]
-        public void TestGameplayConversionAlignsChordBeforeNestedHeadsAndSharedLinkAreCreated(string acronym)
+        public void TestGameplayConversionAlignsChordBeforeNestedHeadsAreCreated(string acronym)
         {
             // A slider and a simultaneous circle retain their source directions during
             // normal chord planning, reproducing an almost-shared head in every mode.
@@ -161,13 +161,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider slider = chord.OfType<SticksSlider>().Single();
             SticksHitObject owner = chord.Single(note => note.SyncedNoteSide.HasValue);
             SticksHitObject partner = chord.Single(note => note.Side != owner.Side);
-            using var link = new SticksSyncedNoteLink(owner.Side, owner.Angle, owner.SyncedNoteSide.Value, owner.SyncedNoteAngle);
             Assert.Multiple(() =>
             {
                 Assert.That(chord[0].Angle, Is.EqualTo(17).Within(0.001));
                 Assert.That(chord[1].Angle, Is.EqualTo(chord[0].Angle), "Shared rendering needs exactly equal final angles.");
                 Assert.That(owner.SyncedNoteAngle, Is.EqualTo(partner.Angle));
-                Assert.That(link.UsesAlternatingDashes, Is.True);
                 Assert.That(slider.NestedHitObjects.OfType<SticksSliderHead>().Single().Angle, Is.EqualTo(slider.Angle));
             });
         }

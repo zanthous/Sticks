@@ -4,9 +4,6 @@ using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
-using osu.Framework.Graphics.Lines;
-using osu.Framework.Graphics.Shapes;
-using osu.Framework.Utils;
 using osu.Game.Audio;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Objects.Drawables;
@@ -22,35 +19,20 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     public partial class DrawableSticksHold : DrawableHitObject<SticksHitObject>, ISticksApproachRateAdjustable, ISticksTrackingSource
     {
-        private const float minimum_rail_length = 40;
-        private const float maximum_rail_length = 130;
-        private const float rail_edge_padding = 6;
-
         private readonly SticksArcMarker headMarker;
         private readonly SticksRadialTimelinePath radialPath;
         private readonly SticksSliderContactEffect holdContactEffect;
-        private readonly SmoothPath durationRail;
-        private readonly Circle durationCursor;
         private readonly PausableSkinnableSound holdingSample;
         private readonly Container nestedHitObjectContainer;
-        private readonly Container approachVisuals;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
-        private SticksSyncedNoteLink syncedNoteLink;
-        private Vector2 railStart;
-        private Vector2 railEnd;
         private StickSide displayedSide;
         private float displayedAngle = float.NaN;
-        private double displayedDuration = double.NaN;
-        private float railBoundaryRadialOffset;
-        private float displayedRailBoundaryRadialOffset = float.NaN;
         private SticksPlayfield playfield = null!;
         private DrawableSticksHoldHead drawableHead = null!;
         private bool headJudged;
         private bool headHit;
         private bool headSamplePlayed;
         private double previousEditorTime = double.NaN;
-        private float visualRadialOffset;
-        private bool visualRadialOffsetInitialised;
         private bool radialPathRegistered;
 
         [Resolved(CanBeNull = true)]
@@ -71,24 +53,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         public bool TrackingAuthorised => trackingEligibility.IsAuthorised;
 
-        public Vector2 RailStart
-        {
-            get
-            {
-                refreshGeometry();
-                return railStart;
-            }
-        }
-
-        public Vector2 RailEnd
-        {
-            get
-            {
-                refreshGeometry();
-                return railEnd;
-            }
-        }
-
         public DrawableSticksHold(SticksHold hitObject)
             : base(hitObject)
         {
@@ -101,35 +65,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 Depth = -20,
             });
 
-            AddInternal(approachVisuals = new Container
-            {
-                RelativeSizeAxes = Axes.Both,
-                AlwaysPresent = true,
-                Children = new Drawable[]
-                {
-                    durationRail = new SmoothPath
-                    {
-                        AutoSizeAxes = Axes.None,
-                        Size = new Vector2(SticksPlayfield.SIZE),
-                        PathRadius = 4,
-                        Colour = colourFor(hitObject.Side),
-                        Alpha = 0,
-                        Depth = 10,
-                        Vertices = new[] { railStart, railEnd },
-                    },
-                    durationCursor = new Circle
-                    {
-                        Anchor = Anchor.TopLeft,
-                        Origin = Anchor.Centre,
-                        Position = railEnd,
-                        Size = new Vector2(11),
-                        Colour = Color4.White,
-                        Alpha = 0,
-                        Depth = 5,
-                    },
-                    headMarker = createHeadMarker(),
-                },
-            });
+            AddInternal(headMarker = createHeadMarker());
 
             AddInternal(radialPath = new SticksRadialTimelinePath(hitObject.Side)
             {
@@ -151,7 +87,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 MinimumSampleVolume = MINIMUM_SAMPLE_VOLUME,
             });
 
-            ensureSyncedNoteLink();
             refreshGeometry();
         }
 
@@ -194,45 +129,18 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
 
-            updateVisualRadialOffset();
-            bool useCenterOut = playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut;
-            float radians = HitObject.Angle * MathF.PI / 180;
-            approachVisuals.Position = useCenterOut
-                ? Vector2.Zero
-                : new Vector2(MathF.Cos(radians), MathF.Sin(radians)) * visualRadialOffset;
             refreshGeometry();
             headMarker.SetLane(HitObject.Side, colourFor(HitObject.Side));
-            durationRail.Colour = colourFor(HitObject.Side);
 
             double now = Time.Current;
             updateEditorState(now);
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
-            double approachProgress = Math.Clamp((now - (HitObject.StartTime - HitObject.ApproachDuration)) / Math.Max(1, HitObject.ApproachDuration), 0, 1);
-            double headGrowth = SticksHitObject.ApproachGrowthProgress(approachProgress);
-            bool useApproachCircles = playfield.NotePresentation == Configuration.SticksNotePresentation.ApproachCircles;
-            updateSyncedNoteLink(now, headGrowth);
-            headMarker.Presentation = playfield.NotePresentation;
-            headMarker.TargetCircleScale = playfield.NoteCircleScale;
-            headMarker.Span = SticksArcMarker.SpanForApproach(HitObject.PrimaryHitAngle, playfield.NotePresentation, headGrowth);
-            headMarker.ApproachCircleEnabled = useApproachCircles;
-            headMarker.ApproachProgress = (float)approachProgress;
-            headMarker.ApproachAlpha = useApproachCircles && !headJudged
-                ? 0.9f * (float)(1 - Math.Clamp((now - HitObject.StartTime) / 50, 0, 1))
-                : 0;
+            headMarker.Span = HitObject.PrimaryHitAngle;
+            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
+            headMarker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
 
-            if (useCenterOut)
-            {
-                float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
-                headMarker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
-            }
-
-            double progress = Math.Clamp((now - HitObject.StartTime) / Math.Max(1, HitObject.Duration), 0, 1);
-            durationRail.Alpha = !useCenterOut && now < HitObject.EndTime ? 0.38f : 0;
-            durationCursor.Alpha = !useCenterOut && active ? 0.9f : 0;
-            durationCursor.Position = Vector2.Lerp(railEnd, railStart, (float)progress);
-
-            setRadialPathRegistered(useCenterOut && now < HitObject.EndTime);
-            if (useCenterOut && now < HitObject.EndTime)
+            setRadialPathRegistered(now < HitObject.EndTime);
+            if (now < HitObject.EndTime)
                 radialPath.SetHoldGeometry(HitObject, now);
 
             updateHeadJudgement(now);
@@ -242,11 +150,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             // checkpoint was missed. Only checkpoints crossed while away are lost.
             bool currentlyTracking = active && TrackingAuthorised && isStickInRange();
 
-            if (useCenterOut)
-                radialPath.SetTrackingState(currentlyTracking, currentlyTracking ? HitObject.BeatPulseAt(now) : 0);
+            radialPath.SetTrackingState(currentlyTracking, currentlyTracking ? HitObject.BeatPulseAt(now) : 0);
 
             holdContactEffect.SetState(
-                useCenterOut && playfield.SliderTrackingSparks && currentlyTracking,
+                playfield.SliderTrackingSparks && currentlyTracking,
                 now,
                 HitObject.Angle,
                 HitObject.PrimaryHitAngle,
@@ -280,53 +187,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             radialPath.LifetimeEnd = HitObject.EndTime;
         }
 
-        private void updateVisualRadialOffset()
-        {
-            if (Time.Current < HitObject.StartTime - HitObject.ApproachDuration)
-            {
-                visualRadialOffsetInitialised = false;
-                return;
-            }
-
-            float targetOffset = playfield.VisualRadialOffsetFor(this, HitObject);
-            float boundaryOffset = playfield.RadialNoteApproach
-                ? (HitObject.Side == StickSide.Left ? playfield.RadialApproachDistance : -playfield.RadialApproachDistance)
-                : targetOffset;
-
-            if (!float.IsNaN(displayedAngle) && displayedSide != HitObject.Side)
-                railBoundaryRadialOffset = 0;
-
-            railBoundaryRadialOffset = HitObject.Side == StickSide.Left
-                ? Math.Max(railBoundaryRadialOffset, boundaryOffset)
-                : Math.Min(railBoundaryRadialOffset, boundaryOffset);
-
-            if (playfield.RadialNoteApproach || !visualRadialOffsetInitialised)
-            {
-                visualRadialOffsetInitialised = true;
-                visualRadialOffset = targetOffset;
-                return;
-            }
-
-            visualRadialOffset = (float)Interpolation.DampContinuously(visualRadialOffset, targetOffset, 45, Math.Abs(Time.Elapsed));
-        }
-
         private void refreshGeometry()
         {
             bool sideChanged = !float.IsNaN(displayedAngle) && displayedSide != HitObject.Side;
             if (!sideChanged
-                && Math.Abs(displayedAngle - HitObject.Angle) < 0.001f
-                && Math.Abs(displayedDuration - HitObject.Duration) < 0.001
-                && Math.Abs(displayedRailBoundaryRadialOffset - railBoundaryRadialOffset) < 0.001f)
+                && Math.Abs(displayedAngle - HitObject.Angle) < 0.001f)
                 return;
-
-            float laneRadius = SticksPlayfield.RadiusFor(HitObject.Side);
-            float farRadius = RailEndRadiusFor(HitObject.Side, HitObject.Angle, HitObject.Duration, railBoundaryRadialOffset);
-            railStart = SticksPlayfield.PointAt(HitObject.Angle, laneRadius);
-            railEnd = SticksPlayfield.PointAt(HitObject.Angle, farRadius);
-
-            durationRail.Colour = colourFor(HitObject.Side);
-            durationRail.Vertices = new[] { railStart, railEnd };
-            durationCursor.Position = railEnd;
 
             if (sideChanged)
             {
@@ -338,85 +204,13 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             displayedSide = HitObject.Side;
             displayedAngle = HitObject.Angle;
-            displayedDuration = HitObject.Duration;
-            displayedRailBoundaryRadialOffset = railBoundaryRadialOffset;
-        }
-
-        /// <summary>
-        /// Returns the local radial endpoint for a hold rail. The containing visual is translated
-        /// by <paramref name="visualRadialOffset"/>, so that offset is included when limiting the
-        /// endpoint to the square playfield boundary.
-        /// </summary>
-        internal static float RailEndRadiusFor(StickSide side, float angle, double duration, float visualRadialOffset = 0)
-        {
-            float laneRadius = SticksPlayfield.RadiusFor(side);
-            float desiredLength = (float)Math.Clamp(duration * 0.06, minimum_rail_length, maximum_rail_length);
-            float radians = angle * MathF.PI / 180;
-            float largestDirectionComponent = Math.Max(Math.Abs(MathF.Cos(radians)), Math.Abs(MathF.Sin(radians)));
-            float outerBoundaryRadius = (SticksPlayfield.SIZE / 2 - rail_edge_padding) / Math.Max(0.001f, largestDirectionComponent);
-            float effectiveLaneRadius = laneRadius + visualRadialOffset;
-
-            if (side == StickSide.Left)
-            {
-                float availableLength = Math.Max(0, outerBoundaryRadius - effectiveLaneRadius);
-                return laneRadius + Math.Min(desiredLength, availableLength);
-            }
-
-            float inwardAvailableLength = Math.Max(0, effectiveLaneRadius - rail_edge_padding);
-            return laneRadius - Math.Min(desiredLength, inwardAvailableLength);
         }
 
         private SticksArcMarker createHeadMarker() => new SticksArcMarker(HitObject.Side, colourFor(HitObject.Side), true)
         {
             Angle = HitObject.Angle,
-            Span = HitObject.PrimaryHitAngle * 0.2f,
+            Span = HitObject.PrimaryHitAngle,
         };
-
-        private void ensureSyncedNoteLink()
-        {
-            if (HitObject.SyncedNoteSide is not StickSide linkedSide)
-            {
-                if (syncedNoteLink != null)
-                    syncedNoteLink.Alpha = 0;
-                return;
-            }
-
-            if (syncedNoteLink == null)
-            {
-                AddInternal(syncedNoteLink = new SticksSyncedNoteLink(
-                    HitObject.Side,
-                    HitObject.Angle,
-                    linkedSide,
-                    HitObject.SyncedNoteAngle));
-            }
-            else
-            {
-                syncedNoteLink.SetGeometry(
-                    HitObject.Side,
-                    HitObject.Angle,
-                    linkedSide,
-                    HitObject.SyncedNoteAngle);
-            }
-
-            if (playfield != null)
-                syncedNoteLink.Presentation = playfield.ChordLinkPresentation;
-        }
-
-        private void updateSyncedNoteLink(double now, double headGrowth)
-        {
-            if (playfield.NotePresentation == Configuration.SticksNotePresentation.CenterOut)
-            {
-                if (syncedNoteLink != null)
-                    syncedNoteLink.Alpha = 0;
-
-                return;
-            }
-
-            ensureSyncedNoteLink();
-
-            if (syncedNoteLink != null && HitObject.SyncedNoteSide.HasValue)
-                syncedNoteLink.Alpha = SticksSyncedNoteLink.AlphaAtHeadCue(now, HitObject.StartTime, headGrowth);
-        }
 
         private void updateHeadJudgement(double now)
         {

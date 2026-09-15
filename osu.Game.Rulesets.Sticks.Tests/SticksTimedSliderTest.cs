@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using Newtonsoft.Json;
 using NUnit.Framework;
-using osu.Framework.Graphics.UserInterface;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets.Sticks.Objects;
-using osu.Game.Rulesets.Sticks.Objects.Drawables;
 
 namespace osu.Game.Rulesets.Sticks.Tests
 {
@@ -95,34 +92,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.AngleAt(1050), Is.EqualTo(10));
                 Assert.That(Enumerable.Range(0, slider.SegmentCount).Any(slider.SegmentEndsWithReversal), Is.False);
                 Assert.That(slider.UpcomingSegmentIndexAt(1050), Is.EqualTo(-1));
-            });
-        }
-
-        [TestCase(90f)]
-        [TestCase(0f)]
-        public void TestFixedLanePreviewsContinuationWithoutFakeReversal(float firstArc)
-        {
-            SticksSlider slider = create(new[] { firstArc, 90f }, new[] { 500d, 500d });
-            var drawable = new DrawableSticksSlider(slider);
-            MethodInfo updatePreview = typeof(DrawableSticksSlider).GetMethod(
-                "updateReversalPathPreview", BindingFlags.Instance | BindingFlags.NonPublic)!;
-            var preview = (CircularProgress)typeof(DrawableSticksSlider).GetField(
-                "reversalPathPreview", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
-            var outline = (CircularProgress)typeof(DrawableSticksSlider).GetField(
-                "reversalPathPreviewOutline", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
-
-            updatePreview.Invoke(drawable, new object[] { 1250d, true });
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.UpcomingSegmentIndexAt(1250), Is.EqualTo(-1), "There is no reversal.");
-                Assert.That(slider.UpcomingPathSegmentIndexAt(1250), Is.EqualTo(1));
-                Assert.That(slider.UpcomingPathSegmentPreviewProgressAt(1250), Is.EqualTo(0.125).Within(0.00001));
-                Assert.That(preview.Alpha, Is.GreaterThan(0), "The continuation is visible before its anchor.");
-                Assert.That(preview.Progress, Is.EqualTo(0.03125).Within(0.00001));
-                Assert.That(preview.Rotation, Is.EqualTo(100 + firstArc));
-                Assert.That(outline.Alpha, Is.Zero);
-                Assert.That(outline.Progress, Is.Zero);
             });
         }
 

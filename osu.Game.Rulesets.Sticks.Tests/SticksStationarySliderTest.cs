@@ -3,11 +3,9 @@ using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
 using NUnit.Framework;
-using osu.Framework.Graphics.Sprites;
 using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
-using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osuTK.Graphics;
@@ -139,32 +137,19 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(slider.SegmentEndTimeAt(0), Is.EqualTo(3000));
         }
 
-        [TestCase(SticksNotePresentation.CenterOut)]
-        [TestCase(SticksNotePresentation.BracketMarkers)]
-        [TestCase(SticksNotePresentation.ApproachCircles)]
-        [TestCase(SticksNotePresentation.FillingArcs)]
-        public void TestStationaryHeadNeverClaimsClockwiseOrCounterclockwise(SticksNotePresentation presentation)
+        [Test]
+        public void TestStationaryHeadUsesDirectionlessSkinCentre()
         {
-            using var marker = new SticksSliderHeadMarker(StickSide.Left, 0, Color4.White)
-            {
-                Presentation = presentation,
-            };
-            SpriteIcon arrow = (SpriteIcon)typeof(SticksSliderHeadMarker)
-                .GetField("directionArrow", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(marker)!;
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(marker.Direction, Is.Zero);
-                Assert.That(arrow.Alpha, Is.Zero);
-            });
+            using var marker = new SticksSliderHeadMarker(StickSide.Left, 0, Color4.White);
+            var centre = (osu.Game.Rulesets.Sticks.Skinning.SticksSkinnedSprite)typeof(SticksSliderHeadMarker)
+                .GetField("skinCentre", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(marker)!;
+            Assert.That(centre.TextureName, Is.EqualTo("sticks-note-centre"));
 
             marker.SetLaneAndDirection(StickSide.Left, -1, Color4.White);
-            Assert.That(marker.Direction, Is.EqualTo(-1));
-            if (presentation != SticksNotePresentation.CenterOut)
-                Assert.That(arrow.Alpha, Is.EqualTo(1));
+            Assert.That(centre.TextureName, Is.EqualTo("sticks-slider-head"));
 
             marker.SetLaneAndDirection(StickSide.Left, 0, Color4.White);
-            Assert.That(arrow.Alpha, Is.Zero, "Editing back to a stationary path removes the directional cue.");
+            Assert.That(centre.TextureName, Is.EqualTo("sticks-note-centre"));
         }
 
         [Test]

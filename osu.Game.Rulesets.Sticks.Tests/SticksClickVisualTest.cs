@@ -147,7 +147,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                     && drawable.ChildrenOfType<DrawableSticksFlick>().Count() == 1
                                                     && drawable.ChildrenOfType<DrawableSticksHold>().Count() == 1
                                                     && click.IsLoaded && flick.IsLoaded && hold.IsLoaded);
-            AddStep("select centre-out presentation", () => ((SticksPlayfield)drawable.Playfield).NotePresentation = SticksNotePresentation.CenterOut);
             AddWaitStep("update mixed notes", 2);
         }
 

@@ -1,7 +1,6 @@
 # Skinning Sticks
 
-These assets target the default Center Out visuals and the editor. There are no
-separate skin elements for the legacy presentation styles.
+These assets customise the centre-out playfield and notes in gameplay and the editor.
 
 Import [Sticks Minimal.osk](<skin-example/Sticks Minimal.osk>) into osu!lazer, then
 select **Sticks Minimal** in the skin settings. Enable **Show cursor trails** under

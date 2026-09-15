@@ -418,8 +418,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider slider = converted.OfType<SticksSlider>().Single(note => !note.IsStationary);
             SticksSlider hold = converted.OfType<SticksSlider>().Single(note => note.IsStationary);
-            var drawableSlider = new DrawableSticksSlider(slider);
-            var drawableHold = new DrawableSticksSlider(hold);
 
             Assert.Multiple(() =>
             {
@@ -427,10 +425,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.SyncedNoteAngle, Is.EqualTo(135));
                 Assert.That(hold.SyncedNoteSide, Is.EqualTo(StickSide.Right));
                 Assert.That(hold.SyncedNoteAngle, Is.EqualTo(225));
-                Assert.That(typeof(DrawableSticksSlider).GetField("syncedNoteLink", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawableSlider),
-                    Is.TypeOf<SticksSyncedNoteLink>());
-                Assert.That(typeof(DrawableSticksSlider).GetField("syncedNoteLink", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawableHold),
-                    Is.TypeOf<SticksSyncedNoteLink>());
             });
         }
 

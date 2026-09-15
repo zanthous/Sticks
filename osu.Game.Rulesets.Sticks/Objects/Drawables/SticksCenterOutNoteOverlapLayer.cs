@@ -112,50 +112,44 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
             int headCount = 0;
-            if (playfield.CenterOutPresentation)
+            foreach (DrawableHitObject drawable in playfield.HitObjectContainer.AliveEntries.Values)
             {
-                foreach (DrawableHitObject drawable in playfield.HitObjectContainer.AliveEntries.Values)
-                {
-                    if (headCount >= visibleHeads.Length)
-                        break;
+                if (headCount >= visibleHeads.Length)
+                    break;
 
-                    SticksHitObject head = VisibleHeadOf(drawable, Time.Current, playfield.IsPausedEditorPreview);
-                    if (head != null)
-                        visibleHeads[headCount++] = head;
-                }
+                SticksHitObject head = VisibleHeadOf(drawable, Time.Current, playfield.IsPausedEditorPreview);
+                if (head != null)
+                    visibleHeads[headCount++] = head;
             }
 
-            UpdateOverlaps(visibleHeads.AsSpan(0, headCount), Time.Current, playfield.CenterOutPresentation);
+            UpdateOverlaps(visibleHeads.AsSpan(0, headCount), Time.Current);
             Array.Clear(visibleHeads, 0, headCount);
         }
 
-        internal void UpdateOverlaps(ReadOnlySpan<SticksHitObject> heads, double time, bool centerOut)
+        internal void UpdateOverlaps(ReadOnlySpan<SticksHitObject> heads, double time)
         {
             int overlapCount = 0;
             int headCount = Math.Min(heads.Length, max_visible_heads);
-            if (centerOut)
+            for (int i = 0; i < headCount && overlapCount < overlaps.Length; i++)
             {
-                for (int i = 0; i < headCount && overlapCount < overlaps.Length; i++)
+                SticksHitObject first = heads[i];
+                for (int j = i + 1; j < headCount && overlapCount < overlaps.Length; j++)
                 {
-                    SticksHitObject first = heads[i];
-                    for (int j = i + 1; j < headCount && overlapCount < overlaps.Length; j++)
-                    {
-                        SticksHitObject second = heads[j];
-                        if (first.Side == second.Side || Math.Abs(first.StartTime - second.StartTime) >= 0.01)
-                            continue;
+                    SticksHitObject second = heads[j];
+                    if (first.Side == second.Side || Math.Abs(first.StartTime - second.StartTime) >= 0.01)
+                        continue;
 
-                        if (!TryGetAngularOverlap(first.Angle, first.PrimaryHitAngle, second.Angle, second.PrimaryHitAngle,
-                                out float startAngle, out float overlapSpan, out bool firstTickOverlaps, out bool secondTickOverlaps))
-                            continue;
+                    if (!TryGetAngularOverlap(first.Angle, first.PrimaryHitAngle, second.Angle, second.PrimaryHitAngle,
+                            out float startAngle, out float overlapSpan, out bool firstTickOverlaps, out bool secondTickOverlaps))
+                        continue;
 
-                        float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
-                            time, first.StartTime, first.ApproachDuration);
-                        bool identicalShape = Math.Abs(SticksHitObject.DeltaAngle(first.Angle, second.Angle)) < 0.01f
-                                              && Math.Abs(first.PrimaryHitAngle - second.PrimaryHitAngle) < 0.01f;
+                    float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
+                        time, first.StartTime, first.ApproachDuration);
+                    bool identicalShape = Math.Abs(SticksHitObject.DeltaAngle(first.Angle, second.Angle)) < 0.01f
+                                          && Math.Abs(first.PrimaryHitAngle - second.PrimaryHitAngle) < 0.01f;
 
-                        overlaps[overlapCount++].SetGeometry(radius, startAngle, overlapSpan,
-                            first.Angle, second.Angle, firstTickOverlaps, secondTickOverlaps, identicalShape);
-                    }
+                    overlaps[overlapCount++].SetGeometry(radius, startAngle, overlapSpan,
+                        first.Angle, second.Angle, firstTickOverlaps, secondTickOverlaps, identicalShape);
                 }
             }
 

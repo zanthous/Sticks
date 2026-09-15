@@ -39,11 +39,6 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float LANE_OFFSET = 16;
         public const float OUTER_RADIUS = GUIDE_RADIUS + LANE_OFFSET;
         public const float INNER_RADIUS = GUIDE_RADIUS - LANE_OFFSET;
-        public const float DEFAULT_RADIAL_APPROACH_DISTANCE = 30;
-        public const float DEFAULT_RADIAL_APPROACH_SPEED = 1;
-        public const float DEFAULT_NOTE_CIRCLE_SCALE = 1;
-        public const float MIN_NOTE_CIRCLE_SCALE = 1;
-        public const float MAX_NOTE_CIRCLE_SCALE = 2;
         public const float RELAX_DIRECTION_LENGTH_FRACTION = 0.25f;
         public const float CENTER_OUT_CURSOR_HELD_THRESHOLD = 0.9f;
         public const float CENTER_OUT_CURSOR_MOVING_THRESHOLD = 0.2f;
@@ -68,11 +63,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksJudgementDisplay judgementDisplay;
         private readonly SticksInputTracker input = new SticksInputTracker();
         private readonly SticksReplayInputProvider replayInputProvider;
-        private SticksStackedNotePresentation stackedNotePresentation = SticksStackedNotePresentation.RadialSpacing;
-        private float noteCircleScale = DEFAULT_NOTE_CIRCLE_SCALE;
         private bool leftTrailWasVisible;
         private bool rightTrailWasVisible;
-        private SticksNotePresentation notePresentation = SticksNotePresentation.CenterOut;
         private float leftX;
         private float leftY;
         private float rightX;
@@ -142,31 +134,14 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public bool ShowCursorTrails { get; set; }
 
-        public SticksChordLinkPresentation ChordLinkPresentation { get; set; } = SticksChordLinkPresentation.FullToCentre;
-
-        public SticksNotePresentation NotePresentation
-        {
-            get => notePresentation;
-            set
-            {
-                if (notePresentation == value)
-                    return;
-
-                notePresentation = value;
-                updateRadialPresentationMode();
-            }
-        }
-
-        public bool CenterOutPresentation => notePresentation == SticksNotePresentation.CenterOut;
-
         /// <summary>
-        /// In center-out presentation, hides cursors except while held near the judgement ring
+        /// Hides cursors except while held near the judgement ring
         /// or actively moving outward beyond the inner dead zone.
         /// </summary>
         public bool HideInactiveCursors { get; set; }
 
         /// <summary>
-        /// Shows restrained contact feedback while center-out objects are successfully played.
+        /// Shows restrained contact feedback while objects are successfully played.
         /// </summary>
         public bool SliderTrackingSparks { get; set; }
 
@@ -183,12 +158,6 @@ namespace osu.Game.Rulesets.Sticks.UI
                 if (value == SticksHitEffectMode.Never)
                     perfectContactLayer.Clear();
             }
-        }
-
-        public float NoteCircleScale
-        {
-            get => noteCircleScale;
-            set => noteCircleScale = Math.Clamp(value, MIN_NOTE_CIRCLE_SCALE, MAX_NOTE_CIRCLE_SCALE);
         }
 
         /// <summary>
@@ -224,22 +193,6 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
 
         public float RechargeThreshold => input.RechargeThreshold;
-
-        public SticksStackedNotePresentation StackedNotePresentation
-        {
-            get => stackedNotePresentation;
-            set
-            {
-                stackedNotePresentation = value;
-                updateRadialPresentationMode();
-            }
-        }
-
-        public bool RadialNoteApproach => stackedNotePresentation == SticksStackedNotePresentation.RadialApproach;
-
-        public float RadialApproachDistance { get; set; } = DEFAULT_RADIAL_APPROACH_DISTANCE;
-
-        public float RadialApproachSpeed { get; set; } = DEFAULT_RADIAL_APPROACH_SPEED;
 
         public CircularContainer LeftStickCursor => leftCursor;
 
@@ -366,7 +319,6 @@ namespace osu.Game.Rulesets.Sticks.UI
                 {
                     RelativeSizeAxes = Axes.Both,
                     Depth = 5,
-                    Alpha = 0,
                     // Max-blended ribbon colours require zero RGB in transparent pixels.
                     // Color4.Transparent is transparent white, which wins a component-wise
                     // maximum and washes every isolated ribbon fill to white.
@@ -391,7 +343,6 @@ namespace osu.Game.Rulesets.Sticks.UI
             });
             leftTrail.SetPaletteColour(leftColour, preserveAuthored: true);
             rightTrail.SetPaletteColour(rightColour, preserveAuthored: true);
-            updateRadialPresentationMode();
         }
 
         internal void AddRadialPath(SticksRadialTimelinePath path)
@@ -429,7 +380,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         internal void TriggerContactBurst(StickSide side, float angle, float hitSpan, bool completion = false)
         {
-            if (!CenterOutPresentation || !SliderTrackingSparks)
+            if (!SliderTrackingSparks)
                 return;
 
             contactBurstLayer.Trigger(
@@ -502,7 +453,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private void onHeadJudged(SticksHitObject source, HitResult result)
         {
             // Clicks have no contact angle. This first pass accents aimed heads only.
-            if (HitEffects == SticksHitEffectMode.Never || !CenterOutPresentation || source is not SticksAngleComponent || IsPausedEditorPreview)
+            if (HitEffects == SticksHitEffectMode.Never || source is not SticksAngleComponent || IsPausedEditorPreview)
                 return;
 
             // Always responds to each successful head immediately, including one hand of
@@ -726,53 +677,6 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
 
         public readonly record struct FlickTarget(double StartTime, float Angle, float LenientHalfAngle);
-
-        /// <summary>
-        /// Returns a clock-derived radial approach position. Blue objects begin outside their
-        /// lane and red objects begin inside it, then linearly reach the normal lane exactly at
-        /// the hit time. This is deliberately not frame-rate-dependent damping.
-        /// </summary>
-        public float RadialApproachOffsetFor(SticksHitObject hitObject) => RadialNoteApproach
-            ? RadialApproachOffsetAt(
-                hitObject.Side,
-                Time.Current,
-                hitObject.StartTime,
-                hitObject.ApproachDuration,
-                RadialApproachDistance,
-                RadialApproachSpeed)
-            : 0;
-
-        public float VisualRadialOffsetFor(DrawableHitObject drawable, SticksHitObject hitObject) => CenterOutPresentation
-            ? 0
-            : RadialNoteApproach ? RadialApproachOffsetFor(hitObject) : HeadStackOffsetFor(drawable);
-
-        internal static float RadialApproachOffsetAt(
-            StickSide side,
-            double time,
-            double hitTime,
-            double approachDuration,
-            float distance = DEFAULT_RADIAL_APPROACH_DISTANCE,
-            float speed = DEFAULT_RADIAL_APPROACH_SPEED)
-        {
-            double progress = Math.Clamp((time - (hitTime - approachDuration)) / Math.Max(1, approachDuration), 0, 1);
-            double speedAdjustedProgress = 1 - Math.Pow(1 - progress, Math.Max(0.01f, speed));
-            float direction = side == StickSide.Left ? 1 : -1;
-            return direction * distance * (1 - (float)speedAdjustedProgress);
-        }
-
-        /// <summary>
-        /// Returns the visual radial separation assigned to a later head which would otherwise
-        /// be occluded by an earlier head on the same stick and angular lane.
-        /// </summary>
-        public float HeadStackOffsetFor(DrawableHitObject drawable) =>
-            ((SticksHitObjectContainer)HitObjectContainer).HeadStackOffsetFor(drawable);
-
-        private void updateRadialPresentationMode()
-        {
-            radialPathBuffer.Alpha = CenterOutPresentation ? 1 : 0;
-            ((SticksHitObjectContainer)HitObjectContainer).RadialStackedNoteSpacing =
-                !CenterOutPresentation && stackedNotePresentation == SticksStackedNotePresentation.RadialSpacing;
-        }
 
         /// <summary>
         /// Maps an object's hit time to the shared center-out judgement circle.
@@ -1171,9 +1075,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             float magnitude = Math.Clamp(value.Length, 0, 1);
 
-            if (!CenterOutPresentation || !HideInactiveCursors)
+            if (!HideInactiveCursors)
             {
-                float radius = CenterOutPresentation ? GUIDE_RADIUS : RadiusFor(side);
+                float radius = GUIDE_RADIUS;
                 drawable.Position = new Vector2(SIZE / 2) + value * radius;
                 drawable.Alpha = 0.35f + magnitude * 0.65f;
                 previousMagnitude = magnitude;
@@ -1392,6 +1296,5 @@ namespace osu.Game.Rulesets.Sticks.UI
                 public UniformVector4 OverlapColour;
             }
         }
-
     }
 }

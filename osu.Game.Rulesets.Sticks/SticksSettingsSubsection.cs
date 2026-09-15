@@ -56,32 +56,13 @@ namespace osu.Game.Rulesets.Sticks
         private void load()
         {
             var config = (SticksRulesetConfigManager)Config;
-            var stackedNotePresentation = config.GetBindable<SticksStackedNotePresentation>(SticksRulesetSetting.StackedNotePresentation);
-            var notePresentation = config.GetBindable<SticksNotePresentation>(SticksRulesetSetting.NotePresentation);
             var flickActivationThreshold = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
             var leftStickColour = config.GetBindable<Colour4>(SticksRulesetSetting.LeftStickColour);
             var rightStickColour = config.GetBindable<Colour4>(SticksRulesetSetting.RightStickColour);
-            if (notePresentation.Value is SticksNotePresentation.ApproachCircles or SticksNotePresentation.FillingArcs)
-                notePresentation.Value = SticksNotePresentation.CenterOut;
-
-            var radialApproachDistance = new SettingsItemV2(new FormSliderBar<float>
-            {
-                Caption = "Radial approach distance",
-                Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachDistance),
-                KeyboardStep = 1,
-                LabelFormat = value => $"{value:0}",
-            });
-            var radialApproachSpeed = new SettingsItemV2(new FormSliderBar<float>
-            {
-                Caption = "Radial approach speed",
-                Current = config.GetBindable<float>(SticksRulesetSetting.RadialApproachSpeed),
-                KeyboardStep = 0.05f,
-                LabelFormat = value => $"{value:0.00}x",
-            });
             var contactEffects = new SettingsItemV2(new FormCheckBox
             {
                 Caption = "Contact effects",
-                HintText = "Show restrained contact feedback when hitting notes and tracking or completing sliders and holds in center-out mode.",
+                HintText = "Show restrained contact feedback when hitting notes and tracking or completing sliders.",
                 Current = config.GetBindable<bool>(SticksRulesetSetting.SliderTrackingSparks),
             });
             var hitEffects = new SettingsItemV2(new FormEnumDropdown<SticksHitEffectMode>
@@ -93,20 +74,9 @@ namespace osu.Game.Rulesets.Sticks
             var hideInactiveCursors = new SettingsItemV2(new FormCheckBox
             {
                 Caption = "Hide inactive cursors",
-                HintText = "In center-out mode, only show a cursor while held at least 90% outward or moving outward beyond 20%.",
+                HintText = "Only show a cursor while held at least 90% outward or moving outward beyond 20%.",
                 Current = config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors),
             });
-            var chordLinkPresentation = new SettingsItemV2(new FormEnumDropdown<SticksChordLinkPresentation>
-            {
-                Caption = "Synced-note links",
-                Current = config.GetBindable<SticksChordLinkPresentation>(SticksRulesetSetting.ChordLinkPresentation),
-            });
-            var stackedNotePresentationSetting = new SettingsItemV2(new FormEnumDropdown<SticksStackedNotePresentation>
-            {
-                Caption = "Stacked note presentation",
-                Current = stackedNotePresentation,
-            });
-
             Children = new Drawable[]
             {
                 new SettingsItemV2(new FormSliderBar<float>
@@ -123,16 +93,6 @@ namespace osu.Game.Rulesets.Sticks
                     KeyboardStep = 0.01f,
                     LabelFormat = value =>
                         $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
-                }),
-                new SettingsItemV2(new FormEnumDropdown<SticksNotePresentation>
-                {
-                    Caption = "Note presentation",
-                    Current = notePresentation,
-                    Items = new[]
-                    {
-                        SticksNotePresentation.CenterOut,
-                        SticksNotePresentation.BracketMarkers,
-                    },
                 }),
                 hideInactiveCursors,
                 new SettingsItemV2(new FormCheckBox
@@ -179,10 +139,6 @@ namespace osu.Game.Rulesets.Sticks
                 },
                 contactEffects,
                 hitEffects,
-                chordLinkPresentation,
-                stackedNotePresentationSetting,
-                radialApproachDistance,
-                radialApproachSpeed,
                 new SettingsButtonV2
                 {
                     Text = "Test controller stick speed",
@@ -220,24 +176,6 @@ namespace osu.Game.Rulesets.Sticks
                     Action = exportSelectedDifficulty,
                 },
             };
-
-            void updateConditionalVisibility()
-            {
-                bool centerOut = notePresentation.Value == SticksNotePresentation.CenterOut;
-                bool brackets = notePresentation.Value == SticksNotePresentation.BracketMarkers;
-                bool showRadialApproachControls = brackets && stackedNotePresentation.Value == SticksStackedNotePresentation.RadialApproach;
-
-                hideInactiveCursors.CanBeShown.Value = centerOut;
-                contactEffects.CanBeShown.Value = centerOut;
-                hitEffects.CanBeShown.Value = centerOut;
-                chordLinkPresentation.CanBeShown.Value = brackets;
-                stackedNotePresentationSetting.CanBeShown.Value = brackets;
-                radialApproachDistance.CanBeShown.Value = showRadialApproachControls;
-                radialApproachSpeed.CanBeShown.Value = showRadialApproachControls;
-            }
-
-            stackedNotePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
-            notePresentation.BindValueChanged(_ => updateConditionalVisibility(), true);
         }
 
         private void openControllerTest(float activationThreshold, Colour4 leftColour, Colour4 rightColour)

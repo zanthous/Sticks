@@ -82,13 +82,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksHitObject[] objects = { flick(0, 15), flick(0.008, 19, StickSide.Right), flick(0.016, 20) };
             SticksBeatmapConverter.AlignNearbyChordHeads(objects.Reverse());
-            SticksBeatmapConverter.AssignSyncedNoteLinks(objects);
-            Assert.Multiple(() =>
-            {
-                Assert.That(objects.Select(note => note.Angle), Is.EqualTo(new[] { 17f, 17, 20 }));
-                Assert.That(objects[0].SyncedNoteAngle, Is.EqualTo(17));
-                Assert.That(objects[2].SyncedNoteSide, Is.Null);
-            });
+            Assert.That(objects.Select(note => note.Angle), Is.EqualTo(new[] { 17f, 17, 20 }));
         }
 
         [TestCase(false)]
@@ -159,13 +153,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(chord, Has.Length.EqualTo(2));
             SticksSlider slider = chord.OfType<SticksSlider>().Single();
-            SticksHitObject owner = chord.Single(note => note.SyncedNoteSide.HasValue);
-            SticksHitObject partner = chord.Single(note => note.Side != owner.Side);
             Assert.Multiple(() =>
             {
                 Assert.That(chord[0].Angle, Is.EqualTo(17).Within(0.001));
                 Assert.That(chord[1].Angle, Is.EqualTo(chord[0].Angle), "Shared rendering needs exactly equal final angles.");
-                Assert.That(owner.SyncedNoteAngle, Is.EqualTo(partner.Angle));
                 Assert.That(slider.NestedHitObjects.OfType<SticksSliderHead>().Single().Angle, Is.EqualTo(slider.Angle));
             });
         }
@@ -185,7 +176,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(converter.IsAuthoredCarrier, Is.True);
                 Assert.That(chord.Select(note => note.Angle), Is.EqualTo(new[] { 15f, 19 }));
-                Assert.That(chord.Single(note => note.SyncedNoteSide.HasValue).SyncedNoteAngle, Is.EqualTo(19));
             });
         }
 

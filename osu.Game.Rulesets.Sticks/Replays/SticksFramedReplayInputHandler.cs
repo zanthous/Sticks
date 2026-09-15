@@ -13,16 +13,16 @@ namespace osu.Game.Rulesets.Sticks.Replays
     {
         private readonly SticksReplayInputProvider inputProvider;
         private readonly Func<float> physicalStickDistanceAtGameEdge;
-        private readonly Func<float> flickActivationThreshold;
+        private readonly float flickActivationThreshold;
 
         public SticksFramedReplayInputHandler(Replay replay, SticksReplayInputProvider inputProvider,
                                               Func<float> physicalStickDistanceAtGameEdge = null,
-                                              Func<float> flickActivationThreshold = null)
+                                              float flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD)
             : base(replay)
         {
             this.inputProvider = inputProvider;
+            this.flickActivationThreshold = flickActivationThreshold;
             this.physicalStickDistanceAtGameEdge = physicalStickDistanceAtGameEdge ?? (() => 1);
-            this.flickActivationThreshold = flickActivationThreshold ?? (() => SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD);
         }
 
         protected override bool IsImportant(SticksReplayFrame frame) => true;
@@ -42,12 +42,13 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     HasFrames && StartFrame.LeftShoulder,
                     HasFrames && StartFrame.RightShoulder,
                     HasFrames && StartFrame.LeftStickButton,
-                    HasFrames && StartFrame.RightStickButton);
+                    HasFrames && StartFrame.RightStickButton,
+                    flickActivationThreshold);
                 return;
             }
 
             float edgeDistance = physicalStickDistanceAtGameEdge();
-            float activationThreshold = flickActivationThreshold();
+            float activationThreshold = flickActivationThreshold;
             inputProvider.Update(
                 InterpolateStick(StartFrame.LeftStick, EndFrame.LeftStick, CurrentTime, StartFrame.Time, EndFrame.Time, edgeDistance, activationThreshold),
                 InterpolateStick(StartFrame.RightStick, EndFrame.RightStick, CurrentTime, StartFrame.Time, EndFrame.Time, edgeDistance, activationThreshold),
@@ -56,7 +57,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 CurrentTime < EndFrame.Time ? StartFrame.LeftShoulder : EndFrame.LeftShoulder,
                 CurrentTime < EndFrame.Time ? StartFrame.RightShoulder : EndFrame.RightShoulder,
                 CurrentTime < EndFrame.Time ? StartFrame.LeftStickButton : EndFrame.LeftStickButton,
-                CurrentTime < EndFrame.Time ? StartFrame.RightStickButton : EndFrame.RightStickButton);
+                CurrentTime < EndFrame.Time ? StartFrame.RightStickButton : EndFrame.RightStickButton,
+                activationThreshold);
         }
 
         /// <summary>

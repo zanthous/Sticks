@@ -357,33 +357,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [Test]
-        public void TestSyncedLinksUseConvertedParityAngles()
-        {
-            Beatmap<HitObject> beatmap = source();
-            foreach (double time in new[] { 1000d, 1500 })
-            {
-                beatmap.HitObjects.Add(new PositionedHitObject { StartTime = time, Position = new Vector2(512, 192) });
-                beatmap.HitObjects.Add(new PositionedHitObject { StartTime = time, Position = new Vector2(512, 192) });
-            }
-
-            SticksHitObject[] converted = new SticksBeatmapConverter(beatmap, new SticksRuleset())
-            {
-                ConversionMode = SticksConversionMode.Parity,
-            }.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-
-            foreach (var chord in converted.GroupBy(hitObject => hitObject.StartTime))
-            {
-                SticksHitObject owner = chord.Single(hitObject => hitObject.SyncedNoteSide.HasValue);
-                SticksHitObject partner = chord.Single(hitObject => hitObject.Side != owner.Side);
-                Assert.Multiple(() =>
-                {
-                    Assert.That(owner.SyncedNoteSide, Is.EqualTo(partner.Side));
-                    Assert.That(owner.SyncedNoteAngle, Is.EqualTo(partner.Angle));
-                });
-            }
-        }
-
         [TestCase(SticksConversionMode.Parity)]
         [TestCase(SticksConversionMode.Duet)]
         [TestCase(SticksConversionMode.ParityDuet)]
@@ -423,7 +396,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(parity.Ranked, Is.False);
                 Assert.That(mods.Select(mod => mod.GetType()), Is.EqualTo(new[]
                 {
-                    typeof(SticksModDifficultyAdjust), typeof(SticksModParity), typeof(SticksModEncore), typeof(SticksModSolo),
+                    typeof(SticksModDifficultyAdjust), typeof(SticksModParity), typeof(SticksModEncore), typeof(SticksModSolo), typeof(SticksModSurge),
                 }));
                 Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.ParityDuet));
                 Assert.That(converter.UseCounterpoint, Is.True);

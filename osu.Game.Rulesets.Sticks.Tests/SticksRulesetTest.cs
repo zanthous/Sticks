@@ -568,6 +568,52 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestFlickThresholdLockedUntilAllRecordersDisposed()
+        {
+            using var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+            var threshold = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
+            threshold.Value = 0.87f;
+            using var first = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold());
+            Assert.That(threshold.Disabled, Is.True);
+            Assert.Throws<InvalidOperationException>(() => threshold.Value = 0.99f);
+
+            using var retry = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold());
+            first.Dispose();
+            Assert.That(threshold.Disabled, Is.True, "Disposing the previous play must not unlock its retry.");
+            retry.Dispose();
+            Assert.That(threshold.Disabled, Is.False);
+            Assert.That(threshold.Value, Is.EqualTo(0.87f));
+            threshold.Value = 0.99f;
+            using var nextPlay = config.LockFlickActivationThreshold();
+            Assert.That(threshold.Value, Is.EqualTo(0.99f));
+            Assert.That(threshold.Disabled, Is.True);
+        }
+
+        [Test]
+        public void TestReplayThresholdOverridesViewerWithoutChangingPreference()
+        {
+            var replay = new Replay();
+            replay.Frames.Add(new SticksReplayFrame(1000, Vector2.UnitX * 0.9f, Vector2.Zero));
+            var provider = new SticksReplayInputProvider();
+            var playfield = new SticksPlayfield(provider) { FlickActivationThreshold = 0.99f };
+
+            var handler = new SticksFramedReplayInputHandler(replay, provider, flickActivationThreshold: 0.87f);
+            handler.SetFrameFromTime(900);
+            handler.CollectPendingInputs(new List<IInput>());
+            Assert.That(playfield.FlickActivationThreshold, Is.EqualTo(0.87f));
+            Assert.That(playfield.RechargeThreshold, Is.EqualTo(0.57f).Within(0.0001));
+            provider.Deactivate();
+            Assert.That(playfield.FlickActivationThreshold, Is.EqualTo(0.99f));
+
+            var oldHandler = new SticksFramedReplayInputHandler(replay, provider);
+            oldHandler.SetFrameFromTime(900);
+            oldHandler.CollectPendingInputs(new List<IInput>());
+            Assert.That(playfield.FlickActivationThreshold, Is.EqualTo(0.95f));
+            provider.Deactivate();
+            Assert.That(playfield.FlickActivationThreshold, Is.EqualTo(0.99f));
+        }
+
+        [Test]
         public void TestRelaxRemembersDirectionAndGeneratesFreshGesturesWithoutNeutral()
         {
             float sliderCutoff = SticksInputTracker.RechargeThresholdFor(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD);
@@ -1373,56 +1419,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [TestCase(0, HitResult.Great)]
         [TestCase(10, HitResult.Great)]
         [TestCase(10.01f, HitResult.Ok)]
-        [TestCase(20, HitResult.Ok)]
-        [TestCase(20.01f, HitResult.Miss)]
+        [TestCase(15, HitResult.Ok)]
+        [TestCase(15.01f, HitResult.Miss)]
         public void TestArcAngleGrading(float error, HitResult expected)
         {
-            Assert.That(SticksHitObject.ResultForAngleError(error), Is.EqualTo(expected));
-        }
-
-        [Test]
-        public void TestApproachGrowthAcceleratesTowardsHitTime()
-        {
-            double earlyGrowth = SticksHitObject.ApproachGrowthProgress(0.25) - SticksHitObject.ApproachGrowthProgress(0);
-            double lateGrowth = SticksHitObject.ApproachGrowthProgress(1) - SticksHitObject.ApproachGrowthProgress(0.75);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(SticksHitObject.ApproachGrowthProgress(-1), Is.EqualTo(0));
-                Assert.That(SticksHitObject.ApproachGrowthProgress(0.5), Is.EqualTo(0.125));
-                Assert.That(SticksHitObject.ApproachGrowthProgress(2), Is.EqualTo(1));
-                Assert.That(lateGrowth, Is.GreaterThan(earlyGrowth));
-            });
-        }
-
-        [Test]
-        public void TestAnimatedArcUsesTrueAngularSpan()
-        {
-            var marker = new SticksArcMarker(StickSide.Left, Color4.White, true) { Span = 4 };
-            var sliderHead = new SticksSliderHeadMarker(StickSide.Left, 1, Color4.White, true) { Span = 4 };
-            Assert.That(marker.Span, Is.EqualTo(4));
-            Assert.That(sliderHead.Span, Is.EqualTo(4));
-            marker.Span = 20;
-            sliderHead.Span = 20;
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(marker.Span, Is.EqualTo(20));
-                Assert.That(sliderHead.Span, Is.EqualTo(20));
-            });
-        }
-
-        [Test]
-        public void TestArcProgressMarkersSupportContinuousGrowth()
-        {
-            var marker = new SticksArcMarker(StickSide.Left, Color4.White) { Span = 10.01f };
-            var sliderHead = new SticksSliderHeadMarker(StickSide.Left, 1, Color4.White) { Span = 10.01f };
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(marker.Span, Is.EqualTo(10.01f));
-                Assert.That(sliderHead.Span, Is.EqualTo(10.01f));
-            });
+            Assert.That(new SticksFlick().ResultForCurrentAngleError(error), Is.EqualTo(expected));
         }
 
         [Test]
@@ -1549,106 +1550,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.Judged, Is.True);
                 Assert.That(hold.HeadWasJudged, Is.True);
                 Assert.That(hold.Judged, Is.True);
-            });
-        }
-
-        [Test]
-        public void TestSliderRehearsalTracesOnceAtGameplaySpeed()
-        {
-            var slider = new SticksSlider
-            {
-                StartTime = 1000,
-                Duration = 500,
-            };
-            var longSlider = new SticksSlider
-            {
-                StartTime = 1000,
-                Duration = 2000,
-            };
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.RehearsalStartTime, Is.EqualTo(500));
-                Assert.That(slider.RehearsalProgressAt(499), Is.EqualTo(0).Within(0.001));
-                Assert.That(slider.RehearsalProgressAt(750), Is.EqualTo(0.5).Within(0.001));
-                Assert.That(slider.RehearsalProgressAt(999), Is.EqualTo(0.998).Within(0.001));
-                Assert.That(slider.RehearsalProgressAt(1000), Is.EqualTo(1).Within(0.001));
-                Assert.That(slider.RehearsalProgressAt(1250), Is.EqualTo(1).Within(0.001));
-                Assert.That(longSlider.RehearsalStartTime, Is.EqualTo(-200));
-                Assert.That(longSlider.RehearsalProgressAt(1000), Is.EqualTo(0.6).Within(0.001));
-            });
-        }
-
-        [Test]
-        public void TestReversalSliderSnakesOnlyItsImmediatelyUpcomingSpan()
-        {
-            var slider = new SticksSlider
-            {
-                StartTime = 1000,
-                Duration = 3000,
-                Angle = 0,
-            };
-            slider.SetCustomSegments(new[] { 90f, -90f, 90f });
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.UpcomingSegmentIndexAt(999), Is.EqualTo(-1));
-                Assert.That(slider.UpcomingSegmentIndexAt(1000), Is.EqualTo(1));
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1000), Is.Zero);
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1001), Is.GreaterThan(0));
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1500), Is.EqualTo(0.125).Within(0.0001));
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1999), Is.GreaterThan(0.99));
-                Assert.That(slider.UpcomingSegmentEndsWithReversalAt(1500), Is.True,
-                    "The preview of a middle segment needs the same white reversal cue as the first segment.");
-                Assert.That(slider.UpcomingSegmentIndexAt(2000), Is.EqualTo(2));
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(2000), Is.Zero);
-                Assert.That(slider.UpcomingSegmentEndsWithReversalAt(2500), Is.False,
-                    "The final segment must not imply another reversal.");
-                Assert.That(slider.UpcomingSegmentIndexAt(3000), Is.EqualTo(-1));
-            });
-        }
-
-        [Test]
-        public void TestShortReversalSpanUsesAvailableLeadTimeWithoutSkippingAhead()
-        {
-            var slider = new SticksSlider
-            {
-                StartTime = 1000,
-                Duration = 1000,
-                RepeatCount = 1,
-                ArcAngle = 90,
-            };
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.UpcomingSegmentIndexAt(1000), Is.EqualTo(1));
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1000), Is.Zero);
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1250), Is.EqualTo(0.125).Within(0.0001));
-                Assert.That(slider.UpcomingSegmentPreviewProgressAt(1499), Is.GreaterThan(0.99));
-                Assert.That(slider.UpcomingSegmentIndexAt(1500), Is.EqualTo(-1));
-            });
-        }
-
-        [Test]
-        public void TestCompletedSliderPathClearsCurrentSegment()
-        {
-            var slider = new SticksSlider
-            {
-                StartTime = 1000,
-                Duration = 2000,
-                RepeatCount = 1,
-                ArcAngle = 90,
-            };
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.RemainingPathRangeAt(1000), Is.EqualTo((0d, 1d)));
-                Assert.That(slider.RemainingPathRangeAt(1500), Is.EqualTo((0.5d, 1d)));
-                Assert.That(slider.RemainingPathRangeAt(2000), Is.EqualTo((0d, 1d)));
-                Assert.That(slider.RemainingPathRangeAt(2500), Is.EqualTo((0.5d, 1d)));
-                Assert.That(slider.RemainingPathRangeAt(3000), Is.EqualTo((1d, 1d)));
-                Assert.That(slider.CurrentSpanEndsWithReversal(1500), Is.True);
-                Assert.That(slider.CurrentSpanEndsWithReversal(2500), Is.False);
             });
         }
 

@@ -33,6 +33,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
     public partial class SticksHitObjectInspector : EditorInspector
     {
         private readonly Dictionary<string, NumericField> fields = new Dictionary<string, NumericField>();
+        private readonly List<Action> refreshReadouts = new List<Action>();
         private SticksHitObject[] targets = Array.Empty<SticksHitObject>();
         private readonly HashSet<SticksHitObject> targetSet = new HashSet<SticksHitObject>();
         private string[] originalStates = Array.Empty<string>();
@@ -110,6 +111,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
             {
                 foreach (var field in fields.Values.Where(field => !field.Changed))
                     field.Restore();
+                foreach (var refreshReadout in refreshReadouts)
+                    refreshReadout();
                 refreshStickControl();
                 originalStates = targets.Select(stateOf).ToArray();
             }
@@ -151,6 +154,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             originalStates = targets.Select(stateOf).ToArray();
             segmentFieldCount = editableSegmentCount();
             fields.Clear();
+            refreshReadouts.Clear();
             side = null;
             content.Clear();
             if (targets.Length == 0)
@@ -177,6 +181,12 @@ namespace osu.Game.Rulesets.Sticks.Edit
             {
                 addNumber(content, "End time", "End time (ms)", () => common(note => ((SticksSlider)note).EndTime));
                 addNumber(content, "Duration", "Duration (ms)", () => common(note => ((SticksSlider)note).Duration));
+                bool hasMultipleSegments = targets.Cast<SticksSlider>().Any(slider => slider.SegmentCount > 1);
+                addSpeed(content, "Slider speed", hasMultipleSegments ? "Average speed" : "Speed", () => common(note =>
+                {
+                    var slider = (SticksSlider)note;
+                    return slider.TotalAngularDistance / slider.Duration * 1000;
+                }));
                 if (SticksInspectorEdits.CanEditSegments(targets))
                 {
                     var slider = (SticksSlider)targets[0];
@@ -199,6 +209,14 @@ namespace osu.Game.Rulesets.Sticks.Edit
                         int index = i;
                         addNumber(segments, $"Segment {i + 1} angle", $"Segment {i + 1} turn (°)", () => ((SticksSlider)targets[0]).SegmentArcAngleAt(index));
                         addNumber(segments, $"Segment {i + 1} duration", "Segment duration (ms)", () => ((SticksSlider)targets[0]).SegmentDurationAt(index));
+                        if (hasMultipleSegments)
+                        {
+                            addSpeed(segments, $"Segment {i + 1} speed", "Speed", () =>
+                            {
+                                var currentSlider = (SticksSlider)targets[0];
+                                return Math.Abs(currentSlider.SegmentArcAngleAt(index)) / currentSlider.SegmentDurationAt(index) * 1000;
+                            });
+                        }
                     }
                 }
                 else
@@ -224,6 +242,26 @@ namespace osu.Game.Rulesets.Sticks.Edit
         {
             double first = value(targets[0]);
             return targets.All(note => value(note).Equals(first)) ? first : null;
+        }
+
+        private void addSpeed(FillFlowContainer parent, string name, string caption, Func<double?> readValue)
+        {
+            var text = label(string.Empty);
+            text.Name = name;
+            void refreshReadout()
+            {
+                double? value = readValue();
+                string speed = value.HasValue
+                    ? double.IsFinite(value.Value) && value.Value >= 0
+                        ? value.Value.ToString("0.##", CultureInfo.InvariantCulture) + " °/s"
+                        : "—"
+                    : "Mixed";
+                text.Text = $"{caption}: {speed}";
+            }
+
+            refreshReadouts.Add(refreshReadout);
+            refreshReadout();
+            parent.Add(text);
         }
 
         private void addNumber(FillFlowContainer parent, string name, string caption, Func<double?> readValue)

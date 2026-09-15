@@ -89,6 +89,7 @@ namespace osu.Game.Rulesets.Sticks
                 new SettingsItemV2(new FormSliderBar<float>
                 {
                     Caption = "Flick activation",
+                    HintText = "Cannot be changed during a play.",
                     Current = flickActivationThreshold,
                     KeyboardStep = 0.01f,
                     LabelFormat = value =>
@@ -139,6 +140,12 @@ namespace osu.Game.Rulesets.Sticks
                 },
                 contactEffects,
                 hitEffects,
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Slider heads follow path",
+                    HintText = "Keep slider heads on the hit ring, following the required stick angle until the tail.",
+                    Current = config.GetBindable<bool>(SticksRulesetSetting.SliderHeadFollowsPath),
+                }),
                 new SettingsButtonV2
                 {
                     Text = "Test controller stick speed",

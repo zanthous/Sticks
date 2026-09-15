@@ -140,9 +140,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
 
-            refreshEditorGeometry();
-
             double now = Time.Current;
+            refreshEditorGeometry(now);
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
             updateEditorHeadSample(now);
             double cueDuration = HitObject.ApproachDuration;
@@ -214,20 +213,21 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             return Math.Abs(SticksHitObject.DeltaAngle(actualAngle, targetAngle)) <= HitObject.LenientHalfAngle;
         }
 
-        private void refreshEditorGeometry()
+        private void refreshEditorGeometry(double now)
         {
             Color4 colour = colourFor(HitObject.Side);
-
-            headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
+            bool following = playfield.SliderHeadFollowsPath && now >= HitObject.StartTime;
+            int direction = following
+                ? Math.Sign(HitObject.SegmentArcAngleAt(HitObject.SegmentIndexAt(now)))
+                : HitObject.InitialDirection;
+            headMarker.SetLaneAndDirection(HitObject.Side, direction, colour);
             if (displayedSide != HitObject.Side)
             {
                 displayedSide = HitObject.Side;
                 trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
             }
 
-            if (headMarker.Direction != HitObject.InitialDirection)
-                headMarker.SetLaneAndDirection(HitObject.Side, HitObject.InitialDirection, colour);
-            headMarker.Angle = HitObject.Angle;
+            headMarker.Angle = following ? HitObject.AngleAt(now) : HitObject.Angle;
         }
 
         private void updateHeadJudgement(double now)
@@ -295,7 +295,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private void updateHeadCue(double now, bool cueActive)
         {
-            if (HitObject.IsStationary)
+            if (HitObject.IsStationary || playfield?.SliderHeadFollowsPath == true)
             {
                 headMarker.Alpha = now >= HitObject.StartTime - HitObject.ApproachDuration && now <= HitObject.EndTime ? 1 : 0;
                 return;

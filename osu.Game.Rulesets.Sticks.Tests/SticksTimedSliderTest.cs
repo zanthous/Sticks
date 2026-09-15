@@ -65,7 +65,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestReversalPreviewSkipsSpeedChangesAndDwellEntries()
+        public void TestReversalsSkipSpeedChangesAndDwellEntries()
         {
             SticksSlider slider = create(new[] { 10f, 20f, 0f, -40f, 20f }, new[] { 200d, 100d, 200d, 100d, 400d });
 
@@ -73,11 +73,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(Enumerable.Range(0, slider.SegmentCount).Select(slider.SegmentEndsWithReversal),
                     Is.EqualTo(new[] { false, false, true, true, false }));
-                Assert.That(slider.UpcomingSegmentIndexAt(900), Is.EqualTo(-1));
-                Assert.That(slider.UpcomingSegmentIndexAt(1100), Is.EqualTo(3));
-                Assert.That(slider.UpcomingSegmentIndexAt(1400), Is.EqualTo(3));
-                Assert.That(slider.UpcomingSegmentIndexAt(1550), Is.EqualTo(4));
-                Assert.That(slider.UpcomingSegmentIndexAt(1700), Is.EqualTo(-1));
             });
         }
 
@@ -91,24 +86,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(slider.InitialDirection, Is.EqualTo(-1));
                 Assert.That(slider.AngleAt(1050), Is.EqualTo(10));
                 Assert.That(Enumerable.Range(0, slider.SegmentCount).Any(slider.SegmentEndsWithReversal), Is.False);
-                Assert.That(slider.UpcomingSegmentIndexAt(1050), Is.EqualTo(-1));
-            });
-        }
-
-        [Test]
-        public void TestPathPreviewDoesNotSkipAheadToLaterReversal()
-        {
-            SticksSlider slider = create(new[] { 90f, 45f, -60f }, new[] { 300d, 300d, 400d });
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.UpcomingSegmentIndexAt(1200), Is.EqualTo(2));
-                Assert.That(slider.UpcomingPathSegmentIndexAt(1200), Is.EqualTo(1));
-                Assert.That(slider.UpcomingPathSegmentPreviewProgressAt(1200), Is.GreaterThan(0));
-                Assert.That(slider.SegmentEndsWithReversal(0), Is.False);
-                Assert.That(slider.SegmentEndsWithReversal(1), Is.True);
-                Assert.That(slider.UpcomingPathSegmentIndexAt(1400), Is.EqualTo(2));
-                Assert.That(slider.UpcomingPathSegmentIndexAt(1700), Is.EqualTo(-1));
             });
         }
 

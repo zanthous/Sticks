@@ -260,8 +260,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [Test]
-        public void TestRecordedFlickReplaysWithIdenticalJudgementAndScore()
+        [TestCase(0.85f)]
+        [TestCase(0.95f)]
+        public void TestRecordedFlickReplaysWithIdenticalJudgementAndScore(float threshold)
         {
             const double note_time = 1000;
             const float target_angle = 20;
@@ -274,17 +275,17 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 new SticksReplayFrame(900, Vector2.Zero, Vector2.Zero),
                 new SticksReplayFrame(990, direction * 0.75f, Vector2.Zero),
-                new SticksReplayFrame(1008, direction, Vector2.Zero),
-                new SticksReplayFrame(1040, direction, Vector2.Zero),
+                new SticksReplayFrame(1008, direction * (threshold + 0.01f), Vector2.Zero),
+                new SticksReplayFrame(1040, direction * (threshold + 0.01f), Vector2.Zero),
             };
 
-            var originalInput = new SticksInputTracker();
+            var originalInput = new SticksInputTracker { ActivationThreshold = threshold };
             foreach (SticksReplayFrame frame in frames)
                 originalInput.Update(StickSide.Left, frame.LeftStick, frame.Time);
 
             var replay = new Replay { Frames = frames.Cast<ReplayFrame>().ToList() };
             var provider = new SticksReplayInputProvider();
-            var replayHandler = new SticksFramedReplayInputHandler(replay, provider);
+            var replayHandler = new SticksFramedReplayInputHandler(replay, provider, flickActivationThreshold: threshold);
             var replayedInput = new SticksInputTracker();
 
             foreach (double time in new[] { 900d, 990, note_time, 1008, 1040 })
@@ -292,6 +293,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(replayHandler.SetFrameFromTime(time), Is.EqualTo(time));
                 replayHandler.CollectPendingInputs(new List<IInput>());
                 (Vector2 left, _) = provider.Snapshot();
+                replayedInput.ActivationThreshold = provider.FlickActivationThreshold;
                 replayedInput.Update(StickSide.Left, left, time);
 
                 if (time == note_time)

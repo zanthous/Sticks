@@ -1,3 +1,4 @@
+using osu.Game.Rulesets.Sticks.UI;
 using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Replays
@@ -17,14 +18,25 @@ namespace osu.Game.Rulesets.Sticks.Replays
         private bool rightShoulder;
         private bool leftStickButton;
         private bool rightStickButton;
+        private float flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
         private volatile bool active;
 
         public bool Active => active;
 
+        public float FlickActivationThreshold
+        {
+            get
+            {
+                lock (sync)
+                    return flickActivationThreshold;
+            }
+        }
+
         public void Update(Vector2 left, Vector2 right,
                            bool leftTrigger = false, bool rightTrigger = false,
                            bool leftShoulder = false, bool rightShoulder = false,
-                           bool leftStickButton = false, bool rightStickButton = false)
+                           bool leftStickButton = false, bool rightStickButton = false,
+                           float flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD)
         {
             lock (sync)
             {
@@ -36,6 +48,7 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 this.rightShoulder = rightShoulder;
                 this.leftStickButton = leftStickButton;
                 this.rightStickButton = rightStickButton;
+                this.flickActivationThreshold = flickActivationThreshold;
                 active = true;
             }
         }
@@ -59,6 +72,7 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 rightShoulder = false;
                 leftStickButton = false;
                 rightStickButton = false;
+                flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
                 active = false;
             }
         }

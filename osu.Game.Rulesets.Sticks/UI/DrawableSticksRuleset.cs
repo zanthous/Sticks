@@ -37,6 +37,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
         private readonly BindableBool hideInactiveCursors = new BindableBool();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
+        private readonly BindableBool sliderHeadFollowsPath = new BindableBool();
         private readonly Bindable<SticksHitEffectMode> hitEffects = new Bindable<SticksHitEffectMode>(SticksHitEffectMode.Perfect);
         private readonly BindableBool showCursorTrails = new BindableBool();
         private readonly BindableBool useSkinColours = new BindableBool(true);
@@ -46,6 +47,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly Bindable<Colour4> overlapColour = new Bindable<Colour4>((Colour4)SticksPlayfield.OVERLAP_COLOUR);
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
         private SticksReplayStore replayStore;
+        private float replayFlickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
         private SticksReplayPersistence replayPersistence;
 
         [Resolved(CanBeNull = true)]
@@ -77,6 +79,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.SliderTrackingSparks, sliderTrackingSparks);
             sliderTrackingSparks.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).SliderTrackingSparks = enabled.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.SliderHeadFollowsPath, sliderHeadFollowsPath);
+            sliderHeadFollowsPath.BindValueChanged(enabled =>
+                ((SticksPlayfield)Playfield).SliderHeadFollowsPath = enabled.NewValue, true);
             Config.BindWith(SticksRulesetSetting.HitEffects, hitEffects);
             hitEffects.BindValueChanged(mode =>
                 ((SticksPlayfield)Playfield).HitEffects = mode.NewValue, true);
@@ -103,14 +108,14 @@ namespace osu.Game.Rulesets.Sticks.UI
             replay,
             replayInputProvider,
             () => ((SticksPlayfield)Playfield).PhysicalStickDistanceAtGameEdge,
-            () => ((SticksPlayfield)Playfield).FlickActivationThreshold);
+            replayFlickActivationThreshold);
 
         protected override ReplayRecorder CreateReplayRecorder(Score score)
         {
             if (saveReplays.Value)
-                replayPersistence?.Track(score);
+                replayPersistence?.Track(score, flickActivationThreshold.Value);
 
-            return new SticksReplayRecorder(score, (SticksPlayfield)Playfield);
+            return new SticksReplayRecorder(score, (SticksPlayfield)Playfield, Config.LockFlickActivationThreshold());
         }
 
         public override void SetReplayScore(Score replayScore)
@@ -120,8 +125,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             // while lazer replaces or removes its replay handler.
             replayInputProvider.Deactivate();
 
+            replayFlickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
             if (replayScore != null)
-                replayStore?.TryRestore(replayScore, replaceExisting: true);
+                replayStore?.TryRestore(replayScore, out replayFlickActivationThreshold);
 
             base.SetReplayScore(replayScore);
         }

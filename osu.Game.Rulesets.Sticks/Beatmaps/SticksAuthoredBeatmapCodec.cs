@@ -328,8 +328,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 PrimaryHitAngle = hold.PrimaryHitAngle,
                 SecondaryHitAngle = hold.SecondaryHitAngle,
                 Samples = hold.Samples.Select(sample => sample.With()).ToList(),
-                SyncedNoteSide = hold.SyncedNoteSide,
-                SyncedNoteAngle = hold.SyncedNoteAngle,
             };
 
             if (hold.Samples.Any(IsMarker))

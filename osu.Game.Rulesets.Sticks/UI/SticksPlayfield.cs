@@ -145,6 +145,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// </summary>
         public bool SliderTrackingSparks { get; set; }
 
+        public bool SliderHeadFollowsPath { get; set; }
+
         public SticksHitEffectMode HitEffects
         {
             get => hitEffects;
@@ -182,17 +184,23 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// </summary>
         public float PhysicalStickDistanceAtGameEdge { get; set; } = 1;
 
+        private float configuredFlickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
+
         /// <summary>
         /// Mapped gameplay radius which an armed stick must cross to create a flick.
         /// Recharge is derived thirty percentage points below this value in physical space.
         /// </summary>
         public float FlickActivationThreshold
         {
-            get => input.ActivationThreshold;
-            set => input.ActivationThreshold = value;
+            get => replayInputProvider.Active ? replayInputProvider.FlickActivationThreshold : configuredFlickActivationThreshold;
+            set
+            {
+                configuredFlickActivationThreshold = Math.Clamp(value, SticksInputTracker.MIN_ACTIVATION_THRESHOLD, SticksInputTracker.MAX_ACTIVATION_THRESHOLD);
+                input.ActivationThreshold = FlickActivationThreshold;
+            }
         }
 
-        public float RechargeThreshold => input.RechargeThreshold;
+        public float RechargeThreshold => SticksInputTracker.RechargeThresholdFor(FlickActivationThreshold);
 
         public CircularContainer LeftStickCursor => leftCursor;
 
@@ -789,6 +797,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         protected override void Update()
         {
             base.Update();
+
+            input.ActivationThreshold = FlickActivationThreshold;
 
             if (IsPausedEditorPreview)
             {

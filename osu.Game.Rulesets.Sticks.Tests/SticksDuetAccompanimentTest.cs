@@ -30,7 +30,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(duet, Has.Length.EqualTo(baseline.Length + 1));
                 Assert.That(accent.StartTime, Is.EqualTo(1000));
                 Assert.That(accent.Side, Is.Not.EqualTo(primary.Side));
-                Assert.That(primary.SyncedNoteSide, Is.EqualTo(accent.Side));
                 Assert.That(signature(primary), Is.EqualTo(signature(baseline.Single())));
             });
             assertAddedClearance(baseline, duet);

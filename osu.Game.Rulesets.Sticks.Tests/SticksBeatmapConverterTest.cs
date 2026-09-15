@@ -353,7 +353,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
-        public void TestAuthoredChordConvertsExactlyAndReceivesLink()
+        public void TestAuthoredChordConvertsExactly()
         {
             var source = new Beatmap<HitObject>();
             source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
@@ -377,54 +377,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(converted, Has.Length.EqualTo(2));
                 Assert.That(converted[0].Angle, Is.EqualTo(0));
                 Assert.That(converted[1].Angle, Is.EqualTo(135));
-                Assert.That(converted[0].SyncedNoteSide, Is.EqualTo(StickSide.Right));
-                Assert.That(converted[0].SyncedNoteAngle, Is.EqualTo(135));
-            });
-        }
-
-        [Test]
-        public void TestAuthoredSliderAndHoldChordsReceiveDrawableLinks()
-        {
-            var source = new Beatmap<HitObject>();
-            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksSlider
-            {
-                StartTime = 1000,
-                Duration = 1000,
-                Side = StickSide.Left,
-                Angle = 0,
-                ArcAngle = 90,
-            }));
-            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
-            {
-                StartTime = 1000,
-                Side = StickSide.Right,
-                Angle = 135,
-            }));
-            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksHold
-            {
-                StartTime = 3000,
-                Duration = 1000,
-                Side = StickSide.Left,
-                Angle = 45,
-            }));
-            source.HitObjects.Add(SticksAuthoredBeatmapCodec.CreateLegacyProxy(new SticksFlick
-            {
-                StartTime = 3000,
-                Side = StickSide.Right,
-                Angle = 225,
-            }));
-
-            SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
-                                          .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            SticksSlider slider = converted.OfType<SticksSlider>().Single(note => !note.IsStationary);
-            SticksSlider hold = converted.OfType<SticksSlider>().Single(note => note.IsStationary);
-
-            Assert.Multiple(() =>
-            {
-                Assert.That(slider.SyncedNoteSide, Is.EqualTo(StickSide.Right));
-                Assert.That(slider.SyncedNoteAngle, Is.EqualTo(135));
-                Assert.That(hold.SyncedNoteSide, Is.EqualTo(StickSide.Right));
-                Assert.That(hold.SyncedNoteAngle, Is.EqualTo(225));
             });
         }
 
@@ -1285,7 +1237,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                       .Convert().HitObjects.OfType<SticksFlick>().ToArray();
-            SticksFlick[] linkOwners = converted.Where(flick => flick.SyncedNoteSide.HasValue).ToArray();
             IGrouping<double, SticksFlick>[] generatedChords = converted.GroupBy(flick => flick.StartTime)
                                                                         .Where(group => group.Count() == 2)
                                                                         .ToArray();
@@ -1294,9 +1245,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(generatedChords.Length, Is.InRange(3, 15),
                     "A generated slider-accompaniment phrase intentionally reserves one stick and replaces a few otherwise eligible chords.");
-                Assert.That(linkOwners, Has.Length.EqualTo(generatedChords.Length));
                 Assert.That(generatedChords, Has.All.Matches<IGrouping<double, SticksFlick>>(group => group.Select(flick => flick.Side).Distinct().Count() == 2));
-                Assert.That(linkOwners.Select(owner => System.Math.Abs(SticksHitObject.DeltaAngle(owner.Angle, owner.SyncedNoteAngle))).Distinct().Count(), Is.GreaterThan(1));
+                Assert.That(generatedChords.Select(chord => System.Math.Abs(SticksHitObject.DeltaAngle(chord.First().Angle, chord.Last().Angle))).Distinct().Count(), Is.GreaterThan(1));
                 Assert.That(generatedChords.Zip(generatedChords.Skip(1), (first, second) => second.Key - first.Key), Has.Some.EqualTo(500));
             });
         }

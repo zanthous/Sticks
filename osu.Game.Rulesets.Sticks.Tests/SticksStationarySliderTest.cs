@@ -32,8 +32,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(samples, Is.All.EqualTo(37));
                 Assert.That(Enumerable.Range(0, 13).Select(i => slider.AngleAt(500 + i * 250)), Is.All.EqualTo(37));
                 Assert.That(Enumerable.Range(0, slider.SegmentCount).Select(slider.SegmentEndsWithReversal), Is.All.EqualTo(false));
-                Assert.That(slider.UpcomingSegmentIndexAt(1500), Is.EqualTo(-1));
-                Assert.That(slider.CurrentSpanEndsWithReversal(1500), Is.False);
             });
 
             string json = JsonConvert.SerializeObject(slider);

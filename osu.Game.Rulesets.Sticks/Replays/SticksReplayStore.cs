@@ -6,6 +6,7 @@ using System.Linq;
 using osu.Framework.Platform;
 using osu.Game.Replays;
 using osu.Game.Rulesets.Replays;
+using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Scoring;
 using osuTK;
 
@@ -14,7 +15,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
     internal sealed class SticksReplayStore
     {
         private const int magic = 0x53544B52;
-        private const int version = 4;
+        private const int version = 5;
+        private const int version_with_stick_buttons = 4;
         private const int version_with_shoulders = 3;
         private const int version_with_triggers = 2;
         private const int version_without_buttons = 1;
@@ -37,11 +39,11 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 score.ScoreInfo.Hash = $"sticks-replay-{score.ScoreInfo.ID:N}";
         }
 
-        public bool Save(Score score)
+        public bool Save(Score score, float flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD)
         {
             EnsureLocalIdentity(score);
 
-            if (!score.Replay.Frames.OfType<SticksReplayFrame>().Any(isValid))
+            if (!isValidThreshold(flickActivationThreshold) || !score.Replay.Frames.OfType<SticksReplayFrame>().Any(isValid))
                 return false;
 
             try
@@ -51,6 +53,7 @@ namespace osu.Game.Rulesets.Sticks.Replays
 
                 writer.Write(magic);
                 writer.Write(version);
+                writer.Write(flickActivationThreshold);
 
                 foreach (ReplayFrame replayFrame in score.Replay.Frames)
                 {
@@ -116,10 +119,13 @@ namespace osu.Game.Rulesets.Sticks.Replays
             }
         }
 
-        public bool TryRestore(Score score, bool replaceExisting = false)
+        public bool TryRestore(Score score, bool replaceExisting = false) =>
+            (score.Replay.Frames.Count != 0 && !replaceExisting) || TryRestore(score, out _);
+
+        // Load settings and frames together, replacing neither if the file is invalid.
+        public bool TryRestore(Score score, out float flickActivationThreshold)
         {
-            if (score.Replay.Frames.Count != 0 && !replaceExisting)
-                return true;
+            flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
 
             string filename = filenameFor(score.ScoreInfo.ID);
             if (!storage.Exists(filename))
@@ -134,12 +140,16 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     return false;
 
                 int storedVersion = reader.ReadInt32();
-                if (storedVersion is not version and not version_with_shoulders and not version_with_triggers and not version_without_buttons)
+                if (storedVersion is not version and not version_with_stick_buttons and not version_with_shoulders and not version_with_triggers and not version_without_buttons)
+                    return false;
+
+                float storedThreshold = storedVersion >= version ? reader.ReadSingle() : SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
+                if (!isValidThreshold(storedThreshold))
                     return false;
 
                 int bytesPerFrame = storedVersion switch
                 {
-                    version => bytes_per_frame_v4,
+                    version or version_with_stick_buttons => bytes_per_frame_v4,
                     version_with_shoulders => bytes_per_frame_v3,
                     version_with_triggers => bytes_per_frame_v2,
                     _ => bytes_per_frame_v1,
@@ -166,8 +176,8 @@ namespace osu.Game.Rulesets.Sticks.Replays
                         storedVersion >= version_with_triggers && reader.ReadBoolean(),
                         storedVersion >= version_with_shoulders && reader.ReadBoolean(),
                         storedVersion >= version_with_shoulders && reader.ReadBoolean(),
-                        storedVersion >= version && reader.ReadBoolean(),
-                        storedVersion >= version && reader.ReadBoolean());
+                        storedVersion >= version_with_stick_buttons && reader.ReadBoolean(),
+                        storedVersion >= version_with_stick_buttons && reader.ReadBoolean());
 
                     if (!isValid(frame) || frame.Time < previousTime)
                         return false;
@@ -176,11 +186,11 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     restored[i] = frame;
                 }
 
-                if (replaceExisting)
-                    score.Replay.Frames.Clear();
+                score.Replay.Frames.Clear();
 
                 score.Replay.Frames.AddRange(restored);
                 score.Replay.HasReceivedAllFrames = true;
+                flickActivationThreshold = storedThreshold;
                 return true;
             }
             catch (IOException)
@@ -199,6 +209,10 @@ namespace osu.Game.Rulesets.Sticks.Replays
             && float.IsFinite(frame.LeftStick.Y)
             && float.IsFinite(frame.RightStick.X)
             && float.IsFinite(frame.RightStick.Y);
+
+        private static bool isValidThreshold(float threshold) => float.IsFinite(threshold)
+                                                                && threshold >= SticksInputTracker.MIN_ACTIVATION_THRESHOLD
+                                                                && threshold <= SticksInputTracker.MAX_ACTIVATION_THRESHOLD;
 
         private static string filenameFor(Guid scoreId) => $"{scoreId:N}.stkr";
     }

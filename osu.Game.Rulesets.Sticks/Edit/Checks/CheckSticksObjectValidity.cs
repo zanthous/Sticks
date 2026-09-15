@@ -37,15 +37,6 @@ namespace osu.Game.Rulesets.Sticks.Edit.Checks
                 || !float.IsFinite(hitObject.SecondaryHitAngle) || hitObject.SecondaryHitAngle <= 0)
                 yield return "The hit-angle windows are invalid.";
 
-            if (hitObject.SyncedNoteSide is StickSide syncedSide)
-            {
-                if (!Enum.IsDefined(syncedSide))
-                    yield return "The linked note's stick side is invalid.";
-
-                if (!float.IsFinite(hitObject.SyncedNoteAngle))
-                    yield return "The linked note's angle is not finite.";
-            }
-
             switch (hitObject)
             {
                 case SticksHold hold:

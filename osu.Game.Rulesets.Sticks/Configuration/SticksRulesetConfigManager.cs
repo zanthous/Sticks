@@ -1,3 +1,6 @@
+using System;
+using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Configuration.Tracking;
 using osu.Framework.Extensions;
@@ -20,6 +23,34 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 true);
         }
 
+        private readonly object flickThresholdLockSync = new object();
+        private LeasedBindable<float> flickThresholdLease;
+        private int flickThresholdLockCount;
+
+        internal IDisposable LockFlickActivationThreshold()
+        {
+            // Retries can create their recorder before the previous one is disposed.
+            lock (flickThresholdLockSync)
+            {
+                if (flickThresholdLockCount == 0)
+                    flickThresholdLease = GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold).BeginLease(false);
+
+                flickThresholdLockCount++;
+            }
+
+            return new InvokeOnDisposal(() =>
+            {
+                lock (flickThresholdLockSync)
+                {
+                    if (--flickThresholdLockCount != 0)
+                        return;
+
+                    flickThresholdLease.Return();
+                    flickThresholdLease = null;
+                }
+            });
+        }
+
         protected override void InitialiseDefaults()
         {
             base.InitialiseDefaults();
@@ -31,6 +62,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 0.01f);
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
+            SetDefault(SticksRulesetSetting.SliderHeadFollowsPath, false);
             SetDefault(SticksRulesetSetting.HitEffects, SticksHitEffectMode.Perfect);
             SetDefault(SticksRulesetSetting.ShowCursorTrails, false);
             SetDefault(SticksRulesetSetting.UseSkinColours, true);
@@ -61,6 +93,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             new TrackedSetting<bool>(SticksRulesetSetting.SliderTrackingSparks, enabled => new SettingDescription(
                 rawValue: enabled,
                 name: "Sticks contact effects",
+                value: enabled ? "enabled" : "disabled"
+            )),
+            new TrackedSetting<bool>(SticksRulesetSetting.SliderHeadFollowsPath, enabled => new SettingDescription(
+                rawValue: enabled,
+                name: "Sticks slider heads follow path",
                 value: enabled ? "enabled" : "disabled"
             )),
             new TrackedSetting<bool>(SticksRulesetSetting.ShowCursorTrails, enabled => new SettingDescription(
@@ -110,6 +147,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         OverlapColour,
         UseSkinColours,
         HitEffects,
+        SliderHeadFollowsPath,
     }
 
     public enum SticksHitEffectMode

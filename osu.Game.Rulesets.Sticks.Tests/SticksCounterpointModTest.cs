@@ -104,7 +104,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(signature(expected), Is.Not.EqualTo(previousBase), "The fixture must exercise Counterpoint's additional arrangement pass.");
             SticksParityConversion.Apply(expected, source, CancellationToken.None,
                 readableChords: true, fullHitAngle: converter.CounterpointHitAngleFor(source.Difficulty));
-            SticksBeatmapConverter.AssignSyncedNoteLinks(expected);
 
             new SticksModParity().ApplyToBeatmapConverter(converter);
             SticksHitObject[] actual = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
@@ -185,7 +184,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         private static string[] signature(IEnumerable<SticksHitObject> notes) => notes.Select(note =>
-            $"{note.GetType().Name}:{note.StartTime}:{note.GetEndTime()}:{note.Side}:{note.Angle}:{note.SyncedNoteSide}:{note.SyncedNoteAngle}:{samples(note.Samples)}:"
+            $"{note.GetType().Name}:{note.StartTime}:{note.GetEndTime()}:{note.Side}:{note.Angle}:{samples(note.Samples)}:"
             + (note is SticksSlider slider
                 ? $"{slider.RepeatCount}:{string.Join(',', slider.SegmentArcAngles)}:{string.Join(',', slider.SegmentDurationWeights ?? Array.Empty<double>())}:"
                   + string.Join(';', slider.NodeSamples.Select(samples))

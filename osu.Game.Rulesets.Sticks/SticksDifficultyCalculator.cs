@@ -36,6 +36,9 @@ namespace osu.Game.Rulesets.Sticks
         private double incrementalClockRate;
         private float incrementalOverallDifficulty;
         private int incrementalMaxCombo;
+        private int incrementalAccuracyObjectCount;
+        private int incrementalTrackingObjectCount;
+        private int incrementalTailObjectCount;
         private int processedDifficultyCheckpointCount;
         private readonly CancellationCapturingWorkingBeatmap cancellationContext;
 
@@ -68,15 +71,19 @@ namespace osu.Game.Rulesets.Sticks
             CancellationToken cancellationToken = cancellationContext.CurrentToken;
             cancellationToken.ThrowIfCancellationRequested();
 
-            IReadOnlyList<HitObject> objects = getChronologicallyOrderedObjects(beatmap.HitObjects);
             double clockRate = ModUtils.CalculateRateWithMods(mods);
             float overallDifficulty = beatmap.Difficulty.OverallDifficulty;
 
             // Full Calculate() calls are independent queries and may follow arbitrary in-place
             // editor mutation. Prefix reuse is both useful and safe only for the progressive
             // wrapper owned by one synchronous CalculateTimed() traversal.
-            bool allowPrefixReuse = !ReferenceEquals(beatmap, Beatmap);
-            ensureIncrementalState(beatmap, objects, clockRate, overallDifficulty, allowPrefixReuse, cancellationToken);
+            bool reusePrefix = !ReferenceEquals(beatmap, Beatmap)
+                               && canReusePrefix(beatmap, beatmap.HitObjects, clockRate, overallDifficulty);
+            IReadOnlyList<HitObject> objects = getChronologicallyOrderedObjects(beatmap.HitObjects,
+                reusePrefix ? processedTopLevelObjectCount : 1, cancellationToken);
+            // Appending an out-of-order object can change an already processed prefix.
+            reusePrefix &= ReferenceEquals(objects, beatmap.HitObjects);
+            ensureIncrementalState(beatmap, objects, clockRate, overallDifficulty, reusePrefix, cancellationToken);
 
             if (incrementalState.ObjectCount == 0)
                 return new SticksDifficultyAttributes { Mods = mods };
@@ -99,13 +106,9 @@ namespace osu.Game.Rulesets.Sticks
                 NormalizedCoordinationDemand = difficulty.NormalizedCoordinationDemand,
                 AngularPrecision = difficulty.AngularPrecision,
                 TimingPrecision = difficulty.TimingPrecision,
-                AccuracyObjectCount = objects.Count(hitObject => hitObject is SticksHitObject),
-                TrackingObjectCount = countNested<SticksSliderTick>(objects)
-                                      + countNested<SticksSliderRepeat>(objects)
-                                      + countNested<SticksSliderExtension>(objects)
-                                      + countNested<SticksHoldTick>(objects),
-                TailObjectCount = countNested<SticksSliderTail>(objects)
-                                  + countNested<SticksHoldTail>(objects),
+                AccuracyObjectCount = incrementalAccuracyObjectCount,
+                TrackingObjectCount = incrementalTrackingObjectCount,
+                TailObjectCount = incrementalTailObjectCount,
                 OverallDifficulty = overallDifficulty,
                 ClockRate = clockRate,
                 MechanicalDifficultStrainCount = difficulty.MechanicalDifficultStrainCount,
@@ -115,22 +118,22 @@ namespace osu.Game.Rulesets.Sticks
             };
         }
 
-        private void ensureIncrementalState(IBeatmap beatmap, IReadOnlyList<HitObject> objects, double clockRate, float overallDifficulty,
-                                            bool allowPrefixReuse, CancellationToken cancellationToken)
-        {
-            bool prefixMatches = allowPrefixReuse
-                                 && incrementalState != null
-                                 && ReferenceEquals(incrementalBeatmap, beatmap)
-                                 && incrementalClockRate == clockRate
-                                 && incrementalOverallDifficulty == overallDifficulty
-                                 // Equal count means a fresh full calculation or a repeated query.
-                                 // Reset so in-place editor mutations cannot reuse stale state.
-                                 && processedTopLevelObjectCount < objects.Count
-                                 && (processedTopLevelObjectCount == 0
-                                     || (ReferenceEquals(firstProcessedObject, objects[0])
-                                         && ReferenceEquals(lastProcessedObject, objects[processedTopLevelObjectCount - 1])));
+        private bool canReusePrefix(IBeatmap beatmap, IReadOnlyList<HitObject> objects, double clockRate, float overallDifficulty) =>
+            incrementalState != null
+            && ReferenceEquals(incrementalBeatmap, beatmap)
+            && incrementalClockRate == clockRate
+            && incrementalOverallDifficulty == overallDifficulty
+            // Equal count means a fresh full calculation or a repeated query.
+            // Reset so in-place editor mutations cannot reuse stale state.
+            && processedTopLevelObjectCount < objects.Count
+            && (processedTopLevelObjectCount == 0
+                || (ReferenceEquals(firstProcessedObject, objects[0])
+                    && ReferenceEquals(lastProcessedObject, objects[processedTopLevelObjectCount - 1])));
 
-            if (!prefixMatches)
+        private void ensureIncrementalState(IBeatmap beatmap, IReadOnlyList<HitObject> objects, double clockRate, float overallDifficulty,
+                                            bool reusePrefix, CancellationToken cancellationToken)
+        {
+            if (!reusePrefix)
             {
                 incrementalState = new SticksDifficultyModel.IncrementalState(clockRate, overallDifficulty, beatmap.Breaks);
                 incrementalBeatmap = beatmap;
@@ -140,6 +143,9 @@ namespace osu.Game.Rulesets.Sticks
                 incrementalClockRate = clockRate;
                 incrementalOverallDifficulty = overallDifficulty;
                 incrementalMaxCombo = 0;
+                incrementalAccuracyObjectCount = 0;
+                incrementalTrackingObjectCount = 0;
+                incrementalTailObjectCount = 0;
             }
 
             for (int i = processedTopLevelObjectCount; i < objects.Count; i++)
@@ -148,9 +154,12 @@ namespace osu.Game.Rulesets.Sticks
                 HitObject hitObject = objects[i];
 
                 if (hitObject is SticksHitObject sticksHitObject)
+                {
                     incrementalState.Append(sticksHitObject);
+                    incrementalAccuracyObjectCount++;
+                }
 
-                incrementalMaxCombo += maxComboFor(hitObject);
+                accumulateScoringObjects(hitObject, cancellationToken);
             }
 
             processedTopLevelObjectCount = objects.Count;
@@ -158,10 +167,12 @@ namespace osu.Game.Rulesets.Sticks
             lastProcessedObject = objects.Count > 0 ? objects[^1] : null;
         }
 
-        private static IReadOnlyList<HitObject> getChronologicallyOrderedObjects(IReadOnlyList<HitObject> objects)
+        private static IReadOnlyList<HitObject> getChronologicallyOrderedObjects(IReadOnlyList<HitObject> objects, int fromIndex,
+                                                                                CancellationToken cancellationToken)
         {
-            for (int i = 1; i < objects.Count; i++)
+            for (int i = Math.Max(1, fromIndex); i < objects.Count; i++)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (objects[i].StartTime < objects[i - 1].StartTime)
                     return objects.OrderBy(hitObject => hitObject.StartTime).ToArray();
             }
@@ -169,41 +180,23 @@ namespace osu.Game.Rulesets.Sticks
             return objects;
         }
 
-        private static int maxComboFor(IEnumerable<HitObject> hitObjects)
+        private void accumulateScoringObjects(HitObject hitObject, CancellationToken cancellationToken)
         {
-            int combo = 0;
-
-            foreach (HitObject hitObject in hitObjects)
-                combo += maxComboFor(hitObject);
-
-            return combo;
-        }
-
-        private static int maxComboFor(HitObject hitObject)
-        {
+            cancellationToken.ThrowIfCancellationRequested();
             bool isComboNeutral = hitObject is SticksClick.TimingWeight or ISticksAccuracyComponent
             {
                 AccuracyComponent: SticksAccuracyComponent.Angle,
             };
 
-            int combo = !isComboNeutral && hitObject.Judgement.MaxResult.AffectsCombo() ? 1 : 0;
-            return combo + maxComboFor(hitObject.NestedHitObjects);
-        }
+            if (!isComboNeutral && hitObject.Judgement.MaxResult.AffectsCombo())
+                incrementalMaxCombo++;
+            if (hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderExtension or SticksHoldTick)
+                incrementalTrackingObjectCount++;
+            if (hitObject is SticksSliderTail or SticksHoldTail)
+                incrementalTailObjectCount++;
 
-        private static int countNested<T>(IEnumerable<HitObject> hitObjects)
-            where T : HitObject
-        {
-            int count = 0;
-
-            foreach (HitObject hitObject in hitObjects)
-            {
-                if (hitObject is T)
-                    count++;
-
-                count += countNested<T>(hitObject.NestedHitObjects);
-            }
-
-            return count;
+            foreach (HitObject nested in hitObject.NestedHitObjects)
+                accumulateScoringObjects(nested, cancellationToken);
         }
 
         public static double CalculateStarRating(IEnumerable<SticksHitObject> hitObjects, double clockRate = 1,

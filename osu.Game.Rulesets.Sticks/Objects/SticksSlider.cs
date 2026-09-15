@@ -328,8 +328,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public double SpanProgressAt(double time) => SegmentProgressAt(time);
 
-        public double PathProgressAt(double time) => SegmentProgressAt(time);
-
         public bool SegmentEndsWithReversal(int segmentIndex)
         {
             if (segmentIndex < 0 || segmentIndex >= SegmentCount - 1)
@@ -353,77 +351,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
             return false;
         }
-
-        public bool CurrentSpanEndsWithReversal(double time) => SegmentEndsWithReversal(SegmentIndexAt(time));
-
-        public (double Start, double End) RemainingPathRangeAt(double time) => (SegmentProgressAt(time), 1);
-
-        public double RehearsalStartTime => Math.Max(StartTime - ApproachDuration, StartTime - SegmentDurationAt(0));
-
-        public double RehearsalProgressAt(double time) =>
-            Math.Clamp((time - RehearsalStartTime) / Math.Max(1, SegmentDurationAt(0)), 0, 1);
-
-        /// <summary>
-        /// Returns the segment which begins at the next reversal, or -1 when no reversal remains.
-        /// Only the immediately upcoming segment is previewed to keep chained reversals readable.
-        /// </summary>
-        public int UpcomingSegmentIndexAt(double time)
-        {
-            if (time < StartTime || time >= EndTime)
-                return -1;
-
-            int upcoming = SegmentIndexAt(time) + 1;
-
-            if (HasTimedSegments || IsStationary)
-            {
-                while (upcoming < SegmentCount && !SegmentEndsWithReversal(upcoming - 1))
-                    upcoming++;
-            }
-
-            return upcoming < SegmentCount ? upcoming : -1;
-        }
-
-        public bool UpcomingSegmentEndsWithReversalAt(double time) => SegmentEndsWithReversal(UpcomingSegmentIndexAt(time));
-
-        /// <summary>
-        /// Returns the immediately following path segment, including a timed speed change or
-        /// the movement after a dwell. Path visibility is independent of reversal judgements.
-        /// </summary>
-        public int UpcomingPathSegmentIndexAt(double time)
-        {
-            if (time < StartTime || time >= EndTime)
-                return -1;
-
-            int upcoming = SegmentIndexAt(time) + 1;
-            return upcoming < SegmentCount ? upcoming : -1;
-        }
-
-        public double UpcomingPathSegmentPreviewProgressAt(double time) =>
-            upcomingSegmentPreviewProgressAt(time, UpcomingPathSegmentIndexAt(time));
-
-        /// <summary>
-        /// Returns the snaking progress for the segment after the current reversal. Its cue uses
-        /// the same approach duration and accelerated growth as a note head. When a span is shorter
-        /// than the approach duration, previewing starts at that span's beginning rather than showing
-        /// multiple future reversals simultaneously.
-        /// </summary>
-        public double UpcomingSegmentPreviewProgressAt(double time)
-            => upcomingSegmentPreviewProgressAt(time, UpcomingSegmentIndexAt(time));
-
-        private double upcomingSegmentPreviewProgressAt(double time, int upcoming)
-        {
-            if (upcoming < 1)
-                return 0;
-
-            int current = upcoming - 1;
-            double boundaryTime = SegmentStartTimeAt(upcoming);
-            double previewStart = Math.Max(SegmentStartTimeAt(current), boundaryTime - ApproachDuration);
-            double linearProgress = Math.Clamp((time - previewStart) / Math.Max(1, boundaryTime - previewStart), 0, 1);
-            return ApproachGrowthProgress(linearProgress);
-        }
-
-        public double AvailableTrackingDuration(double headHitTime) =>
-            Math.Max(1, EndTime - Math.Max(StartTime, headHitTime));
 
         public void SetCustomSegments(IEnumerable<float> segments)
         {

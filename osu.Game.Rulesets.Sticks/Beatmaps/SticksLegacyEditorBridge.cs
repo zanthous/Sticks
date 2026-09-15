@@ -1,7 +1,6 @@
 #nullable enable
 
 using System;
-using System.Linq;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Screens.Edit;
@@ -52,8 +51,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             public override void PreProcess()
             {
-                SticksBeatmapConverter.AssignSyncedNoteLinks(Beatmap.HitObjects.OfType<SticksHitObject>());
-
                 foreach (SticksHitObject hitObject in Beatmap.HitObjects)
                     hitObject.EnsureLegacyEditorMarker();
 

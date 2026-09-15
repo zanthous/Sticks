@@ -34,6 +34,26 @@ The runner compares **Default** and **Encore** (click accents); add `--include-p
 
 Conversion uses the source format version, legacy gameplay offsets, `FlatWorkingBeatmap.GetPlayableBeatmap` with the actual mods, and `SticksDifficultyCalculator.Calculate(mods)` for in-game Sticks stars. Authored Sticks maps are labelled `authored-bypass` and checked for identical output across modes.
 
+Add `--include-surge` to compare both Surge settings (**SurgeSourceSpeed**, **SurgeRelativeEmphasis**) against Default. With `--include-parity`, both are also tested on Parity. Schema 6 adds `sliderBursts`: each changed source slider's time range, original source speed, and converted speed before and after the change. Only those observed sliders may exceed the normal 120°/s validation limit, up to 240°/s for continuous movement or 160°/s with reversals. Generated accompaniment retains the normal limit. See [Surge's experiment notes](../Design/surge.md) for the two interpretations.
+
+`sourceSliderSpeeds` records the source velocity and converted velocity of **every retained source slider**, including unchanged ones, separately from added accompaniment. Compare these complete distributions when assessing speed variation. Looking only at `sliderBursts` can exclude an entire slower source group and badly understate the map's converted speed range.
+
+Schema 7 also exports `sourceTimeline[].sliderPixelsPerSecond` for **every original source slider** and the map's `sourceSliderMultiplier`. This includes source sliders even if an arrangement replaces their original converted object. Speed is decoded path distance divided by one span's duration, including BPM and SV; each slider contributes one observation irrespective of repeat count or duration.
+
+To compare the current Surge implementation with the proposed direct source mapping and relative mapping with a 120°/s base and 80°/s floor:
+
+```sh
+python3 osu.Game.Rulesets.Sticks.DifficultyTestbed/analyse_slider_speeds.py \
+  mapreference/surge-speed-study/new-maps.json \
+  mapreference/surge-speed-study/existing-maps.json \
+  mapreference/surge-speed-study/railgun.json \
+  --output mapreference/surge-speed-study/summary.json
+```
+
+This writes JSON and a Markdown table with source minimum/median/maximum, speed-group counts, observed current-mod output, uncapped proposal requests, and a separate projection with the existing 240°/s continuous / 160°/s reversal ceilings. Proposals replace the requested speed directly without the current accent/duration gates; they are **not implemented gameplay**. Current-build stars are labelled separately. See the [tech-map study](../Design/surge.md#tech-map-speed-study--2026-09-15).
+
+Add `--exclude-buzz` and use a different output name, such as `mapreference/surge-speed-study/without-buzz.json`, for the buzz/rapid-repeat exclusion table. This deliberately broad research filter removes source sliders with at least one reversal and a span duration at most one quarter of the local beat (plus 0.01ms for rounding). It also excludes short rapid reversals; ordinary slower reversals and fast single-pass sliders remain. Source and proposal medians are recalculated from the remaining sliders. Current-build observations are filtered without reconverting; their stars still belong to the full map. The JSON includes every excluded source object so the classification is reviewable.
+
 The console reports head/flick/hold/slider/click counts, minimum click clearance, two-stick chords, milliseconds with both sticks sustaining, and interior flicks played opposite an active sustain. It prints three eight-second windows with the most differing objects. JSON includes source OD/CS, metadata, source hash/IDs, stars, all converted objects, and both versions of those windows. Click metrics include the fraction of heads, clicks per minute, minimum/median clearance and the number overlapping directional gestures. Clearance is the distance to any other note's complete occupied interval, on either hand: simultaneous heads and active sustains give zero. Maps with no measurable click clearance report `null`.
 
 Source identity metrics, introduced in schema 3, measure source circle onsets retained as manual heads, counting each source timestamp once and matching top-level converted heads within 0.01 ms. Slider ticks, reversals and tails do not count as retained heads. Generated sustains are classified as holds or sliders starting at source circle onsets. Their `generatedSustainsWithinPrimaryWindow` count measures whether one fixed aim angle could cover the entire path within its primary window: the maximum minus minimum cumulative signed segment angle must fit inside the object's actual full `primaryHitAngle`. Holds have zero excursion; repeated reversals are included. This describes movement demand, not whether a pattern is good or bad. Authored bypasses have `null` source identity metrics. Source circle timestamps and each converted object's primary angle window are included in JSON for reproduction.

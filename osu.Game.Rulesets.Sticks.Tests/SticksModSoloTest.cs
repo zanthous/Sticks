@@ -150,7 +150,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(notes[i].StartTime, Is.GreaterThan(notes[i - 1].StartTime));
                 Assert.That(notes[i].StartTime, Is.GreaterThanOrEqualTo(notes[i - 1].GetEndTime()));
             }
-            Assert.That(notes.All(note => !note.SyncedNoteSide.HasValue), Is.True);
         }
 
         private static SticksHitObject[] convert(SticksBeatmapConverter converter) => converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();

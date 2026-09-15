@@ -26,7 +26,7 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 - Standard circles convert to flicks. Standard sliders and other duration objects convert to generated circular slider patterns.
 - Source hold notes and spinners convert to stationary sliders.
 
-The optional Brackets presentation style has one judgment circle per stick color, and notes pop in in-place. The editor uses the modern centre-out visuals regardless of the gameplay presentation selected in settings.
+Gameplay and the editor both use centre-out visuals.
 
 Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. F3/F4 changes AR by 0.5, while Shift+F3/F4 changes it by 0.1. The default is AR 7.5 / 825 ms. Map AR does not affect this setting.
 
@@ -42,12 +42,16 @@ The converter treats the two sticks as separate resources: simultaneous notes sp
 
 The default converter now includes the former Counterpoint arrangements: coordinated two-stick patterns, independent accompaniment, interleaved sustains, paired sliders and occasional exact stacked doubles. Source phrases can give each hand a distinct role while preserving manual attacks and protected jump patterns. Moving voices retain source timing, including speed changes, pauses and reversals. Parity uses this complete conversion as its base; Counterpoint is no longer a separate selectable mod.
 
-The **Conversion** category contains **Difficulty Adjust**, **Parity** and **Encore**:
+Introduced simultaneous play is reduced on beginner maps using the original osu!standard star rating: none up to 1.6★, 30% of the normal allowance at 2★, and the full allowance at 3★. Higher-rated conversions are unaffected.
+
+The **Conversion** category contains **Difficulty Adjust**, **Parity**, **Encore**, **Solo** and **Surge**:
 
 - **Parity (PA)** expands each stick's original turns using a flexible 135° preference. It operates on the complete default conversion, preserving timing, stick assignments and slider shapes. Local rhythm and movement adjust its strength; slider endpoints count, and two beats of rest start a new phrase.
 - **Encore (EN)** enables additional note types during conversion. It can be combined with Parity or Difficulty Adjust.
+- **Solo (SO)** converts without simultaneous two-stick play. Sequential notes can still use either stick.
+- **Surge (SG)** experiments with faster source sliders at selected accents. Its settings offer **Source speed** and **Relative emphasis** for comparison; see the [experiment notes](Design/surge.md).
 
-Both conversion mods preserve authored Sticks maps. Simultaneous opposite-stick directional heads align to their circular midpoint when their visible arcs overlap by at least half of the narrower arc. These doubles render at exactly the same angle, and intentional exact stacks survive Parity. In Center Out, exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
+These conversion mods preserve authored Sticks maps. Simultaneous opposite-stick directional heads align to their circular midpoint when their visible arcs overlap by at least half of the narrower arc. These doubles render at exactly the same angle, and intentional exact stacks survive Parity. Exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
 
 ## Skins
 

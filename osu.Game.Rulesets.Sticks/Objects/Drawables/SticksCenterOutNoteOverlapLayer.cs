@@ -118,6 +118,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     break;
 
                 SticksHitObject head = VisibleHeadOf(drawable, Time.Current, playfield.IsPausedEditorPreview);
+                if (playfield.SliderHeadFollowsPath && drawable is DrawableSticksSlider slider
+                    && Time.Current >= slider.HitObject.StartTime && Time.Current <= slider.HitObject.EndTime)
+                    head = slider.HitObject;
                 if (head != null)
                     visibleHeads[headCount++] = head;
             }
@@ -139,23 +142,30 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     if (first.Side == second.Side || Math.Abs(first.StartTime - second.StartTime) >= 0.01)
                         continue;
 
-                    if (!TryGetAngularOverlap(first.Angle, first.PrimaryHitAngle, second.Angle, second.PrimaryHitAngle,
+                    float firstAngle = displayedAngle(first, time);
+                    float secondAngle = displayedAngle(second, time);
+                    if (!TryGetAngularOverlap(firstAngle, first.PrimaryHitAngle, secondAngle, second.PrimaryHitAngle,
                             out float startAngle, out float overlapSpan, out bool firstTickOverlaps, out bool secondTickOverlaps))
                         continue;
 
                     float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
                         time, first.StartTime, first.ApproachDuration);
-                    bool identicalShape = Math.Abs(SticksHitObject.DeltaAngle(first.Angle, second.Angle)) < 0.01f
+                    bool identicalShape = Math.Abs(SticksHitObject.DeltaAngle(firstAngle, secondAngle)) < 0.01f
                                           && Math.Abs(first.PrimaryHitAngle - second.PrimaryHitAngle) < 0.01f;
 
                     overlaps[overlapCount++].SetGeometry(radius, startAngle, overlapSpan,
-                        first.Angle, second.Angle, firstTickOverlaps, secondTickOverlaps, identicalShape);
+                        firstAngle, secondAngle, firstTickOverlaps, secondTickOverlaps, identicalShape);
                 }
             }
 
             for (int i = overlapCount; i < overlaps.Length; i++)
                 overlaps[i].HideOverlap();
         }
+
+        private float displayedAngle(SticksHitObject head, double time) =>
+            playfield.SliderHeadFollowsPath && head is SticksSlider slider && time >= head.StartTime
+                ? slider.AngleAt(time)
+                : head.Angle;
 
         internal static bool TryGetAngularOverlap(
             float firstAngle,

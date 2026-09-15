@@ -194,9 +194,14 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 detailText.Colour = colour;
                 // Both initial placement and continuation previews contain the pending span.
                 // Show its signed, unwrapped travel so full turns and reversals can be matched.
-                detailText.Text = hitObject is SticksSlider pending
-                    ? FormattableString.Invariant($"{duration:0} ms · {pending.ArcAngle:+0.##;-0.##;0}°")
-                    : $"{duration:0} ms";
+                if (hitObject is SticksSlider pending)
+                {
+                    double speed = duration > 0 ? pending.TotalAngularDistance / duration * 1000 : double.NaN;
+                    string speedText = double.IsFinite(speed) ? FormattableString.Invariant($"{speed:0.##}") : "—";
+                    detailText.Text = FormattableString.Invariant($"{duration:0} ms · {pending.ArcAngle:+0.##;-0.##;0}° · {speedText} °/s");
+                }
+                else
+                    detailText.Text = $"{duration:0} ms";
                 detailText.Show();
             }
             else

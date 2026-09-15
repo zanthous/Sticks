@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using osu.Game.Rulesets.Replays;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -11,11 +12,13 @@ namespace osu.Game.Rulesets.Sticks.UI
     public partial class SticksReplayRecorder : ReplayRecorder<SticksAction>
     {
         private readonly SticksPlayfield playfield;
+        private readonly IDisposable thresholdLock;
 
-        public SticksReplayRecorder(Score score, SticksPlayfield playfield)
+        public SticksReplayRecorder(Score score, SticksPlayfield playfield, IDisposable thresholdLock = null)
             : base(score)
         {
             this.playfield = playfield;
+            this.thresholdLock = thresholdLock;
         }
 
         protected override void LoadComplete()
@@ -27,6 +30,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         protected override void Dispose(bool isDisposing)
         {
             playfield.PhysicalStickInputChanged -= onPhysicalStickInputChanged;
+            thresholdLock?.Dispose();
             base.Dispose(isDisposing);
         }
 

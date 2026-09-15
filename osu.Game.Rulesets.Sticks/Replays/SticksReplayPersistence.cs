@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using osu.Game.Database;
+using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Scoring;
 
 namespace osu.Game.Rulesets.Sticks.Replays
@@ -47,11 +48,11 @@ namespace osu.Game.Rulesets.Sticks.Replays
             store.DeleteOrphans(isScoreSaved);
         }
 
-        public void Track(Score score)
+        public void Track(Score score, float flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD)
         {
             SticksReplayStore.EnsureLocalIdentity(score);
 
-            var pending = new PendingReplay(score);
+            var pending = new PendingReplay(score, flickActivationThreshold);
 
             lock (sync)
             {
@@ -83,7 +84,7 @@ namespace osu.Game.Rulesets.Sticks.Replays
             if (pending == null)
                 return;
 
-            store.Save(pending.Score);
+            store.Save(pending.Score, pending.FlickActivationThreshold);
             pending.Dispose();
         }
 
@@ -129,7 +130,7 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 // A notification can be one update behind the database write while the player is
                 // exiting. Confirm synchronously before discarding the recording.
                 if (checkScoreSaved(replay.Score.ScoreInfo.ID))
-                    store.Save(replay.Score);
+                    store.Save(replay.Score, replay.FlickActivationThreshold);
 
                 replay.Dispose();
             }
@@ -138,14 +139,16 @@ namespace osu.Game.Rulesets.Sticks.Replays
         private sealed class PendingReplay : IDisposable
         {
             public readonly Score Score;
+            public readonly float FlickActivationThreshold;
 
             private readonly object sync = new object();
             private IDisposable? subscription;
             private bool disposed;
 
-            public PendingReplay(Score score)
+            public PendingReplay(Score score, float flickActivationThreshold)
             {
                 Score = score;
+                FlickActivationThreshold = flickActivationThreshold;
             }
 
             public void SetSubscription(IDisposable newSubscription)

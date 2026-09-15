@@ -321,8 +321,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     Assert.That(second.Side, Is.Not.EqualTo(first.Side));
                     Assert.That(first.Angle, Is.EqualTo(angles[index]).Within(0.001));
                     Assert.That(second.Angle, Is.EqualTo(jumping ? 180 - angles[index] : angles[index]).Within(0.001));
-                    Assert.That(first.SyncedNoteSide, Is.EqualTo(second.Side));
-                    Assert.That(first.SyncedNoteAngle, Is.EqualTo(second.Angle));
                 });
                 if (!jumping && index % 2 == 0)
                     Assert.That(chord.Select(note => note.Samples.Single().Volume), Has.All.EqualTo(index == 0 ? 42 : 64));
@@ -370,8 +368,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     Is.EqualTo(sliders[0].NodeSamples.Select(samples => samples.Single().Name)));
                 Assert.That(sliders[1].NodeSamples.Select(samples => samples.Single().Volume),
                     Is.EqualTo(sliders[0].NodeSamples.Select(samples => samples.Single().Volume)));
-                Assert.That(sliders[0].SyncedNoteSide, Is.EqualTo(sliders[1].Side));
-                Assert.That(sliders[0].SyncedNoteAngle, Is.EqualTo(sliders[1].Angle));
             });
             assertPlayable(converted);
         }
@@ -474,7 +470,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private static double endTime(SticksHitObject note) => note.StartTime + (note is IHasDuration duration ? duration.Duration : 0);
 
         private static string[] signature(IEnumerable<SticksHitObject> objects) => objects.Select(note =>
-            $"{note.GetType().Name}:{note.StartTime}:{endTime(note)}:{note.Side}:{note.Angle}:{note.SyncedNoteSide}:{note.SyncedNoteAngle}:"
+            $"{note.GetType().Name}:{note.StartTime}:{endTime(note)}:{note.Side}:{note.Angle}:"
             + (note is SticksSlider slider
                 ? $"{string.Join(",", slider.SegmentArcAngles)}:{string.Join(",", slider.SegmentDurationWeights ?? Array.Empty<double>())}"
                 : string.Empty)).ToArray();

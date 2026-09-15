@@ -36,6 +36,7 @@ internal static class ConverterComparison
         string? output = null;
         bool parity = false;
         bool legacyBase = false;
+        bool surge = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -60,6 +61,10 @@ internal static class ConverterComparison
                     legacyBase = true;
                     break;
 
+                case "--include-surge":
+                    surge = true;
+                    break;
+
                 case "--legacy-duet-base":
                 case "--include-counterpoint":
                     legacyBase = true;
@@ -67,7 +72,7 @@ internal static class ConverterComparison
                     break;
 
                 default:
-                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-legacy-base].");
+                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-legacy-base] [--include-surge].");
                     return 2;
             }
         }
@@ -210,6 +215,7 @@ internal static class ConverterComparison
                 Creator = source.Metadata.Author.Username,
                 OverallDifficulty = source.Difficulty.OverallDifficulty,
                 CircleSize = source.Difficulty.CircleSize,
+                SourceSliderMultiplier = source.Difficulty.SliderMultiplier,
                 SourceCircleDiameter = 128 * LegacyRulesetExtensions.CalculateScaleFromCircleSize(
                     float.IsFinite(source.Difficulty.CircleSize) ? source.Difficulty.CircleSize : 4, true),
                 SourceObjects = source.HitObjects.Count,
@@ -219,24 +225,33 @@ internal static class ConverterComparison
                 SourceTimeline = source.HitObjects.Select(note => describeSource(note, source)).ToArray(),
             };
 
-            var modes = new List<(string Name, bool Parity, bool Encore, bool LegacyBase)>
+            var modes = new List<(string Name, bool Parity, bool Encore, bool LegacyBase, SticksSliderBurstMode? Surge)>
             {
-                ("Default", false, false, false),
-                ("Encore", false, true, false),
+                ("Default", false, false, false, null),
+                ("Encore", false, true, false, null),
             };
             if (parity)
             {
-                modes.Add(("Parity", true, false, false));
-                modes.Add(("ParityEncore", true, true, false));
+                modes.Add(("Parity", true, false, false, null));
+                modes.Add(("ParityEncore", true, true, false, null));
             }
             if (legacyBase)
             {
-                modes.Add(("LegacyBase", false, false, true));
-                modes.Add(("LegacyBaseEncore", false, true, true));
+                modes.Add(("LegacyBase", false, false, true, null));
+                modes.Add(("LegacyBaseEncore", false, true, true, null));
                 if (parity)
                 {
-                    modes.Add(("LegacyBaseParity", true, false, true));
-                    modes.Add(("LegacyBaseParityEncore", true, true, true));
+                    modes.Add(("LegacyBaseParity", true, false, true, null));
+                    modes.Add(("LegacyBaseParityEncore", true, true, true, null));
+                }
+            }
+            if (surge)
+            {
+                foreach (SticksSliderBurstMode interpretation in Enum.GetValues<SticksSliderBurstMode>())
+                {
+                    modes.Add(($"Surge{interpretation}", false, false, false, interpretation));
+                    if (parity)
+                        modes.Add(($"ParitySurge{interpretation}", true, false, false, interpretation));
                 }
             }
             var ruleset = new SticksRuleset();
@@ -250,6 +265,9 @@ internal static class ConverterComparison
             {
                 var selectedMods = new List<Mod>();
                 var arrangements = new List<ArrangementDescription>();
+                var bursts = new List<SliderBurstDescription>();
+                var sourceSliders = new List<SourceSliderSpeedDescription>();
+                var boostedSliders = new HashSet<SticksSlider>();
                 if (mode.LegacyBase)
                 {
                     // Historical strategies explicitly opt out of the current arrangement pass.
@@ -260,11 +278,31 @@ internal static class ConverterComparison
 
                 if (mode.Encore)
                     selectedMods.Add(new SticksModEncore());
+                if (mode.Surge is SticksSliderBurstMode interpretation)
+                    selectedMods.Add(new SticksModSurge { SpeedInterpretation = { Value = interpretation } });
                 if (!mode.LegacyBase)
                     selectedMods.Add(new ArrangementObserverMod
                     {
                         ArrangementObserved = (family, start, end, changedHands, addedHeads) =>
                             arrangements.Add(new ArrangementDescription(family, start, end, changedHands, addedHeads)),
+                        SliderBurstObserved = (slider, sourceSpeed, before) =>
+                        {
+                            boostedSliders.Add(slider);
+                            double after = Enumerable.Range(0, slider.SegmentCount)
+                                .Max(index => Math.Abs(slider.SegmentArcAngleAt(index)) / slider.SegmentDurationAt(index) * 1000);
+                            bursts.Add(new SliderBurstDescription(slider.StartTime, slider.EndTime, sourceSpeed, before, after));
+                        },
+                        SourceSliderObserved = (original, slider) =>
+                        {
+                            if (original is not IHasPath path || original is not IHasDuration { Duration: > 0 } duration)
+                                return;
+                            int spans = original is IHasRepeats repeated ? repeated.SpanCount() : 1;
+                            double sourceSpeed = path.Path.Distance / (duration.Duration / spans) * 1000;
+                            double speed = Enumerable.Range(0, slider.SegmentCount)
+                                .Max(index => Math.Abs(slider.SegmentArcAngleAt(index)) / slider.SegmentDurationAt(index) * 1000);
+                            bool reverses = Enumerable.Range(0, slider.SegmentCount - 1).Any(slider.SegmentEndsWithReversal);
+                            sourceSliders.Add(new SourceSliderSpeedDescription(original.StartTime, sourceSpeed, speed, reverses));
+                        },
                     });
                 Mod[] mods = selectedMods.ToArray();
                 // WorkingBeatmap executes the same mod -> converter -> processor -> defaults
@@ -274,12 +312,17 @@ internal static class ConverterComparison
                 // Difficulty calculation may request conversion again. Capture only the
                 // arrangements that produced these gameplay objects, before calculating stars.
                 ArrangementDescription[] convertedArrangements = arrangements.ToArray();
+                SliderBurstDescription[] convertedBursts = bursts.ToArray();
+                SourceSliderSpeedDescription[] convertedSourceSliders = sourceSliders.ToArray();
+                ValidationResult validation = validate(notes, preflight.IsAuthoredCarrier, boostedSliders);
                 double stars = new SticksDifficultyCalculator(ruleset.RulesetInfo, working).Calculate(mods).StarRating;
-                result.Modes.Add(new ModeComparison(mode.Name, stars, measure(notes), validate(notes, preflight.IsAuthoredCarrier), notes.Select(describe).ToArray())
+                result.Modes.Add(new ModeComparison(mode.Name, stars, measure(notes), validation, notes.Select(describe).ToArray())
                 {
                     SourceIdentity = preflight.IsAuthoredCarrier ? null : measureSourceIdentity(result.SourceCircleStartTimes, result.SourceTimeline, notes),
                     Patterns = measurePatterns(notes),
                     Arrangements = convertedArrangements,
+                    SliderBursts = convertedBursts,
+                    SourceSliderSpeeds = convertedSourceSliders,
                     ConversionStrategy = mode.LegacyBase ? "LegacyDuet" : "Counterpoint",
                 });
             }
@@ -326,11 +369,17 @@ internal static class ConverterComparison
         public override ModType Type => ModType.System;
 
         public Action<string, double, double, int, int>? ArrangementObserved { get; init; }
+        public Action<SticksSlider, double, double>? SliderBurstObserved { get; init; }
+        public Action<HitObject, SticksSlider>? SourceSliderObserved { get; init; }
 
         public void ApplyToBeatmapConverter(IBeatmapConverter converter)
         {
             if (converter is SticksBeatmapConverter sticks)
+            {
                 sticks.CounterpointArrangementObserved = ArrangementObserved;
+                sticks.SourceSliderBurstObserved = SliderBurstObserved;
+                sticks.SourceSliderObserved = SourceSliderObserved;
+            }
         }
     }
 
@@ -423,7 +472,7 @@ internal static class ConverterComparison
             chords, dualTime, oppositeFlicks);
     }
 
-    private static ValidationResult validate(SticksHitObject[] notes, bool authored)
+    private static ValidationResult validate(SticksHitObject[] notes, bool authored, HashSet<SticksSlider> boostedSliders)
     {
         var result = new ValidationResult();
         var previousEnd = new Dictionary<StickSide, double>();
@@ -458,7 +507,12 @@ internal static class ConverterComparison
                 result.MaximumSliderDegreesPerSecond = Math.Max(result.MaximumSliderDegreesPerSecond, speed);
                 if (!slider.SegmentArcAngles.All(float.IsFinite) || !double.IsFinite(speed))
                     result.Issues.Add($"Nonfinite slider geometry at {note.StartTime}ms.");
-                if (!authored && speed > SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY + 0.001)
+                double limit = SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY;
+                if (boostedSliders.Contains(slider))
+                    limit = Enumerable.Range(0, slider.SegmentCount - 1).Any(slider.SegmentEndsWithReversal)
+                        ? SticksBeatmapConverter.MAX_SURGE_REVERSAL_ANGULAR_VELOCITY
+                        : SticksBeatmapConverter.MAX_SURGE_SLIDER_ANGULAR_VELOCITY;
+                if (!authored && speed > limit + 0.001)
                     result.Issues.Add($"Slider at {note.StartTime}ms exceeds speed limit: {speed}deg/s.");
             }
 
@@ -577,6 +631,11 @@ internal static class ConverterComparison
     {
         double end = note is IHasDuration duration ? duration.EndTime : note.StartTime;
         int repeats = note is IHasRepeats repeated && end > note.StartTime ? Math.Max(0, repeated.RepeatCount) : 0;
+        double? speed = note is IHasPath path && end > note.StartTime
+            ? path.Path.Distance * (repeats + 1.0) / (end - note.StartTime) * 1000
+            : null;
+        if (speed.HasValue && (!double.IsFinite(speed.Value) || speed.Value <= 0))
+            speed = null;
         var timing = source.ControlPointInfo.TimingPointAt(note.StartTime);
         return new SourceDescription(note.GetType().Name, note.StartTime, end, timing.Time, timing.BeatLength,
             note is IHasPosition positioned ? positioned.Position.X : null,
@@ -584,7 +643,7 @@ internal static class ConverterComparison
             repeats, repeats <= 4096 ? Enumerable.Range(1, repeats).Select(index => note.StartTime + (end - note.StartTime) * index / (repeats + 1)).ToArray() : Array.Empty<double>(),
             note is IHasRepeats ? SticksCounterpointCheckpoints.Generate(note, source)
                 .Where(point => point.Type == SliderEventType.Tick).Select(point => point.Time).ToArray() : Array.Empty<double>(),
-            note.Samples.Any(sample => sample.Name is HitSampleInfo.HIT_CLAP or HitSampleInfo.HIT_FINISH));
+            note.Samples.Any(sample => sample.Name is HitSampleInfo.HIT_CLAP or HitSampleInfo.HIT_FINISH), speed);
     }
 
     private static bool containsTime(double[] orderedTimes, double time)
@@ -651,7 +710,8 @@ internal static class ConverterComparison
 
     private sealed class ComparisonReport
     {
-        public int SchemaVersion { get; } = 5;
+        public int SchemaVersion { get; } = 7;
+        public string SourceSliderSpeedDefinition { get; } = "SourceTimeline sliderPixelsPerSecond measures decoded path distance divided by one span's duration, including BPM and SV. Each original source slider is included once, even if converted to a different kind or replaced by an arrangement. Null means not a positive finite-speed source slider. SourceSliderMultiplier is the map's base slider multiplier. Mode sourceSliderSpeeds traces only retained primary sliders; it must not be substituted for the full source distribution.";
         public double RapidJumpMaximumIntervalMs { get; } = SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD;
         public int RapidJumpMinimumHeads { get; } = 4;
         public string ConverterAssemblySha256 { get; } = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(SticksBeatmapConverter).Assembly.Location))).ToLowerInvariant();
@@ -681,6 +741,7 @@ internal static class ConverterComparison
         public string Creator { get; init; } = string.Empty;
         public float OverallDifficulty { get; init; }
         public float CircleSize { get; init; }
+        public double SourceSliderMultiplier { get; init; }
         public double SourceCircleDiameter { get; init; }
         public string Conversion { get; set; } = string.Empty;
         public int SourceObjects { get; init; }
@@ -697,6 +758,8 @@ internal static class ConverterComparison
         public SourceIdentityMetrics? SourceIdentity { get; init; }
         public PatternMetrics Patterns { get; init; } = null!;
         public ArrangementDescription[] Arrangements { get; init; } = Array.Empty<ArrangementDescription>();
+        public SliderBurstDescription[] SliderBursts { get; init; } = Array.Empty<SliderBurstDescription>();
+        public SourceSliderSpeedDescription[] SourceSliderSpeeds { get; init; } = Array.Empty<SourceSliderSpeedDescription>();
         public Difference? Difference { get; set; }
         public ExampleWindow[] Examples { get; set; } = Array.Empty<ExampleWindow>();
     }
@@ -710,6 +773,8 @@ internal static class ConverterComparison
 
     private sealed record InputMessage(string Source, string Reason);
     private sealed record ArrangementDescription(string Family, double StartTime, double EndTime, int ChangedHandCount, int AddedHeadCount);
+    private sealed record SliderBurstDescription(double StartTime, double EndTime, double SourcePixelsPerSecond, double BeforeDegreesPerSecond, double AfterDegreesPerSecond);
+    private sealed record SourceSliderSpeedDescription(double StartTime, double SourcePixelsPerSecond, double ConvertedDegreesPerSecond, bool Reverses);
     private sealed record Counts(int Heads, int TimingGroups, int Flicks, int Holds, int Sliders,
                                 int Clicks, double ClickFraction, double ClicksPerMinute,
                                 double? MinimumClickClearanceMs, double? MedianClickClearanceMs, int ClicksOverlappingDirectionalGestures,
@@ -727,7 +792,7 @@ internal static class ConverterComparison
     private sealed record ChordAngleHistogram(int Pairs, int Coincident, int Near, int Small, int Medium, int Wide);
     private sealed record ChordDescription(double StartTime, double SeparationDegrees);
     private sealed record SourceDescription(string Kind, double StartTime, double EndTime, double TimingSectionStart, double BeatLength, float? PositionX, float? PositionY,
-                                           int RepeatCount, double[] RepeatTimes, double[] TickTimes, bool ClapOrFinishAccent);
+                                           int RepeatCount, double[] RepeatTimes, double[] TickTimes, bool ClapOrFinishAccent, double? SliderPixelsPerSecond);
     private sealed record ObjectDescription(string Kind, double StartTime, double EndTime, string Side, float Angle, float[] SegmentArcs, double[] SegmentDurationWeights,
                                             float PrimaryHitAngle);
     private sealed record ExampleWindow(double StartTime, double EndTime, int ChangedHeads, ObjectDescription[] Standard, ObjectDescription[] Experimental);

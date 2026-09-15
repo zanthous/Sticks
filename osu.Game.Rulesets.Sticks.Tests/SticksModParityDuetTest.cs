@@ -20,7 +20,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
     public class SticksModParityDuetTest
     {
         [Test]
-        public void TestDuetChordPhraseRetainsBothVoicesWithParitySpacingAndUpdatedLinks()
+        public void TestDuetChordPhraseRetainsBothVoicesWithParitySpacing()
         {
             Beatmap<HitObject> source = chordPhrase();
             SticksHitObject[] standard = convert(source, SticksConversionMode.Standard);
@@ -42,17 +42,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SticksHitObject[] originalNotes = duet.Where(note => note.StartTime >= 500 && note.Side == voice.Key).ToArray();
                 for (int i = 1; i < notes.Length; i++)
                     assertWiderSourceTurn(originalNotes[i - 1], originalNotes[i], notes[i - 1], notes[i]);
-            }
-
-            foreach (var chord in chords.GroupBy(note => note.StartTime))
-            {
-                SticksHitObject owner = chord.Single(note => note.SyncedNoteSide.HasValue);
-                SticksHitObject partner = chord.Single(note => note.Side != owner.Side);
-                Assert.Multiple(() =>
-                {
-                    Assert.That(owner.SyncedNoteSide, Is.EqualTo(partner.Side));
-                    Assert.That(owner.SyncedNoteAngle, Is.EqualTo(partner.Angle));
-                });
             }
         }
 
@@ -265,7 +254,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] expected = convert(source, SticksConversionMode.Duet, disableReversals);
             SticksParityConversion.Apply(expected, source, CancellationToken.None);
             SticksBeatmapConverter.AlignNearbyChordHeads(expected);
-            SticksBeatmapConverter.AssignSyncedNoteLinks(expected);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { DisableReversals = disableReversals };
             new SticksModParityDuet().ApplyToBeatmapConverter(converter);
             SticksHitObject[] combined = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
@@ -278,7 +266,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         private static string[] signature(IEnumerable<SticksHitObject> notes) => notes.Select(note =>
-            $"{shape(note)}:{note.Angle}:{note.SyncedNoteSide}:{note.SyncedNoteAngle}").ToArray();
+            $"{shape(note)}:{note.Angle}").ToArray();
 
         private static string shape(SticksHitObject note) =>
             $"{note.GetType().Name}:{note.StartTime}:{note.Side}:{(note is IHasDuration duration ? duration.Duration : 0)}:{samples(note.Samples)}:"

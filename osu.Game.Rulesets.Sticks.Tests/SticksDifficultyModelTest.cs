@@ -529,9 +529,21 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     overallDifficulty: difficulty.OverallDifficulty, breaks: beatmap.Breaks);
                 var actual = (SticksDifficultyAttributes)timed[i].Attributes;
 
+                var prefix = new Beatmap<SticksHitObject>
+                {
+                    BeatmapInfo = beatmap.BeatmapInfo,
+                    HitObjects = beatmap.HitObjects.Take(i + 1).ToList(),
+                };
+                var prefixAttributes = (SticksDifficultyAttributes)new SticksDifficultyCalculator(
+                    ruleset.RulesetInfo, new PassthroughWorkingBeatmap(prefix)).Calculate();
+
                 Assert.Multiple(() =>
                 {
                     Assert.That(actual.StarRating, Is.EqualTo(expected.StarRating).Within(0.0000001), $"Prefix {i + 1}");
+                    Assert.That(actual.MaxCombo, Is.EqualTo(prefixAttributes.MaxCombo), $"Combo prefix {i + 1}");
+                    Assert.That(actual.AccuracyObjectCount, Is.EqualTo(prefixAttributes.AccuracyObjectCount), $"Heads prefix {i + 1}");
+                    Assert.That(actual.TrackingObjectCount, Is.EqualTo(prefixAttributes.TrackingObjectCount), $"Tracking prefix {i + 1}");
+                    Assert.That(actual.TailObjectCount, Is.EqualTo(prefixAttributes.TailObjectCount), $"Tails prefix {i + 1}");
                     Assert.That(actual.MechanicalDifficulty, Is.EqualTo(expected.Mechanical).Within(0.0000001), $"Mechanical prefix {i + 1}");
                     Assert.That(actual.ReadingDifficulty, Is.EqualTo(expected.Reading).Within(0.0000001), $"Reading prefix {i + 1}");
                     Assert.That(actual.ControlDifficulty, Is.EqualTo(expected.Control).Within(0.0000001), $"Control prefix {i + 1}");

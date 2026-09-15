@@ -106,7 +106,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 HitObject original = source.HitObjects.Single(hitObject => hitObject.StartTime == click.StartTime);
                 Assert.That(original.Samples.Any(sample => sample.Name == HitSampleInfo.HIT_CLAP), Is.True);
                 Assert.That(click.Samples.Select(sample => sample.Name), Is.EqualTo(original.Samples.Select(sample => sample.Name)));
-                Assert.That(click.SyncedNoteSide, Is.Null);
             }
             for (int index = 1; index < clicks.Length; index++)
                 Assert.That(clicks[index].StartTime - clicks[index - 1].StartTime, Is.GreaterThanOrEqualTo(6000));

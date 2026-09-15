@@ -188,10 +188,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
             return playableSamples;
         }
 
-        public StickSide? SyncedNoteSide { get; set; }
-
-        public float SyncedNoteAngle { get; set; }
-
         public double ApproachDuration { get; private set; } = 1200;
 
         public static double ApproachDurationFor(float approachRate) =>
@@ -272,24 +268,6 @@ namespace osu.Game.Rulesets.Sticks.Objects
             return timingHit && angleHit
                 ? (timingResult, angleResult)
                 : (HitResult.Miss, HitResult.Miss);
-        }
-
-        public static HitResult ResultForAngleError(float angleError)
-        {
-            angleError = Math.Abs(angleError);
-            if (angleError <= PRECISE_HALF_ANGLE) return HitResult.Great;
-            if (angleError <= LENIENT_HALF_ANGLE) return HitResult.Ok;
-            return HitResult.Miss;
-        }
-
-        /// <summary>
-        /// Makes an approaching note grow slowly while it is first being read, then accelerate
-        /// towards its final size as the hit time approaches.
-        /// </summary>
-        public static double ApproachGrowthProgress(double linearProgress)
-        {
-            linearProgress = Math.Clamp(linearProgress, 0, 1);
-            return linearProgress * linearProgress * linearProgress;
         }
 
         protected override void ApplyDefaultsToSelf(ControlPointInfo controlPointInfo, IBeatmapDifficultyInfo difficulty)

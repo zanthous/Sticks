@@ -1,9 +1,11 @@
 #nullable enable
 
 using System;
+using System.IO;
 using NUnit.Framework;
 using osu.Framework.Testing;
 using osu.Game.Rulesets.Sticks.Replays;
+using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Scoring;
 using osuTK;
 
@@ -28,11 +30,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             original.Replay.Frames.Add(new SticksReplayFrame(1000, new Vector2(0.8f, 0.6f), new Vector2(-1, 0), rightTrigger: true, leftShoulder: true));
 
             var store = new SticksReplayStore(storage);
-            Assert.That(store.Save(original), Is.True);
+            Assert.That(store.Save(original, 0.87f), Is.True);
+            using (Stream saved = storage.GetStream($"ruleset-data/sticks/replays/{original.ScoreInfo.ID:N}.stkr"))
+                Assert.That(saved.Length, Is.EqualTo(12 + 2 * 30), "The threshold is stored once in the header, not in each frame.");
             Assert.That(original.ScoreInfo.Hash, Is.EqualTo($"sticks-replay-{original.ScoreInfo.ID:N}"));
 
             var restored = new Score { ScoreInfo = original.ScoreInfo.DeepClone() };
-            Assert.That(store.TryRestore(restored), Is.True);
+            Assert.That(store.TryRestore(restored, out float threshold), Is.True);
+            Assert.That(threshold, Is.EqualTo(0.87f));
             Assert.That(restored.Replay.Frames, Has.Count.EqualTo(2));
 
             var first = (SticksReplayFrame)restored.Replay.Frames[0];
@@ -115,13 +120,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
                            return new TestDisposable();
                        }))
             {
-                persistence.Track(score);
+                persistence.Track(score, 0.87f);
                 saved = true;
                 notifySaved?.Invoke();
             }
 
             var restored = new Score { ScoreInfo = score.ScoreInfo.DeepClone() };
-            Assert.That(store.TryRestore(restored), Is.True);
+            Assert.That(store.TryRestore(restored, out float threshold), Is.True);
+            Assert.That(threshold, Is.EqualTo(0.87f));
             Assert.That(restored.Replay.Frames, Has.Count.EqualTo(1));
         }
 
@@ -137,12 +143,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
                        _ => saved,
                        (_, _) => new TestDisposable()))
             {
-                persistence.Track(score);
+                persistence.Track(score, 0.87f);
                 saved = true;
             }
 
             var restored = new Score { ScoreInfo = score.ScoreInfo.DeepClone() };
-            Assert.That(store.TryRestore(restored), Is.True);
+            Assert.That(store.TryRestore(restored, out float threshold), Is.True);
+            Assert.That(threshold, Is.EqualTo(0.87f));
             Assert.That(restored.Replay.Frames, Has.Count.EqualTo(1));
         }
 
@@ -160,6 +167,62 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(store.TryRestore(new Score { ScoreInfo = kept.ScoreInfo.DeepClone() }), Is.True);
             Assert.That(store.TryRestore(new Score { ScoreInfo = discarded.ScoreInfo.DeepClone() }), Is.False);
+        }
+
+        [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(4)]
+        public void TestOldRecordingUsesDefaultThreshold(int version)
+        {
+            var score = new Score();
+            using (Stream stream = storage.GetStream($"ruleset-data/sticks/replays/{score.ScoreInfo.ID:N}.stkr", FileAccess.Write, FileMode.Create))
+            using (var writer = new BinaryWriter(stream))
+            {
+                writer.Write(0x53544B52);
+                writer.Write(version);
+                writer.Write(1000d);
+                writer.Write(0.9f);
+                writer.Write(0f);
+                writer.Write(0f);
+                writer.Write(1f);
+                for (int button = 0; button < (version - 1) * 2; button++)
+                    writer.Write(true);
+            }
+
+            Assert.That(new SticksReplayStore(storage).TryRestore(score, out float threshold), Is.True);
+            Assert.That(threshold, Is.EqualTo(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD));
+            var frame = (SticksReplayFrame)score.Replay.Frames[0];
+            Assert.Multiple(() =>
+            {
+                Assert.That(frame.Time, Is.EqualTo(1000));
+                Assert.That(frame.LeftStick, Is.EqualTo(new Vector2(0.9f, 0)));
+                Assert.That(frame.RightStick, Is.EqualTo(Vector2.UnitY));
+                Assert.That(frame.LeftTrigger && frame.RightTrigger, Is.EqualTo(version >= 2));
+                Assert.That(frame.LeftShoulder && frame.RightShoulder, Is.EqualTo(version >= 3));
+                Assert.That(frame.LeftStickButton && frame.RightStickButton, Is.EqualTo(version >= 4));
+            });
+        }
+
+        [TestCase(float.NaN)]
+        [TestCase(0.5f)]
+        [TestCase(1.01f)]
+        public void TestInvalidThresholdDoesNotReplaceReplay(float invalidThreshold)
+        {
+            var score = createScore();
+            var store = new SticksReplayStore(storage);
+            Assert.That(store.Save(score, 0.87f), Is.True);
+            using (Stream stream = storage.GetStream($"ruleset-data/sticks/replays/{score.ScoreInfo.ID:N}.stkr", FileAccess.Write, FileMode.Open))
+            using (var writer = new BinaryWriter(stream))
+            {
+                stream.Position = 8;
+                writer.Write(invalidThreshold);
+            }
+
+            var original = score.Replay.Frames[0];
+            Assert.That(store.TryRestore(score, out float threshold), Is.False);
+            Assert.That(threshold, Is.EqualTo(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD));
+            Assert.That(score.Replay.Frames, Is.EqualTo(new[] { original }));
         }
 
         private static Score createScore()

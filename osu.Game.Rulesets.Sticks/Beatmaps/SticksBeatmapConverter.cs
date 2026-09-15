@@ -159,6 +159,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 generatedHoldSources.Clear();
                 generatedFlickHoldDurations.Clear();
                 generatedSliders.Clear();
+                sourceSliderConversions.Clear();
                 duetDurationPartners.Clear();
                 clearDuetAccompaniment();
                 buildPlans(original, cancellationToken);
@@ -194,6 +195,10 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         applyCounterpoint(converted, original, cancellationToken);
                 }
 
+                if (SliderBurstMode.HasValue)
+                    applySourceSliderBursts(converted, original, cancellationToken);
+                observeSourceSliders(converted);
+
                 // Apply parity to the complete arrangement, including added partners and accents.
                 if (ConversionMode is SticksConversionMode.Parity or SticksConversionMode.ParityDuet)
                     SticksParityConversion.Apply(converted.HitObjects, original, cancellationToken,
@@ -210,7 +215,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     applyEncoreObjects(converted, original, cancellationToken);
             }
 
-            AssignSyncedNoteLinks(converted.HitObjects);
 
             return converted;
         }
@@ -243,43 +247,6 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         float angle = SticksHitObject.NormaliseAngle(first.Angle + delta / 2);
                         first.Angle = angle;
                         second.Angle = angle;
-                    }
-                }
-
-                groupStart = groupEnd;
-            }
-        }
-
-        /// <summary>
-        /// Assigns one visual link owner to each simultaneous two-stick chord. Chord heads may be
-        /// flicks, sliders, or holds; the gesture at their shared start time is what matters.
-        /// </summary>
-        public static void AssignSyncedNoteLinks(IEnumerable<SticksHitObject> hitObjects)
-        {
-            SticksHitObject[] ordered = hitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
-
-            foreach (SticksHitObject hitObject in ordered)
-            {
-                hitObject.SyncedNoteSide = null;
-                hitObject.SyncedNoteAngle = 0;
-            }
-
-            for (int groupStart = 0; groupStart < ordered.Length;)
-            {
-                int groupEnd = groupStart + 1;
-                while (groupEnd < ordered.Length && Math.Abs(ordered[groupEnd].StartTime - ordered[groupStart].StartTime) < 0.01)
-                    groupEnd++;
-
-                if (groupEnd - groupStart == 2)
-                {
-                    SticksHitObject owner = ordered[groupStart];
-                    SticksHitObject partner = ordered[groupStart + 1];
-
-                    if (owner is not SticksClick && partner is not SticksClick
-                        && owner.Side != partner.Side)
-                    {
-                        owner.SyncedNoteSide = partner.Side;
-                        owner.SyncedNoteAngle = partner.Angle;
                     }
                 }
 
@@ -421,6 +388,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     yield break;
                 }
 
+                if (SliderBurstMode.HasValue || SourceSliderObserved != null)
+                    sourceSliderConversions[original] = slider;
                 yield return slider;
             }
             else

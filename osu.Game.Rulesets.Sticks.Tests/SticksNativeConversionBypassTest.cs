@@ -58,8 +58,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     Assert.That(converted.OfType<SticksHold>(), Is.Empty, "Legacy native holds become stationary sliders.");
                     Assert.That(signature(converted), Is.EqualTo(expected), "Authored geometry must bypass procedural pattern and angle changes.");
                     Assert.That(signature(notes), Is.EqualTo(expected), "Conversion must not mutate its source's gameplay geometry.");
-                    Assert.That(converted.Single(note => note.StartTime == 1000 && note.Side == StickSide.Left).SyncedNoteAngle,
-                        Is.EqualTo(19), "Shared visual links should still describe the unchanged authored chord.");
                 });
             }
         }

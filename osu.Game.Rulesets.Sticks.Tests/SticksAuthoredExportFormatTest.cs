@@ -100,8 +100,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(converted[0].StartTime, Is.EqualTo(1000.125));
                 Assert.That(converted[0].Side, Is.EqualTo(StickSide.Left));
                 Assert.That(converted[0].Angle, Is.EqualTo(359.875f));
-                Assert.That(((SticksFlick)converted[0]).SyncedNoteSide, Is.EqualTo(StickSide.Right));
-                Assert.That(((SticksFlick)converted[0]).SyncedNoteAngle, Is.EqualTo(180));
 
                 Assert.That(converted[1], Is.TypeOf<SticksFlick>());
                 Assert.That(converted[1].Side, Is.EqualTo(StickSide.Right));

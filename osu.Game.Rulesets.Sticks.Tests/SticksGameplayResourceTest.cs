@@ -16,6 +16,8 @@ using osu.Framework.Testing;
 using osu.Framework.Testing.Input;
 using osu.Framework.Timing;
 using osu.Game.Beatmaps;
+using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Overlays;
 using osu.Game.Replays;
 using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Beatmaps;
@@ -51,6 +53,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private IRenderer renderer { get; set; } = null!;
 
         private SticksPlayfield playfield => (SticksPlayfield)gameplay!.Playfield;
+
+        protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
+        {
+            var dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
+            dependencies.Cache(new OverlayColourProvider(OverlayColourScheme.Pink));
+            return dependencies;
+        }
 
         [SetUpSteps]
         public void SetUpResources()
@@ -96,6 +105,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestRepeatedGameplayExitReleasesPlayfieldsAndReplayRecorders()
         {
+            FormSliderBar<float> thresholdSetting = null!;
+            AddStep("keep flick threshold settings control loaded", () => Add(thresholdSetting = new FormSliderBar<float>
+            {
+                Caption = "Flick activation",
+                Current = ((SticksRulesetConfigManager)RulesetConfigs.GetConfigFor(ruleset)!)
+                    .GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold),
+            }));
+            AddUntilStep("settings control loaded", () => thresholdSetting.IsLoaded);
+
             // Keep the cached source, settings, skin provider and completed score objects alive:
             // collecting those too would conceal subscriptions retaining abandoned gameplay.
             for (int i = 0; i < 24; i++)
@@ -111,6 +129,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 });
                 AddUntilStep("recorder loaded and capturing frames", () => gameplay!.ChildrenOfType<SticksReplayRecorder>().Any(r => r.IsLoaded)
                     && retainedScores[^1].Replay.Frames.Count > 0);
+                AddAssert("threshold cannot change during play", () => thresholdSetting.Current.Disabled);
                 AddStep("exercise gameplay effects and advance", () =>
                 {
                     controller.PressJoystickButton(JoystickButton.GamePadLeftStick);
@@ -129,6 +148,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     retireGameplay();
                 });
                 AddWaitStep("drain disposal and draw queues", 5);
+                AddUntilStep("settings unlock safely after gameplay disposal", () => !thresholdSetting.Current.Disabled);
             }
 
             AddStep("change shared skin after all exits", () => provider.Switch(new SticksTestSkin()));

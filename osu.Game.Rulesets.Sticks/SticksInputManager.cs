@@ -26,6 +26,9 @@ namespace osu.Game.Rulesets.Sticks
 
         [Description("Click tool")]
         EditorClickTool,
+
+        [Description("Slice tool")]
+        EditorSliceTool,
 #endif
     }
 }

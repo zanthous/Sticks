@@ -28,6 +28,19 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksFlickPlacementBlueprint();
     }
 
+    public class SticksSliceCompositionTool : SticksCompositionTool
+    {
+        public SticksSliceCompositionTool() : base("Slice")
+        {
+#if STICKS_RULESET_API_2026_818
+            Action = SticksAction.EditorSliceTool;
+#endif
+            TooltipText = "Move through a Slice without flicking. Set its direction in the inspector.";
+        }
+        public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorHitCircle };
+        public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksSlicePlacementBlueprint();
+    }
+
     public class SticksClickCompositionTool : SticksCompositionTool
     {
         public SticksClickCompositionTool()

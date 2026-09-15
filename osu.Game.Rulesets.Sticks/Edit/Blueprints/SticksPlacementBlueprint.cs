@@ -165,11 +165,14 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             // opposite hand inside the same transaction so one undo removes the pair.
             var partner = new T
             {
+                SizeMultiplier = HitObject.SizeMultiplier,
                 StartTime = HitObject.StartTime,
                 Angle = HitObject.Angle,
                 Side = HitObject.Side == StickSide.Left ? StickSide.Right : StickSide.Left,
                 Samples = HitObject.CreatePlayableSamples().Select(sample => sample.With()).ToList(),
             };
+            if (HitObject is SticksSlice slice && partner is SticksSlice partnerSlice)
+                partnerSlice.Direction = slice.Direction;
             if (HitObject is SticksSlider slider && partner is SticksSlider partnerSlider)
             {
                 partnerSlider.Duration = slider.Duration;

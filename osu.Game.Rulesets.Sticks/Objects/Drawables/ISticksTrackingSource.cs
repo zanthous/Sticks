@@ -7,5 +7,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     internal interface ISticksTrackingSource
     {
         bool TrackingAuthorised { get; }
+        StickSide TrackingSide { get; }
     }
 }

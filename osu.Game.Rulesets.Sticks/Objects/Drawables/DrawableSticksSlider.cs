@@ -26,6 +26,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private readonly PausableSkinnableSound holdingSample;
         private readonly Container nestedHitObjectContainer;
         private readonly SticksTrackingEligibility trackingEligibility = new SticksTrackingEligibility();
+        private readonly SticksTrackingEligibility otherTrackingEligibility = new SticksTrackingEligibility();
+        public StickSide TrackingSide { get; private set; }
         private SticksPlayfield playfield = null!;
         private DrawableSticksSliderHead drawableHead = null!;
         private bool headJudged;
@@ -57,7 +59,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         internal bool HasResult => Judged;
 
-        public bool TrackingAuthorised => trackingEligibility.IsAuthorised;
+        public bool TrackingAuthorised => (trackingEligibility.IsAuthorised || otherTrackingEligibility.IsAuthorised)
+            && (playfield?.EitherStick != true || playfield.IsTrackingOwner(this, TrackingSide));
 
         public DrawableSticksSlider(SticksSlider hitObject)
             : base(hitObject)
@@ -106,6 +109,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             playfield = sticksPlayfield;
             trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
+            otherTrackingEligibility.Reset(playfield.FlickSequence(SticksPlayfield.OppositeSide(HitObject.Side)));
+            TrackingSide = HitObject.Side;
         }
 
         protected override void LoadComplete()
@@ -133,6 +138,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 radialPathRegistered = false;
             }
 
+            if (isDisposing)
+                playfield?.ReleaseTracking(this);
             base.Dispose(isDisposing);
         }
 
@@ -203,9 +210,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private bool isStickInRange(double now)
         {
-            Vector2 stick = playfield.StickVector(HitObject.Side);
+            Vector2 stick = playfield.StickVector(TrackingSide);
 
-            if (stick.LengthSquared <= 0 || !playfield.IsStickBeyondRechargeBoundary(HitObject.Side))
+            if (stick.LengthSquared <= 0 || !playfield.IsStickBeyondRechargeBoundary(TrackingSide))
                 return false;
 
             float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
@@ -225,6 +232,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             {
                 displayedSide = HitObject.Side;
                 trackingEligibility.Reset(playfield.FlickSequence(HitObject.Side));
+                otherTrackingEligibility.Reset(playfield.FlickSequence(SticksPlayfield.OppositeSide(HitObject.Side)));
+                TrackingSide = HitObject.Side;
             }
 
             headMarker.Angle = following ? HitObject.AngleAt(now) : HitObject.Angle;
@@ -235,8 +244,21 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (Judged)
                 return;
 
-            long sequence = playfield.FlickSequence(HitObject.Side);
-            SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
+            bool consumed = observeHeadInput(HitObject.Side, trackingEligibility);
+            if (playfield.EitherStick && !consumed)
+                observeHeadInput(SticksPlayfield.OppositeSide(HitObject.Side), otherTrackingEligibility);
+
+            double timeOffset = now - HitObject.StartTime;
+            if (!headJudged
+                && drawableHead.HitObject.HitWindows is not null
+                && !drawableHead.HitObject.HitWindows.CanBeHit(timeOffset))
+                MarkHeadMiss();
+        }
+
+        private bool observeHeadInput(StickSide inputSide, SticksTrackingEligibility eligibility)
+        {
+            long sequence = playfield.FlickSequence(inputSide);
+            SticksInputTracker.FlickEvent flick = playfield.LastFlick(inputSide);
             double offset = flick.Time - HitObject.StartTime;
             HitResult headTimingResult = drawableHead.HitObject.HitWindows?.ResultFor(offset) ?? HitResult.Great;
             bool canAttemptHead = !headJudged
@@ -245,7 +267,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 ? HitObject.Angle
                 : HitObject.AngleAt(Math.Clamp(flick.Time, HitObject.StartTime, HitObject.EndTime));
 
-            bool sawNewGesture = trackingEligibility.Observe(
+            bool sawNewGesture = eligibility.Observe(
                     sequence,
                     flick,
                     HitObject.StartTime - SticksFlick.EARLY_HIT_WINDOW,
@@ -259,11 +281,15 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (sawNewGesture
                 && (canAttemptHead || canStartTracking)
                 && (canAttemptHead
-                    ? playfield.TryConsumeHeadFlick(this, HitObject.Side, flick.Sequence)
-                    : playfield.TryConsumeTrackingFlick(HitObject.Side, flick.Sequence)))
+                    ? playfield.TryConsumeHeadFlick(this, inputSide, flick.Sequence)
+                    : playfield.TryConsumeTrackingFlick(inputSide, flick.Sequence)))
             {
                 if (canStartTracking)
-                    trackingEligibility.Authorise();
+                {
+                    eligibility.Authorise();
+                    TrackingSide = inputSide;
+                    playfield.ClaimTracking(this, inputSide);
+                }
 
                 if (canAttemptHead)
                 {
@@ -275,13 +301,10 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     if (headHit)
                         playHeadSample();
                 }
+                return true;
             }
 
-            double timeOffset = now - HitObject.StartTime;
-            if (!headJudged
-                && drawableHead.HitObject.HitWindows is not null
-                && !drawableHead.HitObject.HitWindows.CanBeHit(timeOffset))
-                MarkHeadMiss();
+            return false;
         }
 
         internal void MarkHeadMiss()
@@ -383,6 +406,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             headJudged = false;
             headHit = false;
             trackingEligibility.Reset(currentSequence);
+            otherTrackingEligibility.Reset(playfield?.FlickSequence(SticksPlayfield.OppositeSide(HitObject.Side)) ?? 0);
+            TrackingSide = HitObject.Side;
+            playfield?.ReleaseTracking(this);
         }
 
         protected override void OnApply()
@@ -400,12 +426,14 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 ResetEditorPreviewState(playfield != null ? playfield.FlickSequence(HitObject.Side) : 0);
             else
                 updateHoldingSample(false);
+            playfield?.ReleaseTracking(this);
             base.OnFree();
             holdingSample?.ClearSamples();
         }
 
         public override void OnKilled()
         {
+            playfield?.ReleaseTracking(this);
             // Non-pooled editor objects can be removed without OnFree or Dispose.
             detachRadialPath();
             base.OnKilled();

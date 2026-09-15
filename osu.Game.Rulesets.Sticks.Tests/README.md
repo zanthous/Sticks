@@ -2,7 +2,7 @@
 
 `SticksGameplayResourceTest` runs in the normal test suite. It covers:
 
-- 24 gameplay attempts, mixing early exits and completion, with real replay recorders. The cached source, shared settings, skin provider and score history stay alive while weak references verify that retired gameplay objects are collected.
+- 24 gameplay attempts, mixing early exits and completion, with real replay recorders. A loaded flick-activation settings slider verifies that recording locks it and background disposal safely unlocks it. The cached source, shared settings, skin provider and score history stay alive while weak references verify that retired gameplay objects are collected.
 - 60,000 hit effects and 120,000 cursor-trail positions after warming the pools. Effect drawables must be reused, retained managed growth must stay below 8 MiB, and gameplay must be collectible after exit.
 - 32 skin replacements during gameplay. Obsolete skins and textures must be collectible. Hidden sprite draw nodes may cache the final texture wrapper until teardown; the graphics run additionally requires all replaced native textures to be released.
 
@@ -30,7 +30,7 @@ Verified on 2026-09-16: all three scenarios passed headlessly against lazer 2026
 
 - Interrupting active difficulty calculations by changing the selected song, mods, or both.
 - Changing Difficulty Adjust's speed setting on the existing mod instance, then restoring it.
-- 54 selections across three songs and six mod states: no mods, Parity, Solo, Encore, Surge and Difficulty Adjust. Stars and maximum combo must match independent calculations; revisiting warmed combinations must use the cache.
+- 54 selections across three songs and six mod states: no mods, Parity, Solo, Encore, Parity + Encore and Difficulty Adjust. Stars and maximum combo must match independent calculations; revisiting warmed combinations must use the cache.
 - Collection of retired calculators, converted beatmaps, converters, rating bindings, mod instances and the difficulty display. The source songs and populated shared cache stay alive during this check.
 
 ```sh

@@ -83,11 +83,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 return;
             }
 
-            Vector2 stick = playfield.StickVector(HitObject.Side);
+            StickSide inputSide = ((ISticksTrackingSource)ParentHitObject).TrackingSide;
+            Vector2 stick = playfield.StickVector(inputSide);
             float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
             float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, HitObject.Angle));
 
-            if (playfield.IsStickBeyondRechargeBoundary(HitObject.Side)
+            if (playfield.IsStickBeyondRechargeBoundary(inputSide)
                 && SticksSliderRepeat.IsAngleInRange(angleError, HitObject.PrimaryHitAngle, HitObject.SecondaryHitAngle))
                 ApplyMaxResult();
             else

@@ -213,7 +213,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             1 => new Mod[] { new SticksModParity() },
             2 => new Mod[] { new SticksModSolo() },
             3 => new Mod[] { new SticksModEncore() },
-            4 => new Mod[] { new SticksModSurge() },
+            4 => new Mod[] { new SticksModParity(), new SticksModEncore() },
             5 => new Mod[] { new SticksModDifficultyAdjust() },
             _ => throw new ArgumentOutOfRangeException(nameof(mode)),
         };

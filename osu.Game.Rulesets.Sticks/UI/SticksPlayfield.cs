@@ -168,6 +168,37 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// </summary>
         public bool RelaxMode { get; set; }
 
+        public bool EitherStick { get; set; }
+        private readonly WeakReference<ISticksTrackingSource>[] trackingOwners = new WeakReference<ISticksTrackingSource>[2];
+        private readonly double[] lastAimContact = { double.NegativeInfinity, double.NegativeInfinity };
+        private double previousContactFrame = double.NaN;
+        public static StickSide OppositeSide(StickSide side) => side == StickSide.Left ? StickSide.Right : StickSide.Left;
+        private static int handIndex(StickSide side) => side == StickSide.Left ? 0 : 1;
+        internal void ClaimTracking(ISticksTrackingSource source, StickSide side)
+        {
+            if (EitherStick)
+            {
+                ReleaseTracking(source);
+                trackingOwners[handIndex(side)] = new WeakReference<ISticksTrackingSource>(source);
+            }
+        }
+        internal bool IsTrackingOwner(ISticksTrackingSource source, StickSide side) =>
+            trackingOwners[handIndex(side)]?.TryGetTarget(out var owner) == true && ReferenceEquals(owner, source);
+        internal void ReleaseTracking(ISticksTrackingSource source)
+        {
+            for (int i = 0; i < trackingOwners.Length; i++)
+                if (trackingOwners[i]?.TryGetTarget(out var owner) == true && ReferenceEquals(owner, source))
+                    trackingOwners[i] = null;
+        }
+        internal bool TryClaimAimContact(StickSide side, double time)
+        {
+            int hand = handIndex(side);
+            if (Math.Abs(lastAimContact[hand] - time) < 0.01)
+                return false;
+            lastAimContact[hand] = time;
+            return true;
+        }
+
         /// <summary>
         /// Replaces outward flick detection with a trigger press made while the corresponding
         /// stick is already aimed beyond the activation boundary.
@@ -207,6 +238,19 @@ namespace osu.Game.Rulesets.Sticks.UI
         public CircularContainer RightStickCursor => rightCursor;
 
         public Color4 ColourFor(StickSide side) => side == StickSide.Left ? leftColour : rightColour;
+
+        public Color4 SliceColourFor(SticksSlice note)
+        {
+            foreach (DrawableHitObject drawable in HitObjectContainer.AliveObjects)
+            {
+                if (drawable is DrawableSticksSlice other && !other.Judged && other.HitObject != note
+                    && other.HitObject.Side != note.Side && other.HitObject.Direction == note.Direction
+                    && Math.Abs(other.HitObject.StartTime - note.StartTime) < 0.01
+                    && Math.Abs(SticksHitObject.DeltaAngle(other.HitObject.Angle, note.Angle)) < 0.01)
+                    return OverlapColour;
+            }
+            return ColourFor(note.Side);
+        }
 
         public Color4 OverlapColour => overlapColour;
 
@@ -447,7 +491,9 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private void onNewResult(DrawableHitObject judgedObject, JudgementResult result)
         {
-            if (judgedObject is DrawableSticksFlick flick && result.Type.IsHit())
+            if (judgedObject is DrawableSticksSlice slice && result.Type.IsHit())
+                TriggerContactBurst(slice.HitObject.Side, slice.HitObject.Angle, slice.HitObject.PrimaryHitAngle);
+            else if (judgedObject is DrawableSticksFlick flick && result.Type.IsHit())
                 TriggerContactBurst(flick.HitObject.Side, flick.HitObject.Angle, flick.HitObject.PrimaryHitAngle);
             else if (judgedObject is DrawableSticksSliderTail tail && result.Type == HitResult.SliderTailHit)
                 TriggerContactBurst(tail.HitObject.Side, tail.HitObject.Angle, tail.HitObject.PrimaryHitAngle, completion: true);
@@ -532,15 +578,18 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             if (flick.Sequence != sequence
                 || target != requester
-                || isBlockedByEarlierHead(side, headHitObjectFor(target), flick.Time))
+                || isBlockedByEarlierHead(headHitObjectFor(target).Side, headHitObjectFor(target), flick.Time))
                 return false;
 
-            if (!input.TryConsumeFlick(side, sequence))
+            if (Math.Abs(lastAimContact[handIndex(side)] - flick.Time) < 0.01 || !input.TryConsumeFlick(side, sequence))
                 return false;
+            TryClaimAimContact(side, flick.Time);
+            if (EitherStick)
+                trackingOwners[handIndex(side)] = null;
 
             // Match lazer's modern note lock result ordering: skipped notes resolve before the
             // selected target. Duration parents remain alive because only their heads are missed.
-            missSkippedHeads(side, headHitObjectFor(target).StartTime);
+            missSkippedHeads(headHitObjectFor(target).Side, headHitObjectFor(target).StartTime);
             return true;
         }
 
@@ -639,11 +688,11 @@ namespace osu.Game.Rulesets.Sticks.UI
             return bestDrawable;
         }
 
-        private static bool tryGetFlickTarget(DrawableHitObject drawable, StickSide side, SticksInputTracker.FlickEvent flickEvent, out FlickTarget target)
+        private bool tryGetFlickTarget(DrawableHitObject drawable, StickSide side, SticksInputTracker.FlickEvent flickEvent, out FlickTarget target)
         {
             SticksHitObject hitObject = unjudgedHeadHitObjectFor(drawable);
 
-            if (hitObject == null || hitObject.Side != side)
+            if (hitObject == null || !EitherStick && hitObject.Side != side)
             {
                 target = default;
                 return false;
@@ -799,6 +848,12 @@ namespace osu.Game.Rulesets.Sticks.UI
             base.Update();
 
             input.ActivationThreshold = FlickActivationThreshold;
+            if (Time.Current < previousContactFrame || IsPausedEditorPreview)
+            {
+                lastAimContact[0] = lastAimContact[1] = double.NegativeInfinity;
+                Array.Clear(trackingOwners);
+            }
+            previousContactFrame = Time.Current;
 
             if (IsPausedEditorPreview)
             {
@@ -988,7 +1043,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                         continue;
                 }
 
-                if (hitObject.Side == side
+                if ((EitherStick || hitObject.Side == side)
                     && headCanNoLongerBeHit
                     && Math.Abs(SticksHitObject.DeltaAngle(angle, targetAngle)) <= hitObject.LenientHalfAngle)
                     return true;
@@ -1052,7 +1107,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             double bestOffset = double.PositiveInfinity;
             foreach (DrawableHitObject drawable in ((SticksHitObjectContainer)HitObjectContainer).VisibleObjects)
             {
-                if (drawable is not DrawableSticksClick click || click.Judged || click.HitObject.Side != side)
+                if (drawable is not DrawableSticksClick click || click.Judged || click.HasPendingResult || !EitherStick && click.HitObject.Side != side)
                     continue;
                 double offset = System.Math.Abs(time - click.HitObject.StartTime);
                 if (offset < bestOffset && click.HitObject.HitWindows?.ResultFor(time - click.HitObject.StartTime).IsHit() == true)

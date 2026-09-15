@@ -403,6 +403,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             continuationObject.Duration = continuationGesture.Duration;
             continuationObject.Angle = terminalAngle;
             continuationObject.Side = slider.Side;
+            continuationObject.SizeMultiplier = slider.SizeMultiplier;
             continuationObject.PrimaryHitAngle = slider.PrimaryHitAngle;
             continuationObject.ArcAngle = continuationGesture.Arc;
             continuationPreview.UpdateFrom(continuationObject, bothSticks: continuationTargets.Length > 1);

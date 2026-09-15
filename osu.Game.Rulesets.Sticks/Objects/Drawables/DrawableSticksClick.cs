@@ -18,7 +18,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private SticksPlayfield playfield = null!;
         private HitResult? pendingResult;
         private readonly Container nestedContainer;
-        private DrawableTimingWeight timingWeight = null!;
+        private DrawableSticksTimingWeight timingWeight = null!;
 
         public new SticksClick HitObject => (SticksClick)base.HitObject;
 
@@ -59,9 +59,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 applyClickResult(HitResult.Great);
         }
 
+        internal bool HasPendingResult => pendingResult.HasValue;
+
         internal bool TryHit(double time)
         {
-            if (Judged || HitObject.HitWindows == null)
+            if (Judged || pendingResult.HasValue || HitObject.HitWindows == null)
                 return false;
 
             HitResult result = HitObject.HitWindows.ResultFor(time - HitObject.StartTime);
@@ -86,7 +88,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         protected override DrawableHitObject CreateNestedHitObject(HitObject hitObject) => hitObject switch
         {
-            SticksClick.TimingWeight weight => new DrawableTimingWeight(weight),
+            SticksClick.TimingWeight weight => new DrawableSticksTimingWeight(weight),
             _ => base.CreateNestedHitObject(hitObject),
         };
 
@@ -94,7 +96,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.AddNestedHitObject(hitObject);
             nestedContainer.Add(hitObject);
-            timingWeight = (DrawableTimingWeight)hitObject;
+            timingWeight = (DrawableSticksTimingWeight)hitObject;
         }
 
         protected override void ClearNestedHitObjects()
@@ -103,27 +105,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             nestedContainer.Clear(false);
             timingWeight = null!;
             pendingResult = null;
-        }
-
-        private partial class DrawableTimingWeight : DrawableHitObject<SticksClick.TimingWeight>
-        {
-            public override bool DisplayResult => false;
-            public override bool HandlePositionalInput => false;
-
-            public DrawableTimingWeight(SticksClick.TimingWeight hitObject) : base(hitObject)
-            {
-                Alpha = 0;
-                AlwaysPresent = true;
-            }
-
-            public void ApplyTimingResult(HitResult result) => ApplyResult(result);
-
-            protected override void CheckForResult(bool userTriggered, double timeOffset)
-            {
-                // The click resolves both scoring halves from the same button press.
-            }
-
-            protected override void UpdateHitStateTransforms(ArmedState state) => Expire();
         }
 
         protected override double InitialLifetimeOffset => HitObject.ApproachDuration;

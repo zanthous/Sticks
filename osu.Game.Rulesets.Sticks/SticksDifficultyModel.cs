@@ -219,11 +219,14 @@ namespace osu.Game.Rulesets.Sticks
                 {
                     double impulse = mechanicalImpulse(current, timestamp, previousBySide, fullGreatWindow, clockRate,
                         readingHistory.Count > 0 ? readingHistory[^1].Time : timestamp, out double transition);
+                    transition *= SticksDifficultyScaling.NoteSizeStrainMultiplier(current);
+                    if (current is SticksSlice)
+                        impulse = 0.35; // Passing through a target does not require a recharge/flick cycle.
                     reorientationImpulse = Math.Max(reorientationImpulse, transition);
                     headWork[current.Side] = Math.Max(headWork.GetValueOrDefault(current.Side), Math.Max(impulse, transition));
                     mechanicalImpulses[current.Side] = Math.Max(mechanicalImpulses.GetValueOrDefault(current.Side), impulse);
 
-                    double continuousImpulse = controlImpulse(current, clockRate);
+                    double continuousImpulse = controlImpulse(current, clockRate) * SticksDifficultyScaling.NoteSizeStrainMultiplier(current);
                     if (continuousImpulse > 0)
                         controlImpulses[current.Side] = Math.Max(controlImpulses.GetValueOrDefault(current.Side), continuousImpulse);
                 }
@@ -275,10 +278,10 @@ namespace osu.Game.Rulesets.Sticks
 
                 foreach (SticksHitObject hitObject in group)
                 {
-                    if (hitObject is SticksClick)
+                    if (hitObject is SticksClick or SticksSlice)
                         continue;
                     angularPrecisionValues.Add(
-                        SticksDifficultyScaling.AngularPrecisionMultiplier(hitObject.PrimaryHitAngle, hitObject.SecondaryHitAngle));
+                        SticksDifficultyScaling.AngularPrecisionMultiplier(hitObject.PrimaryHitAngle / hitObject.SizeMultiplier, hitObject.SecondaryHitAngle / hitObject.SizeMultiplier));
                 }
 
                 ObjectEvaluationCount += group.Count;

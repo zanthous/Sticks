@@ -66,7 +66,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// </summary>
         public void Process(JudgementResult result, bool showDots = true)
         {
-            if (result.HitObject is SticksClick click)
+            if (result.HitObject is SticksHitObject click && click is SticksClick or SticksSlice)
             {
                 // Halos have no aim location. Use a stable side-specific point for timing feedback.
                 displayResult(click, result.Type switch

@@ -248,7 +248,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
 
                 TimingAccuracy = timing.Total > 0 ? timing.Accuracy : fallbackHeadAccuracy;
                 AngleAccuracy = angle.Total > 0 ? angle.Accuracy : fallbackHeadAccuracy;
-                ResultCounts clicks = countResults(events.Where(hitEvent => hitEvent.HitObject is SticksClick));
+                ResultCounts clicks = countResults(events.Where(hitEvent => hitEvent.HitObject is SticksClick or SticksSlice));
                 double headWeight = timing.Total + angle.Total + clicks.Total;
                 HeadAccuracy = headWeight > 0
                     ? (timing.Accuracy * timing.Total + angle.Accuracy * angle.Total + clicks.Accuracy * clicks.Total) / headWeight

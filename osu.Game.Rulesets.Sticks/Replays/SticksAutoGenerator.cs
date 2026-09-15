@@ -34,6 +34,13 @@ namespace osu.Game.Rulesets.Sticks.Replays
 
                 switch (hitObject)
                 {
+                    case SticksSlice slice:
+                        int direction = slice.Direction == SticksSliceDirection.Counterclockwise ? -1 : 1;
+                        track.Set(slice.StartTime - 30, vectorAt(slice.Angle - direction * 12));
+                        track.Set(slice.StartTime, vectorAt(slice.Angle));
+                        track.Set(slice.StartTime + 30, vectorAt(slice.Angle + direction * 12));
+                        break;
+
                     case SticksFlick flick:
                         addFlick(track, flick);
                         break;

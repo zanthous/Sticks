@@ -38,20 +38,25 @@ CS scales the calibrated rating using the grading bands actually applied to the 
 
 Star difficulty is NOT currently well calibrated and needs significant work to be improved. For this to happen, a pool of user created maps will likely be needed.
 
-The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Converted sliders use consistent, speed-limited circular arcs chosen from their duration and source pattern.
+The converter treats the two sticks as separate resources: simultaneous notes split across them, notes during a slider prefer the free stick, and ordinary notes form short hand phrases rather than naïvely alternating every object. Source sliders retain their relative speed changes through circular movement, capped at 720°/s. Sliders above 360°/s gain proportionally wider targets, reaching double width at 720°/s.
 
 The default converter now includes the former Counterpoint arrangements: coordinated two-stick patterns, independent accompaniment, interleaved sustains, paired sliders and occasional exact stacked doubles. Source phrases can give each hand a distinct role while preserving manual attacks and protected jump patterns. Moving voices retain source timing, including speed changes, pauses and reversals. Parity uses this complete conversion as its base; Counterpoint is no longer a separate selectable mod.
 
 Introduced simultaneous play is reduced on beginner maps using the original osu!standard star rating: none up to 1.6★, 30% of the normal allowance at 2★, and the full allowance at 3★. Higher-rated conversions are unaffected.
 
-The **Conversion** category contains **Difficulty Adjust**, **Parity**, **Encore**, **Solo** and **Surge**:
+The **Conversion** category contains **Difficulty Adjust**, **Parity**, **Encore**, and **Solo**:
 
 - **Parity (PA)** expands each stick's original turns using a flexible 135° preference. It operates on the complete default conversion, preserving timing, stick assignments and slider shapes. Local rhythm and movement adjust its strength; slider endpoints count, and two beats of rest start a new phrase.
-- **Encore (EN)** enables additional note types during conversion. It can be combined with Parity or Difficulty Adjust.
+- **Encore (EN)** enables additional note types during conversion. Clicks use spaced notes, favouring nearby accents without requiring special hitsounds. Easier maps leave more time between clicks and surrounding note starts. It can be combined with Parity or Difficulty Adjust.
 - **Solo (SO)** converts without simultaneous two-stick play. Sequential notes can still use either stick.
-- **Surge (SG)** experiments with faster source sliders at selected accents. Its settings offer **Source speed** and **Relative emphasis** for comparison; see the [experiment notes](Design/surge.md).
 
 These conversion mods preserve authored Sticks maps. Simultaneous opposite-stick directional heads align to their circular midpoint when their visible arcs overlap by at least half of the narrower arc. These doubles render at exactly the same angle, and intentional exact stacks survive Parity. Exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
+
+Authored notes can have individual sizes. In the editor, select a flick or slider and change **Note size (×)**. This changes its visible angular width and judgement tolerance; difficulty accounts for the changed aiming demand. Clicks and Slices keep their fixed shapes.
+
+**Slice** notes are small coloured circles with a soft white rim. Move the matching cursor through them without recharging or flicking. Encore introduces short runs of one or two neutral Slices following an aimed note or slider tail, keeping the same stick out instead of alternating hands. Each follow-up is within 150 ms and half a local beat, with room to recover before the next flick. Phrase openings, returns after rests and notes immediately following clicks remain flicks. The editor also offers clockwise and counterclockwise variants, marked by a single arrowhead. All three variants can be saved in authored maps.
+
+**Ambidextrous (AM)**, under Difficulty reduction, allows either controller side to hit either colour, including click buttons. A slider follows whichever stick acquired it. Simultaneous notes still need separate inputs. This mod is unranked.
 
 ## Skins
 

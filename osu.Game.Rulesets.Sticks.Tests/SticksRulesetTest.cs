@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using NUnit.Framework;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
@@ -10,6 +11,7 @@ using osu.Framework.Graphics.Lines;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.StateChanges;
 using osu.Framework.Timing;
+using osu.Framework.Threading;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Replays;
@@ -570,22 +572,85 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestFlickThresholdLockedUntilAllRecordersDisposed()
         {
+            var scheduler = new Scheduler();
             using var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
             var threshold = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
             threshold.Value = 0.87f;
-            using var first = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold());
+            using var first = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
             Assert.That(threshold.Disabled, Is.True);
             Assert.Throws<InvalidOperationException>(() => threshold.Value = 0.99f);
 
-            using var retry = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold());
+            using var retry = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
             first.Dispose();
             Assert.That(threshold.Disabled, Is.True, "Disposing the previous play must not unlock its retry.");
             retry.Dispose();
             Assert.That(threshold.Disabled, Is.False);
             Assert.That(threshold.Value, Is.EqualTo(0.87f));
             threshold.Value = 0.99f;
-            using var nextPlay = config.LockFlickActivationThreshold();
+            using var nextPlay = config.LockFlickActivationThreshold(scheduler);
             Assert.That(threshold.Value, Is.EqualTo(0.99f));
+            Assert.That(threshold.Disabled, Is.True);
+        }
+
+        [Test]
+        public void TestFlickThresholdRetryCleanupIsIdempotent()
+        {
+            var scheduler = new Scheduler();
+            using var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+            var threshold = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
+            threshold.Value = 0.87f;
+            using var first = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
+            using var retry = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
+            first.Dispose();
+            first.Dispose();
+            Assert.That(threshold.Disabled, Is.True, "Repeated cleanup must not release the retry's lock.");
+            retry.Dispose();
+            retry.Dispose();
+            Assert.That(threshold.Disabled, Is.False);
+            using var nextPlay = config.LockFlickActivationThreshold(scheduler);
+            Assert.That(threshold.Disabled, Is.True, "Later plays must still lock the preference.");
+            Assert.That(threshold.Value, Is.EqualTo(0.87f));
+        }
+
+        [Test]
+        public void TestBackgroundThresholdReleaseRunsOnUpdateThreadAndPreservesPendingRetry()
+        {
+            var scheduler = new Scheduler();
+            int updateThread = Environment.CurrentManagedThreadId;
+            using var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+            var threshold = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
+            var notificationThreads = new List<int>();
+            threshold.BindDisabledChanged(_ => notificationThreads.Add(Environment.CurrentManagedThreadId));
+            using var first = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
+
+            Task.Run(() =>
+            {
+                first.Dispose();
+                first.Dispose();
+            }).GetAwaiter().GetResult();
+            Assert.That(threshold.Disabled, Is.True, "Background cleanup must not notify a loaded settings control.");
+
+            using var retry = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
+            scheduler.Update();
+            Assert.That(threshold.Disabled, Is.True, "The queued release belongs to the first play, not its retry.");
+            Task.Run(retry.Dispose).GetAwaiter().GetResult();
+            Assert.That(threshold.Disabled, Is.True);
+            scheduler.Update();
+            Assert.That(threshold.Disabled, Is.False);
+            Assert.That(notificationThreads, Is.EqualTo(new[] { updateThread, updateThread }));
+            threshold.Value = 0.9f;
+            Assert.That(threshold.Value, Is.EqualTo(0.9f));
+        }
+
+        [Test]
+        public void TestFlickThresholdLockPreservesExistingDisabledState()
+        {
+            var scheduler = new Scheduler();
+            using var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+            var threshold = config.GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
+            threshold.Disabled = true;
+            using (config.LockFlickActivationThreshold(scheduler))
+                Assert.That(threshold.Disabled, Is.True);
             Assert.That(threshold.Disabled, Is.True);
         }
 

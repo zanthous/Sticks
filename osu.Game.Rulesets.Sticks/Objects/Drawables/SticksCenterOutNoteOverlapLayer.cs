@@ -163,7 +163,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         }
 
         private float displayedAngle(SticksHitObject head, double time) =>
-            playfield.SliderHeadFollowsPath && head is SticksSlider slider && time >= head.StartTime
+            playfield?.SliderHeadFollowsPath == true && head is SticksSlider slider && time >= head.StartTime
                 ? slider.AngleAt(time)
                 : head.Angle;
 

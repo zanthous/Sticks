@@ -126,7 +126,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         private static string stateOf(SticksHitObject note)
         {
-            string state = FormattableString.Invariant($"{note.Side}|{note.Angle:R}|{note.StartTime:R}|{(note as IHasDuration)?.Duration:R}");
+            string state = FormattableString.Invariant($"{note.Side}|{note.Angle:R}|{note.SizeMultiplier:R}|{note.StartTime:R}|{(note as IHasDuration)?.Duration:R}");
+            if (note is SticksSlice slice)
+                state += "|" + slice.Direction;
             if (note is SticksSlider slider)
                 state += "|" + string.Join(";", Enumerable.Range(0, slider.SegmentCount).Select(i =>
                     FormattableString.Invariant($"{slider.SegmentArcAngleAt(i):R}/{slider.SegmentDurationAt(i):R}")));
@@ -175,7 +177,34 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
             if (targets.All(note => note is not SticksClick))
                 addNumber(content, "Angle", "Angle (°)", () => common(note => SticksHitObject.NormaliseAngle(note.Angle)));
+            if (targets.All(note => note is not SticksClick and not SticksSlice))
+                addNumber(content, "Size", "Note size (×)", () => common(note => note.SizeMultiplier));
             addNumber(content, "Start time", "Start time (ms)", () => common(note => note.StartTime));
+            if (targets.All(note => note is SticksSlice))
+            {
+                content.Add(label("Slice direction"));
+                var direction = new SliceDirectionDropdown
+                {
+                    RelativeSizeAxes = Axes.X,
+                    Items = Enum.GetValues<SticksSliceDirection>().Cast<SticksSliceDirection?>(),
+                };
+                void refreshDirection()
+                {
+                    SticksSliceDirection[] directions = targets.Cast<SticksSlice>().Select(note => note.Direction).Distinct().ToArray();
+                    direction.Current.Value = directions.Length == 1 ? directions[0] : null;
+                }
+                refreshDirection();
+                refreshReadouts.Add(refreshDirection);
+                direction.Current.BindValueChanged(value =>
+                {
+                    if (updatingControls || !value.NewValue.HasValue)
+                        return;
+                    bool changed = commit(new SticksInspectorEdit { SliceDirection = value.NewValue }, out string error);
+                    refreshValues();
+                    showError(changed ? string.Empty : error);
+                });
+                content.Add(direction);
+            }
 
             if (targets.All(note => note is SticksSlider))
             {
@@ -444,6 +473,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             return new SticksInspectorEdit
             {
                 Angle = read("Angle"),
+                SizeMultiplier = read("Size"),
                 StartTime = read("Start time"),
                 EndTime = read("End time"),
                 Duration = read("Duration"),
@@ -547,6 +577,17 @@ namespace osu.Game.Rulesets.Sticks.Edit
         }
 
         private static StickChoice choiceFor(StickSide stick) => stick == StickSide.Left ? StickChoice.Left : StickChoice.Right;
+
+        private partial class SliceDirectionDropdown : OsuDropdown<SticksSliceDirection?>
+        {
+            protected override LocalisableString GenerateItemText(SticksSliceDirection? item) => item switch
+            {
+                SticksSliceDirection.Neutral => "Either direction",
+                SticksSliceDirection.Clockwise => "Clockwise",
+                SticksSliceDirection.Counterclockwise => "Counterclockwise",
+                _ => "Mixed",
+            };
+        }
 
         private partial class StickDropdown : OsuDropdown<StickChoice>
         {

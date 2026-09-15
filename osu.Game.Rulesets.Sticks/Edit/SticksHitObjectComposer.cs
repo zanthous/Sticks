@@ -43,6 +43,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             new SticksFlickCompositionTool(),
             new SticksSliderCompositionTool(),
             new SticksClickCompositionTool(),
+            new SticksSliceCompositionTool(),
         };
 
         public override bool CursorInPlacementArea => base.CursorInPlacementArea

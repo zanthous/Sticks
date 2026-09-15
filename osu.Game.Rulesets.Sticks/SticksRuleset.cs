@@ -129,6 +129,7 @@ namespace osu.Game.Rulesets.Sticks
                 new SticksModEasy(),
                 new SticksModNoFail(),
                 new SticksModHalfTime(),
+                new SticksModAmbidextrous(),
             },
             ModType.DifficultyIncrease => new Mod[]
             {
@@ -136,7 +137,7 @@ namespace osu.Game.Rulesets.Sticks
                 new MultiMod(new SticksModSuddenDeath(), new SticksModPerfect()),
                 new SticksModDoubleTime(),
             },
-            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust(), new SticksModParity(), new SticksModEncore(), new SticksModSolo(), new SticksModSurge() },
+            ModType.Conversion => new Mod[] { new SticksModDifficultyAdjust(), new SticksModParity(), new SticksModEncore(), new SticksModSolo() },
             ModType.Fun => new Mod[] { new SticksModStrum() },
             ModType.System => new Mod[] { new SticksModDuet(), new SticksModParityDuet(), new SticksModCounterpoint() },
             _ => Array.Empty<Mod>(),
@@ -270,6 +271,7 @@ namespace osu.Game.Rulesets.Sticks
                     new KeyBinding(InputKey.Number2, SticksAction.EditorFlickTool),
                     new KeyBinding(InputKey.Number3, SticksAction.EditorSliderTool),
                     new KeyBinding(InputKey.Number4, SticksAction.EditorClickTool),
+                    new KeyBinding(InputKey.Number5, SticksAction.EditorSliceTool),
                 };
             }
 #endif

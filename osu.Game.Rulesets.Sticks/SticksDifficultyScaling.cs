@@ -95,6 +95,17 @@ namespace osu.Game.Rulesets.Sticks
         public static double StarRatingPrecisionMultiplier(IBeatmapDifficultyInfo difficulty) =>
             OverallDifficultyMultiplier(difficulty.OverallDifficulty);
 
+        internal static double NoteSizeStrainMultiplier(SticksHitObject note)
+        {
+            if (note is SticksClick or SticksSlice || note.SizeMultiplier == 1)
+                return 1;
+            double precision = AngularPrecisionMultiplier(note.PrimaryHitAngle, note.SecondaryHitAngle);
+            double baseline = precision * note.SizeMultiplier;
+            double ratio = (1 + AngularPrecisionStarAdjustment(1, precision))
+                           / (1 + AngularPrecisionStarAdjustment(1, baseline));
+            return Math.Pow(ratio, 2 / STAR_RATING_CALIBRATION_EXPONENT);
+        }
+
         internal static double GreatWindowFor(float overallDifficulty) => greatWindowFor(overallDifficulty);
 
         private static double greatWindowFor(float overallDifficulty)

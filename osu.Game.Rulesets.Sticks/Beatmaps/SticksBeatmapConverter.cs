@@ -195,8 +195,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                         applyCounterpoint(converted, original, cancellationToken);
                 }
 
-                if (SliderBurstMode.HasValue)
-                    applySourceSliderBursts(converted, original, cancellationToken);
+                applySourceSliderSpeeds(converted, original, cancellationToken);
                 observeSourceSliders(converted);
 
                 // Apply parity to the complete arrangement, including added partners and accents.
@@ -388,8 +387,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     yield break;
                 }
 
-                if (SliderBurstMode.HasValue || SourceSliderObserved != null)
-                    sourceSliderConversions[original] = slider;
+                sourceSliderConversions[original] = slider;
                 yield return slider;
             }
             else

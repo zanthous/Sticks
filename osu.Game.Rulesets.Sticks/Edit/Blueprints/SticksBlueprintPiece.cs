@@ -29,6 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private readonly Box selectionMarker;
         private SticksArcMarker? head;
         private SticksSliderHeadMarker? sliderHead;
+        private SticksSliceMarker? sliceMarker;
         private SticksClickHalo? halo;
         private SticksRadialTimelinePath? body;
         private SticksPlayfield.SticksRibbonBuffer? bodyBuffer;
@@ -118,7 +119,18 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                   ?? (hitObject.Side == StickSide.Left ? SticksPlayfield.LEFT_COLOUR : SticksPlayfield.RIGHT_COLOUR);
             bool changedColour = !hasColour || displayedSide != hitObject.Side || displayedColour != colour;
 
-            if (hitObject is SticksClick)
+            sliceMarker?.Hide();
+            if (hitObject is SticksSlice slice)
+            {
+                if (sliceMarker == null)
+                    AddInternal(sliceMarker = new SticksSliceMarker());
+                sliceMarker.SetState(displayedRadius, displayedAngle, slice.Direction, colour);
+                sliceMarker.Show();
+                head?.Hide();
+                sliderHead?.Hide();
+                halo?.Hide();
+            }
+            else if (hitObject is SticksClick)
             {
                 if (halo == null)
                 {

@@ -1,22 +1,15 @@
-# Surge slider-speed experiment
+# Default slider speeds
 
-Enable **Surge (SG)** in Conversion, then choose **Speed interpretation** in its settings. It is unranked and does not change the default converter when disabled.
+Source-speed conversion is always enabled, including with Parity. Surge and its Relative emphasis alternative have been retired.
 
-| Option | What it responds to |
-| --- | --- |
-| **Source speed** (default) | Source path travel per second × `45 / (100 × map.SliderMultiplier)`. Follows source BPM and SV directly, including slower source sliders. |
-| **Relative emphasis** | `max(80, 120 × (2 − medianSourceSpeed / sourceSpeed))`. Keeps 120°/s as the normal reference, allows slower sliders down to 80°/s, and preserves the existing diminishing boost for faster sliders. |
+The requested speed is source path travel per second × `45 / (100 × map.SliderMultiplier)`. This follows source BPM and SV, including slower source sliders. The primary slider is rescaled to that maximum segment speed while preserving segment timing and relative motion. Equal source speeds receive equal requests across unaccented runs and long sustains.
 
-Both preserve source slider timing and direction. The actual source-derived primary slider is rescaled to the requested maximum segment speed, preserving segment timing and relative motion. Equal source speeds receive equal requests across unaccented runs and long sustains. The previous accent/entry requirement and four-beat duration limit have been removed.
-
-Continuous movement stays at or below **240°/s**; paths retaining reversals stay at or below **160°/s**. These are experimental ceilings, not comfort guarantees. Added accompaniment and sliders assembled from circles retain their existing paths. Authored Sticks maps bypass Surge. Parity, Encore, Solo and Difficulty Adjust can be combined with it.
-
-Relative emphasis counts each source slider once when finding the median, irrespective of duration or repeat count. Median-speed source sliders request 120°/s, twice-median sliders 180°/s, and four-times-median sliders 210°/s. Requests diminish towards 240°/s as the ratio increases. At 80% of the median the request is 90°/s, and at 75% or less it reaches the 80°/s floor. Scaling all source speeds equally leaves these requests unchanged. The buzz exclusion later in this document is an analysis filter only; gameplay's median uses all source sliders.
+All source-converted sliders, including reversals, are capped at **720°/s** before playback-rate mods. Above **360°/s**, their angular width grows linearly: 1× at 360, 1.5× at 540, and 2× at 720. The widest size is chosen from the fastest segment and applies to the whole slider, including its head and checkpoints. Added accompaniment and sliders assembled from circles retain their existing paths. Authored Sticks maps bypass this conversion. Parity, Encore, Solo and Difficulty Adjust use the same source-speed mapping.
 
 Reproduce the gameplay-pipeline comparison:
 
 ```sh
-dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -c Release -- --compare-converters mapreference/standard --include-surge --include-parity --output mapreference/surge/comparison.json
+dotnet run --project osu.Game.Rulesets.Sticks.DifficultyTestbed -c Release -- --compare-converters mapreference/standard --include-parity --output mapreference/surge/comparison.json
 ```
 
 The report records changed slider timestamps and both speeds for playtesting. Numerical checks establish timing and speed bounds; they do not establish whether the faster passages feel good.
@@ -33,18 +26,18 @@ The earlier shortlist counted only changed sliders. That omitted the slow group 
 | 510 | 11 | 120 | 127.1 | 180 |
 | 612 | 8 | 120 | 145.9 | 190 |
 
-Relative emphasis already gave a 70°/s slow-to-fast difference. The current implementation retains that fast-side curve, with its normal reference fixed at 120°/s. `sourceSliderSpeeds` records every retained source slider, including those left unchanged. Use those complete traces to judge variation; `sliderBursts` alone only reports modifications, now including decreases as well as increases. No speed-ranking claim should be inferred from the number of changed sliders.
+Relative emphasis already gave a 70°/s slow-to-fast difference. That historical Relative emphasis curve used 120°/s as its normal reference; it is no longer available. `sourceSliderSpeeds` records every retained source slider, including those left unchanged. Use those complete traces to judge variation; `sliderBursts` alone only reports modifications, now including decreases as well as increases. No speed-ranking claim should be inferred from the number of changed sliders.
 
 ## Tech-map speed study — 2026-09-15
 
-Measured **78 maps / 22,689 source sliders**, including 30 new maps selected from tech-map references and their difficulty spreads. Candidate sources included the [osu! technical-map wiki](https://osu.ppy.sh/wiki/en/Beatmap/Technical_maps), [PLANET//SHAPER's Loved nomination](https://osu.ppy.sh/community/forums/topics/880237), and a [slider-velocity practice thread](https://osu.ppy.sh/community/forums/topics/1258775). Selection was purposeful, not a representative sample of all maps. All 312 current-mode conversions (Default, Encore and both Surge settings) completed with zero validation issues. Every source slider in this sample retained a traced primary slider.
+Measured **78 maps / 22,689 source sliders**, including 30 new maps selected from tech-map references and their difficulty spreads. Candidate sources included the [osu! technical-map wiki](https://osu.ppy.sh/wiki/en/Beatmap/Technical_maps), [PLANET//SHAPER's Loved nomination](https://osu.ppy.sh/community/forums/topics/880237), and a [slider-velocity practice thread](https://osu.ppy.sh/community/forums/topics/1258775). Selection was purposeful, not a representative sample of all maps. At the time of the study, all 312 mode conversions (Default, Encore and both Surge settings) completed with zero validation issues. Every source slider in this sample retained a traced primary slider.
 
 The pre-implementation study projected these two replacements:
 
 - **Direct Source:** `source_px_per_s * 45 / (100 * map.SliderMultiplier)`.
 - **Relative, 80 floor:** with `r = source_px_per_s / median_source_px_per_s`, use `max(80, 120 + 120 * (1 - 1 / r))`. This keeps the 120°/s base and existing faster-slider emphasis. The proposed slower side extends the same curve below the median, stopping at 80°/s.
 
-These requests remove the existing boost-only behavior and accent/entry/duration gates. The full tables separately apply the existing ceilings using each converted path's actual reversal status. **80°/s is the relative floor; the base remains 120°/s.** The earlier table incorrectly changed the base to 80 and has been replaced. Stars in the report belong to the current build, not these proposals.
+These requests remove the existing boost-only behavior and accent/entry/duration gates. The full tables separately apply the existing ceilings using each converted path's actual reversal status. **80°/s is the relative floor; the base remains 120°/s.** The earlier table incorrectly changed the base to 80 and has been replaced. Stars in the report belong to the study build, not these proposals.
 
 All numbers below are **minimum / median / maximum**; proposals are degrees/s before per-path ceilings:
 
@@ -64,7 +57,7 @@ All numbers below are **minimum / median / maximum**; proposals are degrees/s be
 
 **Ceiling effects:** Direct Source exceeds the current per-path ceiling on 616/1165 Exit-remix sliders (52.9%); its median would flatten to 240°/s. For MARENOL [Extra] and Railgun [Shot It], the counts are 29/227 and 33/186. The corrected relative proposal exceeds no per-path ceilings on these three maps. Its 80°/s floor also prevents the extremely slow targets from the mistaken 80-base proposal. These projections retain the existing faster-slider emphasis curve, rather than using a linear speed ratio for the faster side.
 
-For playtesting within the earlier preferred difficulty range, the **current build** gives MARENOL [Insane] 5.37★ default / 5.75★ Source / 5.86★ Relative; Nhelv [Rhonen's Hyper] 4.73★ / 5.58★ / 4.92★. MARENOL [Extra] (6.18★ / 7.10★ / 7.26★) and Railgun [Shot It] (6.45★ / 7.04★ / 6.74★) are harder but stronger variation cases. These ratings are not forecasts for either replacement.
+For playtesting within the earlier preferred difficulty range, the **study build** gave MARENOL [Insane] 5.37★ default / 5.75★ Source / 5.86★ Relative; Nhelv [Rhonen's Hyper] 4.73★ / 5.58★ / 4.92★. MARENOL [Extra] (6.18★ / 7.10★ / 7.26★) and Railgun [Shot It] (6.45★ / 7.04★ / 6.74★) are harder but stronger variation cases. These ratings are not forecasts for either replacement.
 
 Local gitignored artifacts: [all-map tables](../mapreference/surge-speed-study/summary.md), [summary and speed groups](../mapreference/surge-speed-study/summary.json), and [new-map download URLs and SHA-256 hashes](../mapreference/surge-speed-study/download-manifest.json). Full decoded objects and current-mod observations are in `new-maps.json`, `railgun.json`, and `existing-maps.json` in that directory. Reproduction uses the [testbed analysis command](../osu.Game.Rulesets.Sticks.DifficultyTestbed/README.md).
 

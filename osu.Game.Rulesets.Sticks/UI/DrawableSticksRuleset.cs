@@ -56,6 +56,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         [Resolved(CanBeNull = true)]
         private Player player { get; set; }
 
+        [Resolved]
+        private GameHost host { get; set; }
+
         public DrawableSticksRuleset(SticksRuleset ruleset, IBeatmap beatmap, IReadOnlyList<Mod> mods = null)
             : base(ruleset, beatmap, mods)
         {
@@ -115,7 +118,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (saveReplays.Value)
                 replayPersistence?.Track(score, flickActivationThreshold.Value);
 
-            return new SticksReplayRecorder(score, (SticksPlayfield)Playfield, Config.LockFlickActivationThreshold());
+            // The host scheduler survives the departing gameplay drawable and recorder.
+            return new SticksReplayRecorder(score, (SticksPlayfield)Playfield, Config.LockFlickActivationThreshold(host.UpdateThread.Scheduler));
         }
 
         public override void SetReplayScore(Score replayScore)
@@ -140,6 +144,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             {
                 SticksSlider slider => new DrawableSticksSlider(slider),
                 SticksHold hold => new DrawableSticksHold(hold),
+                SticksSlice slice => new DrawableSticksSlice(slice),
                 SticksClick click => new DrawableSticksClick(click),
                 SticksFlick flick => new DrawableSticksFlick(flick),
                 _ => null,

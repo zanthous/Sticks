@@ -36,7 +36,6 @@ internal static class ConverterComparison
         string? output = null;
         bool parity = false;
         bool legacyBase = false;
-        bool surge = false;
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -61,10 +60,6 @@ internal static class ConverterComparison
                     legacyBase = true;
                     break;
 
-                case "--include-surge":
-                    surge = true;
-                    break;
-
                 case "--legacy-duet-base":
                 case "--include-counterpoint":
                     legacyBase = true;
@@ -72,7 +67,7 @@ internal static class ConverterComparison
                     break;
 
                 default:
-                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-legacy-base] [--include-surge].");
+                    Console.Error.WriteLine($"Invalid comparison argument '{args[i]}'. Use --compare-converters <directory|file.osu|file.osz> [--output report.json] [--include-parity] [--include-legacy-base].");
                     return 2;
             }
         }
@@ -225,33 +220,24 @@ internal static class ConverterComparison
                 SourceTimeline = source.HitObjects.Select(note => describeSource(note, source)).ToArray(),
             };
 
-            var modes = new List<(string Name, bool Parity, bool Encore, bool LegacyBase, SticksSliderBurstMode? Surge)>
+            var modes = new List<(string Name, bool Parity, bool Encore, bool LegacyBase)>
             {
-                ("Default", false, false, false, null),
-                ("Encore", false, true, false, null),
+                ("Default", false, false, false),
+                ("Encore", false, true, false),
             };
             if (parity)
             {
-                modes.Add(("Parity", true, false, false, null));
-                modes.Add(("ParityEncore", true, true, false, null));
+                modes.Add(("Parity", true, false, false));
+                modes.Add(("ParityEncore", true, true, false));
             }
             if (legacyBase)
             {
-                modes.Add(("LegacyBase", false, false, true, null));
-                modes.Add(("LegacyBaseEncore", false, true, true, null));
+                modes.Add(("LegacyBase", false, false, true));
+                modes.Add(("LegacyBaseEncore", false, true, true));
                 if (parity)
                 {
-                    modes.Add(("LegacyBaseParity", true, false, true, null));
-                    modes.Add(("LegacyBaseParityEncore", true, true, true, null));
-                }
-            }
-            if (surge)
-            {
-                foreach (SticksSliderBurstMode interpretation in Enum.GetValues<SticksSliderBurstMode>())
-                {
-                    modes.Add(($"Surge{interpretation}", false, false, false, interpretation));
-                    if (parity)
-                        modes.Add(($"ParitySurge{interpretation}", true, false, false, interpretation));
+                    modes.Add(("LegacyBaseParity", true, false, true));
+                    modes.Add(("LegacyBaseParityEncore", true, true, true));
                 }
             }
             var ruleset = new SticksRuleset();
@@ -278,32 +264,29 @@ internal static class ConverterComparison
 
                 if (mode.Encore)
                     selectedMods.Add(new SticksModEncore());
-                if (mode.Surge is SticksSliderBurstMode interpretation)
-                    selectedMods.Add(new SticksModSurge { SpeedInterpretation = { Value = interpretation } });
-                if (!mode.LegacyBase)
-                    selectedMods.Add(new ArrangementObserverMod
+                selectedMods.Add(new ArrangementObserverMod
+                {
+                    ArrangementObserved = (family, start, end, changedHands, addedHeads) =>
+                        arrangements.Add(new ArrangementDescription(family, start, end, changedHands, addedHeads)),
+                    SliderBurstObserved = (slider, sourceSpeed, before) =>
                     {
-                        ArrangementObserved = (family, start, end, changedHands, addedHeads) =>
-                            arrangements.Add(new ArrangementDescription(family, start, end, changedHands, addedHeads)),
-                        SliderBurstObserved = (slider, sourceSpeed, before) =>
-                        {
-                            boostedSliders.Add(slider);
-                            double after = Enumerable.Range(0, slider.SegmentCount)
-                                .Max(index => Math.Abs(slider.SegmentArcAngleAt(index)) / slider.SegmentDurationAt(index) * 1000);
-                            bursts.Add(new SliderBurstDescription(slider.StartTime, slider.EndTime, sourceSpeed, before, after));
-                        },
-                        SourceSliderObserved = (original, slider) =>
-                        {
-                            if (original is not IHasPath path || original is not IHasDuration { Duration: > 0 } duration)
-                                return;
-                            int spans = original is IHasRepeats repeated ? repeated.SpanCount() : 1;
-                            double sourceSpeed = path.Path.Distance / (duration.Duration / spans) * 1000;
-                            double speed = Enumerable.Range(0, slider.SegmentCount)
-                                .Max(index => Math.Abs(slider.SegmentArcAngleAt(index)) / slider.SegmentDurationAt(index) * 1000);
-                            bool reverses = Enumerable.Range(0, slider.SegmentCount - 1).Any(slider.SegmentEndsWithReversal);
-                            sourceSliders.Add(new SourceSliderSpeedDescription(original.StartTime, sourceSpeed, speed, reverses));
-                        },
-                    });
+                        boostedSliders.Add(slider);
+                        double after = Enumerable.Range(0, slider.SegmentCount)
+                            .Max(index => Math.Abs(slider.SegmentArcAngleAt(index)) / slider.SegmentDurationAt(index) * 1000);
+                        bursts.Add(new SliderBurstDescription(slider.StartTime, slider.EndTime, sourceSpeed, before, after));
+                    },
+                    SourceSliderObserved = (original, slider) =>
+                    {
+                        if (original is not IHasPath path || original is not IHasDuration { Duration: > 0 } duration)
+                            return;
+                        int spans = original is IHasRepeats repeated ? repeated.SpanCount() : 1;
+                        double sourceSpeed = path.Path.Distance / (duration.Duration / spans) * 1000;
+                        double speed = Enumerable.Range(0, slider.SegmentCount)
+                            .Max(index => Math.Abs(slider.SegmentArcAngleAt(index)) / slider.SegmentDurationAt(index) * 1000);
+                        bool reverses = Enumerable.Range(0, slider.SegmentCount - 1).Any(slider.SegmentEndsWithReversal);
+                        sourceSliders.Add(new SourceSliderSpeedDescription(original.StartTime, sourceSpeed, speed, reverses));
+                    },
+                });
                 Mod[] mods = selectedMods.ToArray();
                 // WorkingBeatmap executes the same mod -> converter -> processor -> defaults
                 // pipeline as gameplay, including applying IApplicableToBeatmapConverter mods.
@@ -343,7 +326,7 @@ internal static class ConverterComparison
                 Counts counts = mode.Counts;
                 string change = mode.Difference == null ? string.Empty : $"; changed {mode.Difference.ChangedHeadFraction:P1} ({mode.Difference.RemovedOrChangedHeads} removed/changed, {mode.Difference.AddedOrChangedHeads} added/changed)";
                 string clearance = counts.MinimumClickClearanceMs is double minimum ? $"{minimum:0.#}ms" : "n/a";
-                Console.WriteLine($"  {mode.Mode,-12} {mode.Stars:0.000} stars heads={counts.Heads} F/H/S/C={counts.Flicks}/{counts.Holds}/{counts.Sliders}/{counts.Clicks} click-clearance-min={clearance} chords={counts.Chords} dual-sustain={counts.DualSustainOverlapMs / 1000:0.###}s opposite-flicks={counts.SustainWithOppositeFlicks}{change}");
+                Console.WriteLine($"  {mode.Mode,-12} {mode.Stars:0.000} stars heads={counts.Heads} F/H/S/C={counts.Flicks}/{counts.Holds}/{counts.Sliders}/{counts.Clicks} slices={counts.Slices} click-clearance-min={clearance} chords={counts.Chords} dual-sustain={counts.DualSustainOverlapMs / 1000:0.###}s opposite-flicks={counts.SustainWithOppositeFlicks}{change}");
                 if (mode.SourceIdentity is SourceIdentityMetrics identity)
                     Console.WriteLine($"    source-circle onsets retained={identity.SourceCircleOnsetsWithManualHeads}/{identity.SourceCircleOnsets}; generated sustains within one primary angle window={identity.GeneratedSustainsWithinPrimaryWindow}/{identity.GeneratedSustains}");
                 PatternMetrics patterns = mode.Patterns;
@@ -469,7 +452,7 @@ internal static class ConverterComparison
         return new Counts(notes.Length, groups, notes.OfType<SticksFlick>().Count(), notes.OfType<SticksHold>().Count(), notes.OfType<SticksSlider>().Count(),
             clicks.Length, notes.Length == 0 ? 0 : clicks.Length / (double)notes.Length, durationMs > 0 ? clicks.Length * 60000 / durationMs : 0,
             clearances.Length == 0 ? null : clearances[0], medianClearance, overlappingClicks,
-            chords, dualTime, oppositeFlicks);
+            chords, dualTime, oppositeFlicks, notes.OfType<SticksSlice>().Count());
     }
 
     private static ValidationResult validate(SticksHitObject[] notes, bool authored, HashSet<SticksSlider> boostedSliders)
@@ -509,9 +492,7 @@ internal static class ConverterComparison
                     result.Issues.Add($"Nonfinite slider geometry at {note.StartTime}ms.");
                 double limit = SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY;
                 if (boostedSliders.Contains(slider))
-                    limit = Enumerable.Range(0, slider.SegmentCount - 1).Any(slider.SegmentEndsWithReversal)
-                        ? SticksBeatmapConverter.MAX_SURGE_REVERSAL_ANGULAR_VELOCITY
-                        : SticksBeatmapConverter.MAX_SURGE_SLIDER_ANGULAR_VELOCITY;
+                    limit = SticksBeatmapConverter.MAX_SOURCE_SLIDER_ANGULAR_VELOCITY;
                 if (!authored && speed > limit + 0.001)
                     result.Issues.Add($"Slider at {note.StartTime}ms exceeds speed limit: {speed}deg/s.");
             }
@@ -778,7 +759,7 @@ internal static class ConverterComparison
     private sealed record Counts(int Heads, int TimingGroups, int Flicks, int Holds, int Sliders,
                                 int Clicks, double ClickFraction, double ClicksPerMinute,
                                 double? MinimumClickClearanceMs, double? MedianClickClearanceMs, int ClicksOverlappingDirectionalGestures,
-                                int Chords, double DualSustainOverlapMs, int SustainWithOppositeFlicks);
+                                int Chords, double DualSustainOverlapMs, int SustainWithOppositeFlicks, int Slices);
     private sealed record Difference(int MatchingHeads, int RemovedOrChangedHeads, int AddedOrChangedHeads, double ChangedHeadFraction);
     private sealed record SourceIdentityMetrics(int SourceCircleOnsets, int SourceCircleOnsetsWithManualHeads, double? SourceCircleOnsetRetentionFraction,
                                                 int GeneratedSustains, int GeneratedSustainsWithinPrimaryWindow,

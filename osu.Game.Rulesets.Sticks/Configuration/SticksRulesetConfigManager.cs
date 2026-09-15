@@ -1,9 +1,9 @@
 using System;
 using osu.Framework.Allocation;
-using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Framework.Configuration.Tracking;
 using osu.Framework.Extensions;
+using osu.Framework.Threading;
 using osu.Game.Configuration;
 using osu.Game.Rulesets.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
@@ -24,31 +24,45 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         }
 
         private readonly object flickThresholdLockSync = new object();
-        private LeasedBindable<float> flickThresholdLease;
+        private bool flickThresholdWasDisabled;
         private int flickThresholdLockCount;
 
-        internal IDisposable LockFlickActivationThreshold()
+        internal IDisposable LockFlickActivationThreshold(Scheduler updateScheduler)
         {
+            ArgumentNullException.ThrowIfNull(updateScheduler);
+            var threshold = GetOriginalBindable<float>(SticksRulesetSetting.FlickActivationThreshold);
             // Retries can create their recorder before the previous one is disposed.
+            // We only need to prevent edits, not acquire exclusive write access to the setting.
             lock (flickThresholdLockSync)
             {
                 if (flickThresholdLockCount == 0)
-                    flickThresholdLease = GetBindable<float>(SticksRulesetSetting.FlickActivationThreshold).BeginLease(false);
+                {
+                    flickThresholdWasDisabled = threshold.Disabled;
+                    threshold.Disabled = true;
+                }
 
                 flickThresholdLockCount++;
             }
 
-            return new InvokeOnDisposal(() =>
+            bool released = false;
+            // Drawable disposal runs in the background. Disabled propagates directly
+            // into loaded settings controls, so release the lock on the update thread.
+            // Queue the decrement too: a retry started before this runs must inherit
+            // the existing lock, not capture its disabled state as the original value.
+            return new InvokeOnDisposal(() => updateScheduler.Add(() =>
             {
                 lock (flickThresholdLockSync)
                 {
-                    if (--flickThresholdLockCount != 0)
+                    // Drawable cleanup can run more than once; InvokeOnDisposal itself
+                    // deliberately invokes its callback on every Dispose call.
+                    if (released)
                         return;
+                    released = true;
 
-                    flickThresholdLease.Return();
-                    flickThresholdLease = null;
+                    if (--flickThresholdLockCount == 0)
+                        threshold.Disabled = flickThresholdWasDisabled;
                 }
-            });
+            }, forceScheduled: false));
         }
 
         protected override void InitialiseDefaults()

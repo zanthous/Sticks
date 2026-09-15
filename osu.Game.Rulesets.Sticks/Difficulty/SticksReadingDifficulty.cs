@@ -67,7 +67,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
                     }
                 }
 
-                work += 0.3 + distance * (1 + step_change_scale * change);
+                work += 0.3 + distance * (1 + step_change_scale * change) * SticksDifficultyScaling.NoteSizeStrainMultiplier(current);
 
                 double endTime = current switch
                 {

@@ -47,9 +47,40 @@ namespace osu.Game.Rulesets.Sticks.Objects
 
         public Bindable<Color4> DisplayColour { get; } = new Bindable<Color4>(LEFT_DISPLAY_COLOUR);
 
-        public float PrimaryHitAngle { get; set; } = VISIBLE_ARC_SPAN;
+        private float sizeMultiplier = 1;
 
-        public float SecondaryHitAngle { get; set; } = VISIBLE_ARC_SPAN / 2;
+        public float SizeMultiplier
+        {
+            get => sizeMultiplier;
+            set
+            {
+                if (!float.IsFinite(value) || value <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(value));
+                if (sizeMultiplier == value)
+                    return;
+                sizeMultiplier = value;
+                foreach (SticksHitObject nested in NestedHitObjects.OfType<SticksHitObject>())
+                    nested.SizeMultiplier = value;
+                RefreshLegacyEditorMarker();
+            }
+        }
+
+        private double unscaledPrimaryHitAngle = VISIBLE_ARC_SPAN;
+        private double unscaledSecondaryHitAngle = VISIBLE_ARC_SPAN / 2;
+
+        [JsonIgnore]
+        public float PrimaryHitAngle
+        {
+            get => unscaledPrimaryHitAngle > 0 && double.IsFinite(unscaledPrimaryHitAngle) ? (float)Math.Clamp(unscaledPrimaryHitAngle * SizeMultiplier, 1, 360) : (float)unscaledPrimaryHitAngle;
+            set => unscaledPrimaryHitAngle = (double)value / SizeMultiplier;
+        }
+
+        [JsonIgnore]
+        public float SecondaryHitAngle
+        {
+            get => unscaledSecondaryHitAngle > 0 && double.IsFinite(unscaledSecondaryHitAngle) ? (float)Math.Clamp(unscaledSecondaryHitAngle * SizeMultiplier, 0.5, 180) : (float)unscaledSecondaryHitAngle;
+            set => unscaledSecondaryHitAngle = (double)value / SizeMultiplier;
+        }
 
         public float PreciseHalfAngle => PrimaryHitAngle / 2;
 
@@ -273,9 +304,16 @@ namespace osu.Game.Rulesets.Sticks.Objects
         protected override void ApplyDefaultsToSelf(ControlPointInfo controlPointInfo, IBeatmapDifficultyInfo difficulty)
         {
             base.ApplyDefaultsToSelf(controlPointInfo, difficulty);
-            PrimaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize);
-            SecondaryHitAngle = PrimaryHitAngle / 2;
+            unscaledPrimaryHitAngle = HitAngleForCircleSize(difficulty.CircleSize);
+            unscaledSecondaryHitAngle = unscaledPrimaryHitAngle / 2;
             ApproachDuration = ApproachDurationFor(difficulty.ApproachRate);
+        }
+
+        protected new void AddNested(HitObject nested)
+        {
+            if (nested is SticksHitObject sticks)
+                sticks.SizeMultiplier = SizeMultiplier;
+            base.AddNested(nested);
         }
 
         public static float NormaliseAngle(float angle)

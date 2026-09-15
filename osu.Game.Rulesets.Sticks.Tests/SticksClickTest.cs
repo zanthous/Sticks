@@ -88,7 +88,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var beatmap = map(new SticksClick { StartTime = 1000 },
                 new SticksFlick { StartTime = 1500 },
                 new SticksHold { StartTime = 2000, Duration = 1000 },
-                new SticksClick { StartTime = 2500 });
+                new SticksClick { StartTime = 2500 },
+                new SticksSlice { StartTime = 3500 },
+                new SticksSlice { StartTime = 4000, Direction = SticksSliceDirection.Counterclockwise });
             var processor = new SticksScoreProcessor(new SticksRuleset());
             processor.ApplyBeatmap(beatmap);
             foreach (HitObject hitObject in beatmap.HitObjects.SelectMany(flatten).OrderBy(h => h.GetEndTime()))

@@ -91,10 +91,10 @@ namespace osu.Game.Rulesets.Sticks.Mods
 
         private void applyAngles(SticksHitObject hitObject)
         {
-            if (PrimaryHitAngle.Value is float primary)
+            if (hitObject is not SticksSlice && PrimaryHitAngle.Value is float primary)
             {
-                hitObject.PrimaryHitAngle = primary;
-                hitObject.SecondaryHitAngle = primary / 2;
+                hitObject.PrimaryHitAngle = primary * hitObject.SizeMultiplier;
+                hitObject.SecondaryHitAngle = hitObject.PrimaryHitAngle / 2;
             }
 
             foreach (HitObject nested in hitObject.NestedHitObjects)

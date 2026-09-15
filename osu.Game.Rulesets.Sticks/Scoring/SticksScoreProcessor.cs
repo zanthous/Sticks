@@ -35,7 +35,7 @@ namespace osu.Game.Rulesets.Sticks.Scoring
         {
             SticksClick.TimingWeight => 0,
             ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Angle } => 0,
-            SticksClick => 2 * base.GetComboScoreChange(result),
+            SticksClick or SticksSlice => 2 * base.GetComboScoreChange(result),
             // Timing owns the entire head's combo contribution, including aim's half.
             ISticksAccuracyComponent { AccuracyComponent: SticksAccuracyComponent.Timing } => 2 * base.GetComboScoreChange(result),
             _ => base.GetComboScoreChange(result),

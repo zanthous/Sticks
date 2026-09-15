@@ -40,7 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             string side = hitObject.Side == StickSide.Left ? "l" : "r";
             string angle = number(SticksHitObject.NormaliseAngle(hitObject.Angle));
 
-            return hitObject switch
+            string payload = hitObject switch
             {
                 SticksSlider { HasTimedSegments: true } slider =>
                     $"{TIMED_SEGMENT_MARKER_PREFIX}s~{side}~{preciseNumber(SticksHitObject.NormaliseAngle(slider.Angle))}~{preciseNumber(slider.Duration)}~{string.Join('_', slider.SegmentArcAngles.Select(segment => preciseNumber(segment)))}~{string.Join('_', slider.SegmentDurationWeights.Select(preciseNumber))}.wav",
@@ -48,10 +48,14 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                     $"{SEGMENT_MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{string.Join('_', slider.SegmentArcAngles.Select(segment => number(segment)))}.wav",
                 SticksSlider slider => $"{MARKER_PREFIX}s~{side}~{angle}~{number(slider.Duration)}~{number(slider.ArcAngle)}~{slider.RepeatCount}.wav",
                 SticksHold hold => $"{MARKER_PREFIX}h~{side}~{angle}~{number(hold.Duration)}.wav",
+                SticksSlice slice => $"{MARKER_PREFIX}x~{side}~{angle}~{(int)slice.Direction}.wav",
                 SticksClick => $"{MARKER_PREFIX}c~{side}~{angle}.wav",
                 SticksFlick => $"{MARKER_PREFIX}f~{side}~{angle}.wav",
                 _ => throw new ArgumentException($"Unsupported authored Sticks object: {hitObject.GetType().Name}", nameof(hitObject)),
             };
+            return hitObject.SizeMultiplier == 1 && hitObject is not SticksSlice
+                ? payload
+                : $"sticks-v4~{preciseNumber(hitObject.SizeMultiplier)}~{payload[7..]}";
         }
 
         /// <summary>
@@ -115,7 +119,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             if (versionStatus == MarkerVersionParseStatus.Malformed)
                 return new MarkerInspection(MarkerStatus.MalformedSupported, 1, null, marker.Filename, null);
 
-            if (versionStatus == MarkerVersionParseStatus.Overflow || version is not 1 and not 2 and not 3)
+            if (versionStatus == MarkerVersionParseStatus.Overflow || version is not 1 and not 2 and not 3 and not 4)
                 return new MarkerInspection(MarkerStatus.UnsupportedVersion, 1, version, marker.Filename, null);
 
             SticksHitObject? decoded = tryDecodeSupportedMarker(source, marker);
@@ -134,6 +138,22 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private static SticksHitObject? tryDecodeSupportedMarker(HitObject source, ConvertHitObjectParser.FileHitSampleInfo marker)
         {
             string fileName = getFileName(marker.Filename);
+            if (fileName.StartsWith("sticks-v4~", StringComparison.OrdinalIgnoreCase))
+            {
+                string[] envelope = fileName.Split('~', 3);
+                if (envelope.Length != 3 || !parseFloat(envelope[1], out float size) || size <= 0
+                    || !(envelope[2].StartsWith("v1~", StringComparison.OrdinalIgnoreCase)
+                         || envelope[2].StartsWith("v2~", StringComparison.OrdinalIgnoreCase)
+                         || envelope[2].StartsWith("v3~", StringComparison.OrdinalIgnoreCase)))
+                    return null;
+                var inner = new ConvertHitObjectParser.FileHitSampleInfo("sticks-" + envelope[2], marker.Volume);
+                SticksHitObject? decoded = tryDecodeSupportedMarker(source, inner);
+                if (decoded == null || decoded is SticksSlice && size != 1)
+                    return null;
+                decoded.SizeMultiplier = size;
+                decoded.Samples = decodedSamples(source, marker);
+                return decoded;
+            }
             int extensionStart = fileName.LastIndexOf('.');
 
             if (extensionStart < 0 || !fileName.AsSpan(extensionStart).Equals(".wav", StringComparison.OrdinalIgnoreCase))
@@ -255,6 +275,17 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
             switch (parts[1])
             {
+                case "x" when parts.Length == 5 && int.TryParse(parts[4], out int sliceDirection)
+                                   && Enum.IsDefined((SticksSliceDirection)sliceDirection):
+                    return new SticksSlice
+                    {
+                        StartTime = source.StartTime,
+                        Side = side,
+                        Angle = SticksHitObject.NormaliseAngle(angle),
+                        Direction = (SticksSliceDirection)sliceDirection,
+                        Samples = samples,
+                    };
+
                 case "c" when parts.Length == 4:
                     return new SticksClick
                     {
@@ -325,6 +356,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 Side = hold.Side,
                 Angle = hold.Angle,
                 ArcAngle = 0,
+                SizeMultiplier = hold.SizeMultiplier,
                 PrimaryHitAngle = hold.PrimaryHitAngle,
                 SecondaryHitAngle = hold.SecondaryHitAngle,
                 Samples = hold.Samples.Select(sample => sample.With()).ToList(),

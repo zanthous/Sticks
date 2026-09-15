@@ -20,6 +20,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         private DrawableSticksAngleComponent angleComponent = null!;
         private SticksPlayfield playfield = null!;
         private long observedSequence;
+        private long observedOtherSequence;
 
         public new SticksFlick HitObject => (SticksFlick)base.HitObject;
 
@@ -50,6 +51,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             playfield = sticksPlayfield;
             observedSequence = playfield.FlickSequence(HitObject.Side);
+            observedOtherSequence = playfield.FlickSequence(SticksPlayfield.OppositeSide(HitObject.Side));
         }
 
         protected override void Update()
@@ -59,6 +61,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (marker.Side != HitObject.Side)
             {
                 observedSequence = playfield.FlickSequence(HitObject.Side);
+                observedOtherSequence = playfield.FlickSequence(SticksPlayfield.OppositeSide(HitObject.Side));
             }
             marker.SetLane(HitObject.Side, playfield.ColourFor(HitObject.Side));
             marker.Angle = HitObject.Angle;
@@ -67,31 +70,40 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
             marker.Span = HitObject.PrimaryHitAngle;
 
-            long sequence = playfield.FlickSequence(HitObject.Side);
             if (Judged)
                 return;
-
-            if (sequence != observedSequence)
+            for (int hand = 0; hand < (playfield.EitherStick ? 2 : 1); hand++)
             {
-                observedSequence = sequence;
-                SticksInputTracker.FlickEvent flick = playfield.LastFlick(HitObject.Side);
-                double offset = flick.Time - HitObject.StartTime;
-                float angleError = Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, HitObject.Angle));
+                StickSide inputSide = hand == 0 ? HitObject.Side : SticksPlayfield.OppositeSide(HitObject.Side);
+                long sequence = playfield.FlickSequence(inputSide);
+                long observed = hand == 0 ? observedSequence : observedOtherSequence;
 
-                if (offset >= -SticksFlick.EARLY_HIT_WINDOW
-                    && offset <= SticksFlick.LATE_HIT_WINDOW
-                    && playfield.TryConsumeHeadFlick(this, HitObject.Side, flick.Sequence))
+                if (sequence != observed)
                 {
-                    HitResult timingResult = HitObject.HitWindows?.ResultFor(offset) ?? HitResult.Great;
-                    HitResult angleResult = HitObject.ResultForCurrentAngleError(angleError);
-                    (timingResult, angleResult) = SticksHitObject.ResolveComponentResults(timingResult, angleResult);
+                    if (hand == 0)
+                        observedSequence = sequence;
+                    else
+                        observedOtherSequence = sequence;
+                    SticksInputTracker.FlickEvent flick = playfield.LastFlick(inputSide);
+                    double offset = flick.Time - HitObject.StartTime;
+                    float angleError = Math.Abs(SticksHitObject.DeltaAngle(flick.Angle, HitObject.Angle));
 
-                    // Apply in reading order. Both are native basic judgements and therefore each
-                    // contributes exactly half of this note's accuracy.
-                    ApplyResult(timingResult);
-                    angleComponent.ApplyAngleResult(angleResult, angleError);
-                    return;
+                    if (offset >= -SticksFlick.EARLY_HIT_WINDOW
+                        && offset <= SticksFlick.LATE_HIT_WINDOW
+                        && playfield.TryConsumeHeadFlick(this, inputSide, flick.Sequence))
+                    {
+                        HitResult timingResult = HitObject.HitWindows?.ResultFor(offset) ?? HitResult.Great;
+                        HitResult angleResult = HitObject.ResultForCurrentAngleError(angleError);
+                        (timingResult, angleResult) = SticksHitObject.ResolveComponentResults(timingResult, angleResult);
+
+                        // Apply in reading order. Both are native basic judgements and therefore each
+                        // contributes exactly half of this note's accuracy.
+                        ApplyResult(timingResult);
+                        angleComponent.ApplyAngleResult(angleResult, angleError);
+                        return;
+                    }
                 }
+
             }
 
             double currentOffset = Time.Current - HitObject.StartTime;

@@ -18,6 +18,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
     {
         public StickSide? Side { get; init; }
         public double? Angle { get; init; }
+        public double? SizeMultiplier { get; init; }
+        public SticksSliceDirection? SliceDirection { get; init; }
         public double? StartTime { get; init; }
         public double? EndTime { get; init; }
         public double? Duration { get; init; }
@@ -40,15 +42,19 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public SticksHitObject Target { get; }
         public StickSide Side { get; }
         public float Angle { get; }
+        public float SizeMultiplier { get; }
+        public SticksSliceDirection? SliceDirection { get; }
         public double StartTime { get; }
         public double EndTime => StartTime + (duration ?? 0);
 
         internal IReadOnlyList<float> SegmentAngles => segments ?? Array.Empty<float>();
 
         internal SticksInspectorEditPlan(SticksHitObject target, StickSide side, float angle, double startTime,
-                                        double? duration, float[]? segments, double[]? segmentDurations, bool replacePath)
+                                        double? duration, float[]? segments, double[]? segmentDurations, bool replacePath, float sizeMultiplier, SticksSliceDirection? sliceDirection)
         {
             Target = target;
+            SizeMultiplier = sizeMultiplier;
+            SliceDirection = sliceDirection;
             Side = side;
             Angle = angle;
             StartTime = startTime;
@@ -85,6 +91,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         public void Apply()
         {
+            Target.SizeMultiplier = SizeMultiplier;
+            if (Target is SticksSlice slice && SliceDirection.HasValue)
+                slice.Direction = SliceDirection.Value;
             Target.StartTime = StartTime;
             if (Target.Side != Side)
                 Target.Side = Side;
@@ -130,6 +139,11 @@ namespace osu.Game.Rulesets.Sticks.Edit
             if (edit.Side.HasValue && edit.Side != StickSide.Left && edit.Side != StickSide.Right)
                 return fail("Choose the left or right stick.", out error);
 
+            if (edit.SliceDirection.HasValue && (!Enum.IsDefined(edit.SliceDirection.Value) || selection.Any(note => note is not SticksSlice)))
+                return fail("Direction requires a selection of Slice notes.", out error);
+            if (edit.SizeMultiplier.HasValue && selection.Any(note => note is SticksClick or SticksSlice))
+                return fail("Clicks and Slices have a fixed size.", out error);
+
             bool segmentAnglesChanged = edit.SegmentAngles?.Count > 0;
             bool segmentDurationsChanged = edit.SegmentDurations?.Count > 0;
             bool globalDurationChanged = edit.EndTime.HasValue || edit.Duration.HasValue;
@@ -149,6 +163,10 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 StickSide side = edit.Side ?? target.Side;
                 double startTime = edit.StartTime ?? target.StartTime;
                 double angle = edit.Angle ?? target.Angle;
+                double size = edit.SizeMultiplier ?? target.SizeMultiplier;
+                double width = target.PrimaryHitAngle / target.SizeMultiplier * size;
+                if (!double.IsFinite(size) || size <= 0 || size > float.MaxValue || !double.IsFinite(width) || width < 1 || width > 360)
+                    return fail("Size must give an angular width between 1° and 360°.", out error);
                 if (!double.IsFinite(startTime) || startTime < 0)
                     return fail("Start time must be finite and nonnegative.", out error);
                 if (!tryAngle(angle, out float finalAngle))
@@ -227,7 +245,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 if (maxEndTime.HasValue && endTime > maxEndTime.Value)
                     return fail("The note must end within the audio track.", out error);
 
-                prepared[i] = new SticksInspectorEditPlan(target, side, finalAngle, startTime, duration, finalSegments, finalSegmentDurations, replacePath);
+                prepared[i] = new SticksInspectorEditPlan(target, side, finalAngle, startTime, duration, finalSegments, finalSegmentDurations, replacePath, (float)size, edit.SliceDirection);
             }
 
             if ((edit.Side.HasValue || edit.StartTime.HasValue) && introducesCollision(prepared))

@@ -55,7 +55,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             SticksHitObject[] selected = selection.Where(selectedSet.Add).ToArray();
             if (selected.Length == 0 || selected.Any(note => !all.Contains(note)))
                 return fail("The selected notes have changed. Select them again.", out error);
-            if (selected.Any(note => note is not (SticksFlick or SticksClick or SticksSlider or SticksHold)))
+            if (selected.Any(note => note is not (SticksFlick or SticksClick or SticksSlice or SticksSlider or SticksHold)))
                 return fail("This note type does not support changing its stick.", out error);
             if (!SticksInspectorEdits.TryPrepare(selected, new SticksInspectorEdit(), null, out _, out error))
                 return false;
@@ -153,6 +153,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             {
                 SticksSlider => new SticksSlider(),
                 SticksHold => new SticksHold(),
+                SticksSlice slice => new SticksSlice { Direction = slice.Direction },
                 SticksClick => new SticksClick(),
                 SticksFlick => new SticksFlick(),
                 _ => throw new InvalidOperationException("Unsupported stick-edit source."),
@@ -160,6 +161,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             copy.StartTime = source.StartTime;
             copy.Angle = source.Angle;
             copy.Side = side;
+            copy.SizeMultiplier = source.SizeMultiplier;
             copy.PrimaryHitAngle = source.PrimaryHitAngle;
             copy.SecondaryHitAngle = source.SecondaryHitAngle;
             copy.Samples = source.CreatePlayableSamples().Select(sample => sample.With()).ToList();
@@ -251,9 +253,11 @@ namespace osu.Game.Rulesets.Sticks.Edit
             {
                 if (ReferenceEquals(first, second))
                     return true;
-                if (first == null || second == null || first.GetType() != second.GetType() || first.StartTime != second.StartTime
+                if (first == null || second == null || first.GetType() != second.GetType() || first.StartTime != second.StartTime || first.SizeMultiplier != second.SizeMultiplier
                     || first is not SticksClick && SticksHitObject.NormaliseAngle(first.Angle) != SticksHitObject.NormaliseAngle(second.Angle))
                     return false;
+                if (first is SticksSlice firstSlice && second is SticksSlice secondSlice)
+                    return firstSlice.Direction == secondSlice.Direction;
                 if (first is SticksSlider left && second is SticksSlider right)
                     return left.Duration == right.Duration && left.SegmentCount == right.SegmentCount
                            && Enumerable.Range(0, left.SegmentCount).All(index => left.SegmentArcAngleAt(index) == right.SegmentArcAngleAt(index)
@@ -266,6 +270,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 var hash = new HashCode();
                 hash.Add(note.GetType());
                 hash.Add(note.StartTime);
+                hash.Add(note.SizeMultiplier);
+                if (note is SticksSlice slice)
+                    hash.Add(slice.Direction);
                 if (note is not SticksClick)
                     hash.Add(SticksHitObject.NormaliseAngle(note.Angle));
                 if (note is SticksSlider slider)

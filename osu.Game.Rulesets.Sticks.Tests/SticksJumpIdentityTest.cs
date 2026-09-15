@@ -227,8 +227,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
             }
         }
 
+        // Exercise jump protection and eligible sustain patterns with the full arrangement.
+        // These short synthetic phrases must not pass/fail because of the beginner allowance;
+        // its source-star ramp is covered by SticksBeginnerConversionTest.
         private static SticksHitObject[] convert(Beatmap<HitObject> source, SticksConversionMode mode = SticksConversionMode.Duet) =>
-            new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = mode }
+            new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = mode, LimitBeginnerCoordination = false }
                 .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
         private static string[] signature(SticksHitObject[] notes) => notes.Select(note =>

@@ -138,7 +138,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
             bool stationary = segments.All(s => Math.Abs(s.Arc) <= 1e-7);
             int[] turns = Enumerable.Range(0, segments.Length - 1).Where(i => segments[i].Reversal).ToArray();
             double velocity = segments.Sum(s => Math.Abs(s.Arc)) / Math.Max(0.025, duration / 1000 / clockRate);
-            double motion = Math.Pow(velocity / 120, 2.2);
+            double motion = SticksDifficultyModel.SliderMotionStrain(velocity);
             double shortest = segments.Min(s => s.Duration) / 1000 / clockRate;
             double reversal = turns.Length == 0 ? 0 : 0.3 * Math.Log2(turns.Length + 1)
                                                     * Math.Pow(0.4 / Math.Max(0.1, shortest), 0.6)
@@ -146,7 +146,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
             double total = impulse * control_scale * precisionOf(obj);
             double reverseMass = stationary ? 0 : total * reversal / (0.3 + motion + reversal);
             double[] weights = segments.Select(s => (stationary ? 0.15 : 0.3
-                + Math.Pow(Math.Abs(s.Arc) / Math.Max(0.025, s.Duration / 1000 / clockRate) / 120, 2.2)) * s.Duration).ToArray();
+                + SticksDifficultyModel.SliderMotionStrain(Math.Abs(s.Arc) / Math.Max(0.025, s.Duration / 1000 / clockRate))) * s.Duration).ToArray();
             double weightSum = weights.Sum();
             for (int i = 0; i < segments.Length; i++)
             {

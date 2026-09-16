@@ -406,7 +406,7 @@ namespace osu.Game.Rulesets.Sticks
 
             double durationSeconds = Math.Max(0.025, slider.Duration / 1000 / clockRate);
             double angularVelocity = slider.TotalAngularDistance / durationSeconds;
-            double motion = Math.Pow(angularVelocity / 120, 2.2);
+            double motion = SliderMotionStrain(angularVelocity);
             double shortestSegmentSeconds = Enumerable.Range(0, slider.SegmentCount)
                                                       .Select(slider.SegmentDurationAt)
                                                       .DefaultIfEmpty(slider.Duration)
@@ -429,6 +429,16 @@ namespace osu.Game.Rulesets.Sticks
             double endurance = 1 + 0.06 * Math.Log2(1 + durationSeconds);
 
             return (0.3 + motion + reversal) * endurance;
+        }
+
+        internal static double SliderMotionStrain(double angularVelocity)
+        {
+            double relativeSpeed = angularVelocity / 120;
+
+            // Preserve the control calibration within the original conversion speed range.
+            // Beyond it, continuous tracking adds work linearly: extrapolating the old
+            // power curve makes speed alone overwhelm head density, reading and reversals.
+            return relativeSpeed <= 1 ? Math.Pow(relativeSpeed, 2.2) : relativeSpeed;
         }
 
         private static ReadingContext calculateReadingContext(IReadOnlyList<SticksHitObject> group, double timestamp,

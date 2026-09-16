@@ -150,6 +150,12 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         private void rebuildControls()
         {
+            // Focus loss drains queued text/IME input. Do it while the old textbox's
+            // character drawables still exist, before Clear() disposes its contents.
+            // updatingControls prevents that obsolete draft from being committed.
+            if (fields.Values.Any(field => field.Box.HasFocus))
+                GetContainingFocusManager()?.ChangeFocus(null);
+
             targets = selected();
             targetSet.Clear();
             targetSet.UnionWith(targets);

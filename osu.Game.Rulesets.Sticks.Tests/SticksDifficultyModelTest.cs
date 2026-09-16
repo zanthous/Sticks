@@ -170,6 +170,24 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestFastSliderControlGrowsWithoutDominatingOtherSkills()
+        {
+            double control(float speed) => SticksDifficultyCalculator.CalculateDifficulty(
+                Enumerable.Range(0, 24).Select(i => slider(1000 + i * 1000, 750,
+                    i % 2 == 0 ? StickSide.Left : StickSide.Right, 0, speed * 0.75f))).Control;
+
+            double previous = control(120);
+            foreach (float speed in new[] { 240f, 480f, 720f })
+            {
+                double current = control(speed);
+                Assert.That(current, Is.GreaterThan(previous), "Faster tracking must still add control demand.");
+                Assert.That(current, Is.LessThan(previous * 1.6),
+                    "Doubling tracking speed must not more than double the control skill as the old power curve did.");
+                previous = current;
+            }
+        }
+
+        [Test]
         public void TestReversalAddsModestControlDifficulty()
         {
             var noReversal = slider(1000, 1800, StickSide.Left, 0, 180);

@@ -4,6 +4,7 @@ using System;
 using System.Globalization;
 using System.Linq;
 using NUnit.Framework;
+using osu.Framework.Allocation;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input;
 using osu.Framework.Testing;
@@ -21,6 +22,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
 {
     public partial class SticksInspectorEditingTest : EditorTestScene
     {
+        private readonly InspectorTextInputSource textInput = new InspectorTextInputSource();
+
+        protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
+        {
+            var dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
+            dependencies.CacheAs<TextInputSource>(textInput);
+            return dependencies;
+        }
+
         protected override Ruleset CreateEditorRuleset() => new SticksRuleset();
 
         [SetUpSteps]
@@ -35,6 +45,64 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 EditorBeatmap.ControlPointInfo.Add(0, new TimingControlPoint { BeatLength = 500 });
                 EditorClock.Seek(2000);
             });
+        }
+
+        [Test]
+        public void TestSizeInputCommitsAndSelectionChangeDrainsPendingText()
+        {
+            OsuTextBox sizeBox = null!;
+            SticksFlick first() => EditorBeatmap.HitObjects.OfType<SticksFlick>().Single(note => note.StartTime == 2000);
+            SticksFlick second() => EditorBeatmap.HitObjects.OfType<SticksFlick>().Single(note => note.StartTime == 2500);
+
+            AddStep("add two notes and select first", () =>
+            {
+                addSelected(new SticksFlick { StartTime = 2000, Angle = 30 }, new SticksFlick { StartTime = 2500, Angle = 90 });
+                EditorBeatmap.SelectedHitObjects.Remove(second());
+            });
+            AddUntilStep("size field loaded", () => hasField("Size"));
+            AddStep("focus size", () => focus("Size"));
+            AddUntilStep("initial size selected", () => field("Size").HasFocus && field("Size").SelectedText == "1");
+            AddStep("type double size through text input", () => textInput.Type("2"));
+            AddUntilStep("typed size displayed", () => valueIs("Size", 2));
+            AddStep("commit size with Enter", enter);
+            AddUntilStep("size committed", () => first().SizeMultiplier == 2 && !hasError());
+            AddStep("undo size", () => Editor.Undo());
+            AddUntilStep("size restored by undo", () => first().SizeMultiplier == 1);
+            AddStep("redo size", () => Editor.Redo());
+            AddUntilStep("double size restored by redo", () => first().SizeMultiplier == 2);
+            AddStep("select first note again", () =>
+            {
+                EditorBeatmap.SelectedHitObjects.Clear();
+                EditorBeatmap.SelectedHitObjects.Add(first());
+            });
+            AddUntilStep("restored size field loaded", () => hasField("Size") && valueIs("Size", 2));
+            AddStep("focus restored size", () =>
+            {
+                focus("Size");
+                sizeBox = field("Size");
+                sizeBox.SelectAll();
+            });
+            AddUntilStep("double size selected", () => sizeBox.HasFocus && sizeBox.SelectedText == "2");
+            AddStep("receive text just before selection rebuild", () =>
+            {
+                // Native input can arrive after the input manager's update but before
+                // the inspector rebuilds, leaving work in the old textbox's input queue.
+                textInput.Type("3");
+                EditorBeatmap.SelectedHitObjects.Clear();
+                EditorBeatmap.SelectedHitObjects.Add(second());
+            });
+            AddUntilStep("new selection has its own size field", () => hasField("Size")
+                && !ReferenceEquals(field("Size"), sizeBox) && valueIs("Size", 1));
+            AddUntilStep("removed field no longer focused", () => !sizeBox.HasFocus);
+            AddAssert("pending draft cannot change either note", () => first().SizeMultiplier == 2 && second().SizeMultiplier == 1);
+            AddStep("new field remains editable", () =>
+            {
+                focus("Size");
+                textInput.Type("2");
+            });
+            AddUntilStep("new field receives text", () => valueIs("Size", 2));
+            AddStep("commit by focusing Angle", () => focus("Angle"));
+            AddUntilStep("new selection size committed", () => second().SizeMultiplier == 2 && !hasError());
         }
 
         [Test]
@@ -373,5 +441,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private bool hasError() => inspector().ChildrenOfType<OsuTextFlowContainer>()
             .Any(flow => flow.Name == "Validation error" && flow.IsPresent
                          && flow.ChildrenOfType<SpriteText>().Any(text => !string.IsNullOrWhiteSpace(text.Text.ToString())));
+
+        private sealed class InspectorTextInputSource : TextInputSource
+        {
+            public void Type(string text) => TriggerTextInput(text);
+        }
     }
 }

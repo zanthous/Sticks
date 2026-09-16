@@ -144,6 +144,37 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void FastSliderWideningOffsetsMostOfTheAdditionalControlDemand()
+        {
+            double control(float speed, float size)
+            {
+                var notes = Enumerable.Range(0, 24).Select(i =>
+                {
+                    var slider = new SticksSlider
+                    {
+                        StartTime = 1000 + i * 1000,
+                        Duration = 750,
+                        Side = i % 2 == 0 ? StickSide.Left : StickSide.Right,
+                        ArcAngle = speed * 0.75f,
+                        SizeMultiplier = size,
+                    };
+                    slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty { CircleSize = 4 });
+                    return slider;
+                });
+                return SticksDifficultyCalculator.CalculateDifficulty(notes).Control;
+            }
+
+            double normal = control(360, 1);
+            double intermediate = control(540, 1.5f);
+            double fastWide = control(720, 2);
+            double fastNarrow = control(720, 1);
+            Assert.That(intermediate, Is.GreaterThan(normal));
+            Assert.That(fastWide, Is.GreaterThan(intermediate));
+            Assert.That(fastWide - normal, Is.LessThan((fastNarrow - normal) / 2),
+                "The conversion's wider tracking window must offset most of the extra control demand from 360 to 720 degrees/s.");
+        }
+
+        [Test]
         public void SweepsCrossSmallTargetsWithoutRechargeButStationaryAndWrongDirectionDoNot()
         {
             var slice = new SticksSlice { Angle = 0 };

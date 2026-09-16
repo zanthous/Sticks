@@ -25,8 +25,8 @@ namespace osu.Game.Rulesets.Sticks
 {
     public class SticksDifficultyCalculator : DifficultyCalculator
     {
-        // Recalculate for reduced introduced coordination in beginner conversions.
-        public override int Version => 202609160;
+        // Recalculate with moderated control strain above the original slider speed range.
+        public override int Version => 202609161;
 
         private SticksDifficultyModel.IncrementalState incrementalState;
         private IBeatmap incrementalBeatmap;

@@ -46,6 +46,61 @@ namespace osu.Game.Rulesets.Sticks.Objects
         private bool deserialising;
         private List<float> pendingSerialisedSegments;
         private List<double> pendingSerialisedDurationWeights;
+        private List<float> nodeSizeMultipliers;
+        private List<float> pendingSerialisedNodeSizes;
+
+        // Multipliers relative to the whole object's size. There is one value per
+        // endpoint: start, each segment junction, and tail. Missing data is uniform.
+        [JsonProperty("nodeSizeMultipliers", Order = 102, NullValueHandling = NullValueHandling.Ignore)]
+        public List<float> SerialisedNodeSizeMultipliers
+        {
+            get => nodeSizeMultipliers?.ToList();
+            set
+            {
+                if (deserialising)
+                    pendingSerialisedNodeSizes = value;
+                else
+                    SetNodeSizeMultipliers(value);
+            }
+        }
+
+        [JsonIgnore]
+        public bool HasNodeSizes => nodeSizeMultipliers != null;
+
+        public float NodeSizeMultiplierAt(int index) => nodeSizeMultipliers?[Math.Clamp(index, 0, SegmentCount)] ?? 1;
+
+        public float NodeSizeAt(int index) => SizeMultiplier * NodeSizeMultiplierAt(index);
+
+        public override float SizeMultiplierAt(double time)
+        {
+            if (!HasNodeSizes)
+                return SizeMultiplier;
+            int segment = SegmentIndexAt(time);
+            double progress = SegmentProgressAt(time);
+            return (float)(NodeSizeAt(segment) * (1 - progress) + NodeSizeAt(segment + 1) * progress);
+        }
+
+        public void SetNodeSizeMultipliers(IEnumerable<float> sizes)
+        {
+            List<float> values = sizes?.Take(MAX_SEGMENT_COUNT + 2).ToList();
+            if (values != null && (values.Count != SegmentCount + 1
+                                   || values.Any(value => !float.IsFinite(value) || value <= 0
+                                       || !float.IsFinite(value * SizeMultiplier) || value * SizeMultiplier <= 0)))
+                throw new ArgumentException("Slider sizes require one positive finite multiplier per endpoint.", nameof(sizes));
+            nodeSizeMultipliers = values?.All(value => value == 1) == true ? null : values;
+            RefreshNestedSizes();
+            RefreshLegacyEditorMarker();
+        }
+
+        private void resizeNodeSizes()
+        {
+            if (nodeSizeMultipliers == null)
+                return;
+            while (nodeSizeMultipliers.Count < SegmentCount + 1)
+                nodeSizeMultipliers.Add(nodeSizeMultipliers[^1]);
+            if (nodeSizeMultipliers.Count > SegmentCount + 1)
+                nodeSizeMultipliers.RemoveRange(SegmentCount + 1, nodeSizeMultipliers.Count - SegmentCount - 1);
+        }
 
         [JsonProperty("segments", Order = 100, NullValueHandling = NullValueHandling.Ignore)]
         public List<float> SerialisedSegments
@@ -79,6 +134,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
             deserialising = true;
             pendingSerialisedSegments = null;
             pendingSerialisedDurationWeights = null;
+            pendingSerialisedNodeSizes = null;
         }
 
         [OnDeserialized]
@@ -93,8 +149,11 @@ namespace osu.Game.Rulesets.Sticks.Objects
             else if (pendingSerialisedSegments != null)
                 SetCustomSegments(pendingSerialisedSegments);
 
+            SetNodeSizeMultipliers(pendingSerialisedNodeSizes);
+
             pendingSerialisedSegments = null;
             pendingSerialisedDurationWeights = null;
+            pendingSerialisedNodeSizes = null;
         }
 
         public int RepeatCount
@@ -105,6 +164,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 customSegmentArcAngles = null;
                 segmentDurationWeights = null;
                 repeatCount = Math.Clamp(value, 0, MAX_SEGMENT_COUNT - 1);
+                resizeNodeSizes();
                 RefreshLegacyEditorMarker();
             }
         }
@@ -125,6 +185,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 customSegmentArcAngles = null;
                 segmentDurationWeights = null;
                 arcAngle = value;
+                resizeNodeSizes();
                 RefreshLegacyEditorMarker();
             }
         }
@@ -367,6 +428,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
             segmentDurationWeights = null;
             arcAngle = values[0];
             repeatCount = values.Count - 1;
+            resizeNodeSizes();
             RefreshLegacyEditorMarker();
         }
 
@@ -409,6 +471,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
             segmentDurationWeights = durations;
             arcAngle = values[0];
             repeatCount = values.Count - 1;
+            resizeNodeSizes();
             RefreshLegacyEditorMarker();
         }
 

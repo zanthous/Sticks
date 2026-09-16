@@ -59,8 +59,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
                 if (sizeMultiplier == value)
                     return;
                 sizeMultiplier = value;
-                foreach (SticksHitObject nested in NestedHitObjects.OfType<SticksHitObject>())
-                    nested.SizeMultiplier = value;
+                RefreshNestedSizes();
                 RefreshLegacyEditorMarker();
             }
         }
@@ -85,6 +84,20 @@ namespace osu.Game.Rulesets.Sticks.Objects
         public float PreciseHalfAngle => PrimaryHitAngle / 2;
 
         public float LenientHalfAngle => (PrimaryHitAngle + SecondaryHitAngle) / 2;
+
+        public virtual float SizeMultiplierAt(double time) => SizeMultiplier;
+
+        public float PrimaryHitAngleAt(double time) => (float)Math.Clamp(unscaledPrimaryHitAngle * SizeMultiplierAt(time), 1, 360);
+
+        public float SecondaryHitAngleAt(double time) => (float)Math.Clamp(unscaledSecondaryHitAngle * SizeMultiplierAt(time), 0.5, 180);
+
+        public float LenientHalfAngleAt(double time) => (PrimaryHitAngleAt(time) + SecondaryHitAngleAt(time)) / 2;
+
+        protected void RefreshNestedSizes()
+        {
+            foreach (SticksHitObject nested in NestedHitObjects.OfType<SticksHitObject>())
+                nested.SizeMultiplier = SizeMultiplierAt(nested.StartTime);
+        }
 
         private StickSide side;
 
@@ -312,7 +325,7 @@ namespace osu.Game.Rulesets.Sticks.Objects
         protected new void AddNested(HitObject nested)
         {
             if (nested is SticksHitObject sticks)
-                sticks.SizeMultiplier = SizeMultiplier;
+                sticks.SizeMultiplier = SizeMultiplierAt(sticks.StartTime);
             base.AddNested(nested);
         }
 

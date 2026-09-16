@@ -178,6 +178,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     sliderCopy.RepeatCount = slider.RepeatCount;
                 }
 
+                sliderCopy.SetNodeSizeMultipliers(slider.SerialisedNodeSizeMultipliers);
                 foreach (var samples in slider.NodeSamples)
                     sliderCopy.NodeSamples.Add(samples.Select(sample => sample.With()).ToList());
             }
@@ -260,6 +261,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     return firstSlice.Direction == secondSlice.Direction;
                 if (first is SticksSlider left && second is SticksSlider right)
                     return left.Duration == right.Duration && left.SegmentCount == right.SegmentCount
+                           && Enumerable.Range(0, left.SegmentCount + 1).All(index => left.NodeSizeAt(index) == right.NodeSizeAt(index))
                            && Enumerable.Range(0, left.SegmentCount).All(index => left.SegmentArcAngleAt(index) == right.SegmentArcAngleAt(index)
                                                                                && left.SegmentDurationAt(index) == right.SegmentDurationAt(index));
                 return first is not SticksHold firstHold || second is SticksHold secondHold && firstHold.Duration == secondHold.Duration;
@@ -278,6 +280,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 if (note is SticksSlider slider)
                 {
                     hash.Add(slider.Duration);
+                    for (int i = 0; i <= slider.SegmentCount; i++)
+                        hash.Add(slider.NodeSizeAt(i));
                     for (int i = 0; i < slider.SegmentCount; i++)
                     {
                         hash.Add(slider.SegmentArcAngleAt(i));

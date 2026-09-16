@@ -181,6 +181,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                         Enumerable.Range(0, slider.SegmentCount).Select(slider.SegmentDurationAt).ToList());
                 else
                     partnerSlider.SetCustomSegments(slider.SegmentArcAngles);
+                partnerSlider.SetNodeSizeMultipliers(slider.SerialisedNodeSizeMultipliers);
             }
 
             partner.ApplyDefaults(editorBeatmap.ControlPointInfo, editorBeatmap.Difficulty);

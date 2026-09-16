@@ -144,14 +144,16 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
                     float firstAngle = displayedAngle(first, time);
                     float secondAngle = displayedAngle(second, time);
-                    if (!TryGetAngularOverlap(firstAngle, first.PrimaryHitAngle, secondAngle, second.PrimaryHitAngle,
+                    float firstSpan = displayedSpan(first, time);
+                    float secondSpan = displayedSpan(second, time);
+                    if (!TryGetAngularOverlap(firstAngle, firstSpan, secondAngle, secondSpan,
                             out float startAngle, out float overlapSpan, out bool firstTickOverlaps, out bool secondTickOverlaps))
                         continue;
 
                     float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
                         time, first.StartTime, first.ApproachDuration);
                     bool identicalShape = Math.Abs(SticksHitObject.DeltaAngle(firstAngle, secondAngle)) < 0.01f
-                                          && Math.Abs(first.PrimaryHitAngle - second.PrimaryHitAngle) < 0.01f;
+                                          && Math.Abs(firstSpan - secondSpan) < 0.01f;
 
                     overlaps[overlapCount++].SetGeometry(radius, startAngle, overlapSpan,
                         firstAngle, secondAngle, firstTickOverlaps, secondTickOverlaps, identicalShape);
@@ -166,6 +168,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             playfield?.SliderHeadFollowsPath == true && head is SticksSlider slider && time >= head.StartTime
                 ? slider.AngleAt(time)
                 : head.Angle;
+
+        private float displayedSpan(SticksHitObject head, double time) => head.PrimaryHitAngleAt(
+            head is SticksSlider slider && (slider.IsStationary || playfield?.SliderHeadFollowsPath == true) ? time : head.StartTime);
 
         internal static bool TryGetAngularOverlap(
             float firstAngle,

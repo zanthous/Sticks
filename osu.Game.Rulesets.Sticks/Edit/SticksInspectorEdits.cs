@@ -25,6 +25,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public double? Duration { get; init; }
         public IReadOnlyDictionary<int, double>? SegmentAngles { get; init; }
         public IReadOnlyDictionary<int, double>? SegmentDurations { get; init; }
+        public IReadOnlyDictionary<int, double>? SegmentSpeeds { get; init; }
+        public IReadOnlyDictionary<int, double>? NodeSizes { get; init; }
     }
 
     /// <summary>
@@ -38,6 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
         private readonly double[]? durationWeights;
         private readonly bool replacePath;
         private readonly float untimedDistance;
+        private readonly float[]? nodeSizeMultipliers;
 
         public SticksHitObject Target { get; }
         public StickSide Side { get; }
@@ -50,7 +53,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
         internal IReadOnlyList<float> SegmentAngles => segments ?? Array.Empty<float>();
 
         internal SticksInspectorEditPlan(SticksHitObject target, StickSide side, float angle, double startTime,
-                                        double? duration, float[]? segments, double[]? segmentDurations, bool replacePath, float sizeMultiplier, SticksSliceDirection? sliceDirection)
+                                        double? duration, float[]? segments, double[]? segmentDurations, bool replacePath, float sizeMultiplier, SticksSliceDirection? sliceDirection,
+                                        float[]? nodeSizeMultipliers)
         {
             Target = target;
             SizeMultiplier = sizeMultiplier;
@@ -62,6 +66,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             this.segments = segments;
             this.segmentDurations = segmentDurations;
             this.replacePath = replacePath;
+            this.nodeSizeMultipliers = nodeSizeMultipliers;
             if (replacePath)
             {
                 durationWeights = segmentDurations!.ToArray();
@@ -106,6 +111,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     slider.SetTimedSegments(segments!, segmentDurations!);
                 if (duration.HasValue && slider.Duration != duration.Value)
                     slider.Duration = duration.Value;
+                if (nodeSizeMultipliers != null)
+                    slider.SetNodeSizeMultipliers(nodeSizeMultipliers);
             }
         }
     }
@@ -146,15 +153,19 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
             bool segmentAnglesChanged = edit.SegmentAngles?.Count > 0;
             bool segmentDurationsChanged = edit.SegmentDurations?.Count > 0;
+            bool segmentSpeedsChanged = edit.SegmentSpeeds?.Count > 0;
+            bool nodeSizesChanged = edit.NodeSizes?.Count > 0;
             bool globalDurationChanged = edit.EndTime.HasValue || edit.Duration.HasValue;
             if (edit.EndTime.HasValue && edit.Duration.HasValue)
                 return fail("Change either the end time or the duration, not both together.", out error);
             if (globalDurationChanged && segmentDurationsChanged)
                 return fail("Change either the overall duration or individual segment durations in one edit.", out error);
-            if ((globalDurationChanged || segmentAnglesChanged || segmentDurationsChanged) && selection.Any(note => note is not SticksSlider))
+            if ((globalDurationChanged || segmentAnglesChanged || segmentDurationsChanged || segmentSpeedsChanged || nodeSizesChanged) && selection.Any(note => note is not SticksSlider))
                 return fail("Duration and path fields require a selection containing only sliders.", out error);
-            if ((segmentAnglesChanged || segmentDurationsChanged) && !CanEditSegments(selection))
+            if ((segmentAnglesChanged || segmentDurationsChanged || segmentSpeedsChanged || nodeSizesChanged) && !CanEditSegments(selection))
                 return fail("Edit segment fields together only when the selected sliders have matching paths and segment durations.", out error);
+            if (segmentSpeedsChanged && segmentAnglesChanged && edit.SegmentSpeeds!.Keys.Intersect(edit.SegmentAngles!.Keys).Any())
+                return fail("Change either a segment's speed or its turn angle, not both together.", out error);
 
             var prepared = new SticksInspectorEditPlan[selection.Count];
             for (int i = 0; i < selection.Count; i++)
@@ -177,6 +188,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 double? duration = target is IHasDuration sustained ? sustained.Duration : null;
                 float[]? finalSegments = null;
                 double[]? finalSegmentDurations = null;
+                float[]? finalNodeSizes = null;
                 bool replacePath = false;
                 if (target is SticksSlider slider)
                 {
@@ -184,6 +196,23 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     double[] durations = Enumerable.Range(0, slider.SegmentCount).Select(slider.SegmentDurationAt).ToArray();
                     if (segments.Length is < 1 or > SticksSlider.MAX_SEGMENT_COUNT)
                         return fail($"Sliders require between 1 and {SticksSlider.MAX_SEGMENT_COUNT} segments.", out error);
+
+                    finalNodeSizes = Enumerable.Range(0, segments.Length + 1).Select(slider.NodeSizeMultiplierAt).ToArray();
+                    if (edit.NodeSizes != null)
+                    {
+                        foreach ((int index, double value) in edit.NodeSizes)
+                        {
+                            if (index < 0 || index >= finalNodeSizes.Length)
+                                return fail("A selected slider point no longer exists.", out error);
+                            double relativeSize = value / size;
+                            if (!double.IsFinite(relativeSize) || relativeSize <= 0 || relativeSize > float.MaxValue || (float)relativeSize <= 0)
+                                return fail("Point sizes must be positive and finite.", out error);
+                            finalNodeSizes[index] = (float)relativeSize;
+                        }
+                    }
+                    if (finalNodeSizes.Any(multiplier => !float.IsFinite(multiplier * (float)size)
+                                                        || width * multiplier < 1 || width * multiplier > 360))
+                        return fail("Each point's size must give an angular width between 1° and 360°.", out error);
 
                     if (edit.SegmentAngles != null)
                     {
@@ -226,6 +255,24 @@ namespace osu.Game.Rulesets.Sticks.Edit
                             durations[segment] = durations[segment] / oldDuration * duration.Value;
                     }
 
+                    if (edit.SegmentSpeeds != null)
+                    {
+                        foreach ((int index, double speed) in edit.SegmentSpeeds)
+                        {
+                            if (index < 0 || index >= segments.Length)
+                                return fail("A selected segment no longer exists.", out error);
+                            if (!double.IsFinite(speed) || speed < 0)
+                                return fail($"Segment {index + 1}'s speed must be finite and nonnegative.", out error);
+
+                            // Timing stays on the music. Positive speed retains the current
+                            // direction; a stationary segment starts clockwise by default.
+                            double travel = speed * (durations[index] / 1000);
+                            if (!tryAngle(travel, out float arc) || speed > 0 && arc == 0)
+                                return fail($"Segment {index + 1}'s speed produces an unrepresentable turn angle.", out error);
+                            segments[index] = segments[index] < 0 ? -arc : arc;
+                        }
+                    }
+
                     if (!validPath(finalAngle, startTime, duration.Value, segments, durations, out error))
                         return false;
 
@@ -234,7 +281,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     // on save (or round a tiny, valid duration down to zero).
                     bool needsPreciseDuration = globalDurationChanged && !slider.HasTimedSegments
                                                 && !legacyDurationPreserved(duration.Value);
-                    replacePath = segmentAnglesChanged || segmentDurationsChanged || needsPreciseDuration;
+                    replacePath = segmentAnglesChanged || segmentDurationsChanged || segmentSpeedsChanged || needsPreciseDuration;
                     finalSegments = segments;
                     finalSegmentDurations = durations;
                 }
@@ -245,7 +292,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 if (maxEndTime.HasValue && endTime > maxEndTime.Value)
                     return fail("The note must end within the audio track.", out error);
 
-                prepared[i] = new SticksInspectorEditPlan(target, side, finalAngle, startTime, duration, finalSegments, finalSegmentDurations, replacePath, (float)size, edit.SliceDirection);
+                prepared[i] = new SticksInspectorEditPlan(target, side, finalAngle, startTime, duration, finalSegments, finalSegmentDurations, replacePath, (float)size, edit.SliceDirection, finalNodeSizes);
             }
 
             if ((edit.Side.HasValue || edit.StartTime.HasValue) && introducesCollision(prepared))

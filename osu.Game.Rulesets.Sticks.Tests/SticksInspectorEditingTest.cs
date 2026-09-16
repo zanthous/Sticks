@@ -48,6 +48,86 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestSliderPointSizesCommitAndUndoWithoutChangingTiming()
+        {
+            SticksSlider slider() => EditorBeatmap.HitObjects.OfType<SticksSlider>().Single();
+            AddStep("select slider with a turn", () =>
+            {
+                var note = new SticksSlider { StartTime = 2000, Duration = 1500 };
+                note.SetTimedSegments(new[] { 90f, -90f }, new[] { 500d, 1000d });
+                addSelected(note);
+            });
+            AddUntilStep("start, turn and tail sizes appear", () => hasField("Point 0 size") && hasField("Point 1 size") && hasField("Point 2 size"));
+            AddStep("widen turn", () => field("Point 1 size").Text = "2");
+            AddWaitStep("process size draft", 2);
+            AddStep("commit turn size", () => commit("Point 1 size"));
+            AddUntilStep("only turn width changed", () => slider().NodeSizeAt(0) == 1 && slider().NodeSizeAt(1) == 2 && slider().NodeSizeAt(2) == 1 && !hasError());
+            AddAssert("midpoints interpolate and timing is unchanged", () => slider().SizeMultiplierAt(2250) == 1.5f
+                && slider().SizeMultiplierAt(3000) == 1.5f && slider().SegmentDurationAt(0) == 500 && slider().Duration == 1500);
+            AddStep("undo point size", () => Editor.Undo());
+            AddUntilStep("undo restores uniform width", () => !slider().HasNodeSizes);
+            AddStep("redo point size", () => Editor.Redo());
+            AddUntilStep("redo restores size profile", () => slider().NodeSizeAt(1) == 2);
+            AddStep("reselect restored slider", () =>
+            {
+                EditorBeatmap.SelectedHitObjects.Clear();
+                EditorBeatmap.SelectedHitObjects.Add(slider());
+            });
+            AddUntilStep("turn field reflects restored size", () => hasField("Point 1 size") && valueIs("Point 1 size", 2));
+            AddStep("enter invalid tail size", () => field("Point 2 size").Text = "0");
+            AddWaitStep("process invalid size draft", 2);
+            AddStep("commit invalid size", () => commit("Point 2 size"));
+            AddUntilStep("invalid size rejected", () => hasError() && slider().NodeSizeAt(2) == 1 && valueIs("Point 2 size", 1));
+        }
+
+        [Test]
+        public void TestSegmentSpeedInputUpdatesAngleAndSupportsUndoAndValidation()
+        {
+            SticksSlider slider() => EditorBeatmap.HitObjects.OfType<SticksSlider>().Single();
+            bool pathIs(float secondAngle) => slider().Angle == 30 && slider().StartTime == 2000 && slider().Duration == 1500
+                && slider().SegmentArcAngles.SequenceEqual(new[] { 90f, secondAngle })
+                && Math.Abs(slider().SegmentDurationAt(0) - 500) < 0.001
+                && Math.Abs(slider().SegmentDurationAt(1) - 1000) < 0.001;
+
+            AddStep("select slider with reversal", () =>
+            {
+                var note = new SticksSlider { StartTime = 2000, Duration = 1500, Angle = 30 };
+                note.SetTimedSegments(new[] { 90f, -90f }, new[] { 500d, 1000d });
+                addSelected(note);
+            });
+            AddUntilStep("per-segment speed fields loaded", () => hasField("Segment 1 speed") && hasField("Segment 2 speed"));
+            AddAssert("speeds reflect each segment", () => valueIs("Segment 1 speed", 180) && valueIs("Segment 2 speed", 90));
+            AddStep("focus second segment speed", () => focus("Segment 2 speed"));
+            AddUntilStep("speed selected", () => field("Segment 2 speed").SelectedText == "90");
+            AddStep("type desired speed", () => textInput.Type("240"));
+            AddUntilStep("speed draft received", () => valueIs("Segment 2 speed", 240));
+            AddStep("commit speed", enter);
+            AddUntilStep("only turn angle changes", () => pathIs(-240) && valueIs("Segment 2 angle", -240) && !hasError());
+            AddAssert("average speed refreshes", () => inspector().ChildrenOfType<SpriteText>()
+                .Any(text => text.Name == "Slider speed" && text.Text.ToString() == "Average speed: 220 °/s"));
+            AddStep("undo speed edit", () => Editor.Undo());
+            AddUntilStep("one undo restores previous path", () => pathIs(-90));
+            AddStep("redo speed edit", () => Editor.Redo());
+            AddUntilStep("redo restores requested speed", () => pathIs(-240));
+            AddStep("select restored slider", () =>
+            {
+                EditorBeatmap.SelectedHitObjects.Clear();
+                EditorBeatmap.SelectedHitObjects.Add(slider());
+            });
+            AddUntilStep("speed field restored", () => hasField("Segment 2 speed") && valueIs("Segment 2 speed", 240));
+            AddStep("enter invalid speed", () => field("Segment 2 speed").Text = "-5");
+            AddWaitStep("update invalid draft", 2);
+            AddStep("commit invalid speed", () => commit("Segment 2 speed"));
+            AddUntilStep("invalid speed rejected without modifying slider", () => hasError() && pathIs(-240) && valueIs("Segment 2 speed", 240));
+            AddStep("set speed to zero", () => field("Segment 2 speed").Text = "0");
+            AddWaitStep("update zero speed draft", 2);
+            AddStep("commit on focus loss", () => focus("Angle"));
+            AddUntilStep("segment is stationary with original timing", () => pathIs(0) && valueIs("Segment 2 angle", 0) && !hasError());
+            AddStep("select a single-segment slider", () => addSelected(new SticksSlider { StartTime = 4000, Duration = 500, ArcAngle = 60 }));
+            AddUntilStep("single-segment speed is editable too", () => hasField("Segment 1 speed") && !hasField("Segment 2 speed") && valueIs("Segment 1 speed", 120));
+        }
+
+        [Test]
         public void TestSizeInputCommitsAndSelectionChangeDrainsPendingText()
         {
             OsuTextBox sizeBox = null!;

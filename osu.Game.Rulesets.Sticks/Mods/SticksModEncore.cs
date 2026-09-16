@@ -9,7 +9,7 @@ namespace osu.Game.Rulesets.Sticks.Mods
     {
         public override string Name => "Encore";
         public override string Acronym => "EN";
-        public override LocalisableString Description => "Enable additional note types when converting standard maps.";
+        public override LocalisableString Description => "Add click notes when converting standard maps.";
         public override ModType Type => ModType.Conversion;
         public override bool Ranked => false;
 

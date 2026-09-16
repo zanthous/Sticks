@@ -47,14 +47,14 @@ Introduced simultaneous play is reduced on beginner maps using the original osu!
 The **Conversion** category contains **Difficulty Adjust**, **Parity**, **Encore**, and **Solo**:
 
 - **Parity (PA)** expands each stick's original turns using a flexible 135° preference. It operates on the complete default conversion, preserving timing, stick assignments and slider shapes. Local rhythm and movement adjust its strength; slider endpoints count, and two beats of rest start a new phrase.
-- **Encore (EN)** enables additional note types during conversion. Clicks use spaced notes, favouring nearby accents without requiring special hitsounds. Easier maps leave more time between clicks and surrounding note starts. It can be combined with Parity or Difficulty Adjust.
+- **Encore (EN)** adds click notes during conversion. Clicks use spaced notes, favouring nearby accents without requiring special hitsounds. Easier maps leave more time between clicks and surrounding note starts. It can be combined with Parity or Difficulty Adjust.
 - **Solo (SO)** converts without simultaneous two-stick play. Sequential notes can still use either stick.
 
 These conversion mods preserve authored Sticks maps. Simultaneous opposite-stick directional heads align to their circular midpoint when their visible arcs overlap by at least half of the narrower arc. These doubles render at exactly the same angle, and intentional exact stacks survive Parity. Exactly stacked heads have a diamond collar around their shared aiming tick until either head is judged. The local `mapreference/` folder is excluded from Git; its maps informed the [reference analysis and experiment notes](Design/converter-experiments.md).
 
-Authored notes can have individual sizes. In the editor, select a flick or slider and change **Note size (×)**. This changes its visible angular width and judgement tolerance; difficulty accounts for the changed aiming demand. Clicks and Slices keep their fixed shapes.
+Authored notes can have individual sizes. Flicks expose **Note size (×)**. Sliders expose **Start size**, a size at each segment endpoint, and **Tail size**; width and judgement tolerance interpolate linearly between these points. **Overall size scale** scales the entire slider's size profile. Difficulty accounts for the size where movement occurs. Existing sliders keep their uniform size, and conversion does not generate variable sizes. Clicks and Slices keep their fixed shapes.
 
-**Slice** notes are small coloured circles with a soft white rim. Move the matching cursor through them without recharging or flicking. Encore introduces short runs of one or two neutral Slices following an aimed note or slider tail, keeping the same stick out instead of alternating hands. Each follow-up is within 150 ms and half a local beat, with room to recover before the next flick. Phrase openings, returns after rests and notes immediately following clicks remain flicks. The editor also offers clockwise and counterclockwise variants, marked by a single arrowhead. All three variants can be saved in authored maps.
+**Slice** notes are temporarily disabled in Encore conversion and the editor's placement tools. Existing authored Slices remain supported: move the matching cursor through their small coloured circles without recharging or flicking. Directional variants require clockwise or counterclockwise movement, indicated by an arrowhead.
 
 **Ambidextrous (AM)**, under Difficulty reduction, allows either controller side to hit either colour, including click buttons. A slider follows whichever stick acquired it. Simultaneous notes still need separate inputs. This mod is unranked.
 
@@ -113,6 +113,7 @@ Use the left editor toolbox (or number keys) to select Flick, Slider, or Click:
 - At a selected slider's endpoint, right-click to continue it with the same trace-and-scroll placement. Each new span keeps the earlier timing intact. Right-click places the pending point and continues; a point needs a later end time. Escape cancels only the pending point, keeping finished segments.
 - Drag visible notes or slider ribbons to change their angle. Grouped selections preserve their angular pattern and stick assignments.
 - The inspector edits stick, angle and start time, plus slider duration, end time and individual segments. Select matching sliders to edit their segments together. Stick changes apply immediately; **Both** creates matching notes for both sticks when there is room. Choose Left or Right on a selected pair to keep only that stick. Numeric fields commit on Enter or when you leave the field. Each edit is validated and undoable. Escape cancels the current field's draft.
+- Set a slider segment's **Speed (°/s)** to adjust its turn angle while keeping its duration and direction. Zero makes it stationary; increasing a stationary segment's speed starts clockwise. Edit its signed turn angle to change direction.
 
 Normal editor save, Ctrl+S, undo/redo, dirty-state warnings, timing, setup, timeline, test-play, copy, and paste remain available. Same-time placement replaces matching objects on the selected stick; purple placement replaces both sides together.
 

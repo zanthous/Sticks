@@ -52,6 +52,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 mods.ToArray(), CancellationToken.None).HitObjects.Cast<SticksHitObject>().ToArray();
 
             Assert.That(converted.OfType<SticksClick>(), Is.Not.Empty);
+            Assert.That(converted.OfType<SticksSlice>(), Is.Empty);
             SticksSlider sourceSpinnerHold = converted.OfType<SticksSlider>().Single(hold => hold.IsStationary && hold.StartTime == 9000);
             Assert.That(sourceSpinnerHold.EndTime, Is.EqualTo(11000));
             Assert.That(signature(converted.OfType<SticksSlider>().Where(slider => slider.IsStationary)), Is.EqualTo(signature(original.OfType<SticksSlider>().Where(slider => slider.IsStationary))));
@@ -61,7 +62,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [TestCase(100)]
         [TestCase(125)]
         [TestCase(150)]
-        public void EncoreAddsOnlyNeutralSlicesOnFastConnectedMovements(double interval)
+        public void EncoreKeepsFastConnectedMovementsAsFlicksWhileSlicesAreDisabled(double interval)
         {
             var source = map(Enumerable.Range(0, 32).Select(i => (HitObject)circle(1000 + i * interval, i * 20, false)).ToArray());
             var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { SoloConversion = true };
@@ -69,18 +70,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(normal.OfType<SticksSlice>(), Is.Empty);
             new SticksModEncore().ApplyToBeatmapConverter(converter);
             var encore = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            Assert.That(encore.OfType<SticksSlice>(), Is.Not.Empty);
-            Assert.That(encore.OfType<SticksSlice>().All(slice => slice.Direction == SticksSliceDirection.Neutral));
-            Assert.That(encore.Select(note => (note.StartTime, note.Angle)),
-                Is.EqualTo(normal.Select(note => (note.StartTime, note.Angle))));
-            Assert.That(signature(encore.Where(note => note is not SticksSlice)),
-                Is.EqualTo(signature(normal.Where(note => encore.Any(converted => converted is not SticksSlice && converted.StartTime == note.StartTime)))));
-            Assert.That(encore.OfType<SticksSlice>().Count(), Is.LessThanOrEqualTo(encore.Length / 2));
-            foreach (var slice in encore.OfType<SticksSlice>())
-            {
-                var previous = encore.Last(note => note.Side == slice.Side && note.StartTime < slice.StartTime);
-                Assert.That(slice.StartTime - previous.GetEndTime(), Is.InRange(0.001, 150));
-            }
+            Assert.That(encore.OfType<SticksSlice>(), Is.Empty);
+            Assert.That(signature(encore), Is.EqualTo(signature(normal)));
         }
 
         [Test]

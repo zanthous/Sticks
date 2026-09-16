@@ -20,7 +20,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             HitObject[] originals = source.HitObjects.OrderBy(hitObject => hitObject.StartTime).ToArray();
             var result = converted.HitObjects.ToList();
             addEncoreClicks(result, originals, source, cancellationToken);
-            AddEncoreSlices(result, source, cancellationToken);
+            // Slice conversion is temporarily disabled while its gameplay is revisited.
             converted.HitObjects.Clear();
             converted.HitObjects.AddRange(result.OrderBy(hitObject => hitObject.StartTime).ThenBy(hitObject => hitObject.Side));
         }

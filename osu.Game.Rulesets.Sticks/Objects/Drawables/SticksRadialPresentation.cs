@@ -29,6 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
         private readonly SticksRibbonPoint[] points = new SticksRibbonPoint[max_points];
         private readonly float[] sampledAngles = new float[max_points];
+        private readonly double[] sampledTimes = new double[max_points];
         private readonly RibbonShape shape;
         private int pointCount;
         private StickSide displayedSide;
@@ -116,14 +117,35 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             pointCount = Math.Clamp((int)Math.Ceiling((visibleEnd - visibleStart) / target_sample_interval) + 1, 2, max_points);
             float halfAngularSpan = MathF.Max(minimum_half_span, angularSpan / 2);
 
-            if (slider != null)
+            bool variableSize = slider?.HasNodeSizes == true;
+            if (variableSize)
+                pointCount = Math.Min(pointCount, max_points - slider.SegmentCount + 1);
+            for (int i = 0; i < pointCount; i++)
+                sampledTimes[i] = Interpolation.Lerp(visibleStart, visibleEnd, i / (double)(pointCount - 1));
+
+            if (variableSize)
+            {
+                // Always sample size anchors, including very short spans, so the ribbon
+                // changes slope at the same timestamp as the judgement tolerance.
+                for (int i = 0; i < slider.SegmentCount - 1; i++)
+                {
+                    double time = slider.SegmentEndTimeAt(i);
+                    if (time > visibleStart && time < visibleEnd)
+                        sampledTimes[pointCount++] = time;
+                }
+                Array.Sort(sampledTimes, 0, pointCount);
+                for (int i = 0; i < pointCount; i++)
+                    sampledAngles[i] = slider.AngleAt(sampledTimes[i]);
+            }
+
+            if (slider != null && !variableSize)
                 slider.FillAngleSamples(visibleStart, visibleEnd, sampledAngles.AsSpan(0, pointCount));
-            else
+            else if (slider == null)
                 sampledAngles.AsSpan(0, pointCount).Fill(constantAngle);
 
             for (int i = 0; i < pointCount; i++)
             {
-                double time = Interpolation.Lerp(visibleStart, visibleEnd, i / (double)(pointCount - 1));
+                double time = sampledTimes[i];
                 float radialProgress = SticksPlayfield.CenterOutProgressAt(now, time, approachDuration);
                 float radius = SticksPlayfield.GUIDE_RADIUS * radialProgress;
                 float angle = sampledAngles[i];
@@ -131,7 +153,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 points[i] = new SticksRibbonPoint(
                     radius,
                     angle,
-                    halfAngularSpan);
+                    slider == null ? halfAngularSpan : MathF.Max(minimum_half_span, slider.PrimaryHitAngleAt(time) / 2));
             }
 
             updateGeometry();

@@ -100,7 +100,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             displayedApproachDuration = composer?.PlayerApproachDuration ?? hitObject.ApproachDuration;
             displayedRadius = SticksEditorCoordinates.RadiusAt(displayedTime, hitObject.StartTime, displayedApproachDuration);
             displayedAngle = SticksEditorCoordinates.AngleAt(hitObject, displayedTime);
-            displayedSpan = hitObject is SticksClick ? 360 : hitObject.PrimaryHitAngle;
+            displayedSpan = hitObject is SticksClick ? 360 : hitObject.PrimaryHitAngleAt(displayedTime);
 
             selectionMarker.Position = SticksPlayfield.PointAt(displayedAngle, displayedRadius);
             selectionMarker.Rotation = displayedAngle;

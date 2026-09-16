@@ -271,7 +271,6 @@ namespace osu.Game.Rulesets.Sticks
                     new KeyBinding(InputKey.Number2, SticksAction.EditorFlickTool),
                     new KeyBinding(InputKey.Number3, SticksAction.EditorSliderTool),
                     new KeyBinding(InputKey.Number4, SticksAction.EditorClickTool),
-                    new KeyBinding(InputKey.Number5, SticksAction.EditorSliceTool),
                 };
             }
 #endif

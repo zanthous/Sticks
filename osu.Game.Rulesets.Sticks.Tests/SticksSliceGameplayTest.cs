@@ -87,6 +87,28 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void VariableSliderWidthsControlHeadTurnTailAndFollowSound()
+        {
+            var note = new SticksSlider { StartTime = 1000, Duration = 1000, Side = StickSide.Left };
+            note.SetTimedSegments(new[] { 90f, -90f }, new[] { 500d, 500d });
+            note.SetNodeSizeMultipliers(new[] { 2f, 0.5f, 2f });
+            create(false, note);
+            bool soundRequested() => slider.ChildrenOfType<osu.Game.Skinning.PausableSkinnableSound>().Single(sound => sound.Looping).RequestedPlaying;
+            move(1000, at(20), Vector2.Zero);
+            AddAssert("wide head accepts off-centre flick", () => slider.HeadHit && slider.TrackingAuthorised);
+            move(1250, at(57), Vector2.Zero);
+            AddAssert("interpolated width permits following", soundRequested);
+            move(1500, at(104), Vector2.Zero);
+            AddAssert("narrow turn rejects the same general aiming error", () => !drawable.ChildrenOfType<DrawableSticksSliderRepeat>().Single().Result.Type.IsHit());
+            AddAssert("leaving the narrowed ribbon stops follow audio", () => !soundRequested());
+            move(1750, at(57), Vector2.Zero);
+            AddAssert("widening ribbon allows tracking again", soundRequested);
+            move(2000, at(20), Vector2.Zero);
+            AddAssert("wide tail accepts the off-centre stick", () => drawable.ChildrenOfType<DrawableSticksSliderTail>().Single().Result.Type == HitResult.SliderTailHit);
+            AddAssert("end stops follow audio", () => !soundRequested());
+        }
+
+        [Test]
         public void ReacquiringPairedSlidersUsesOneGesturePerSlider()
         {
             create(true,

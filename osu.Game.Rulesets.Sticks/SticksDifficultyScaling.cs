@@ -95,15 +95,53 @@ namespace osu.Game.Rulesets.Sticks
         public static double StarRatingPrecisionMultiplier(IBeatmapDifficultyInfo difficulty) =>
             OverallDifficultyMultiplier(difficulty.OverallDifficulty);
 
-        internal static double NoteSizeStrainMultiplier(SticksHitObject note)
+        internal static double NoteSizeStrainMultiplier(SticksHitObject note) => NoteSizeStrainMultiplierAt(note, note.StartTime);
+
+        internal static double NoteSizeStrainMultiplierAt(SticksHitObject note, double time)
         {
-            if (note is SticksClick or SticksSlice || note.SizeMultiplier == 1)
+            float size = note.SizeMultiplierAt(time);
+            if (note is SticksClick or SticksSlice || size == 1)
                 return 1;
-            double precision = AngularPrecisionMultiplier(note.PrimaryHitAngle, note.SecondaryHitAngle);
-            double baseline = precision * note.SizeMultiplier;
+            double precision = AngularPrecisionMultiplier(note.PrimaryHitAngleAt(time), note.SecondaryHitAngleAt(time));
+            double baseline = precision * size;
             double ratio = (1 + AngularPrecisionStarAdjustment(1, precision))
                            / (1 + AngularPrecisionStarAdjustment(1, baseline));
             return Math.Pow(ratio, 2 / STAR_RATING_CALIBRATION_EXPONENT);
+        }
+
+        // Integrate demand, not just average width: the narrow part of a ramp still
+        // requires precise tracking. Simpson quadrature is bounded per authored span.
+        internal static double AverageSliderSizeFactor(SticksSlider slider, int segment, bool precision = false)
+        {
+            double start = slider.SegmentStartTimeAt(segment);
+            double duration = slider.SegmentDurationAt(segment);
+            double sample(double time) => precision
+                ? AngularPrecisionMultiplier(slider.PrimaryHitAngleAt(time), slider.SecondaryHitAngleAt(time))
+                : NoteSizeStrainMultiplierAt(slider, time);
+            if (slider.NodeSizeAt(segment) == slider.NodeSizeAt(segment + 1))
+                return sample(start);
+            double sum = sample(start) + sample(start + duration);
+            for (int i = 1; i < 8; i++)
+                sum += (i % 2 == 0 ? 2 : 4) * sample(start + duration * i / 8);
+            return sum / 24;
+        }
+
+        internal static double ControlSizeStrainMultiplier(SticksHitObject note, double clockRate)
+        {
+            if (note is not SticksSlider { HasNodeSizes: true } slider || slider.Duration <= 0)
+                return NoteSizeStrainMultiplier(note);
+
+            double work = 0;
+            double sizedWork = 0;
+            for (int i = 0; i < slider.SegmentCount; i++)
+            {
+                double duration = slider.SegmentDurationAt(i);
+                double speed = Math.Abs(slider.SegmentArcAngleAt(i)) / Math.Max(0.025, duration / 1000 / clockRate);
+                double weight = duration * (0.3 + SticksDifficultyModel.SliderMotionStrain(speed));
+                work += weight;
+                sizedWork += weight * AverageSliderSizeFactor(slider, i);
+            }
+            return work > 0 ? sizedWork / work : NoteSizeStrainMultiplier(note);
         }
 
         internal static double GreatWindowFor(float overallDifficulty) => greatWindowFor(overallDifficulty);

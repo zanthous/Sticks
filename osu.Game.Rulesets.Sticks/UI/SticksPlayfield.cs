@@ -698,10 +698,11 @@ namespace osu.Game.Rulesets.Sticks.UI
                 return false;
             }
 
-            target = new FlickTarget(hitObject.StartTime, hitObject.Angle, hitObject.LenientHalfAngle);
+            float halfAngle = hitObject.LenientHalfAngleAt(hitObject.StartTime);
+            target = new FlickTarget(hitObject.StartTime, hitObject.Angle, halfAngle);
             HitResult timingResult = HeadTimingResultFor(hitObject, flickEvent.Time - hitObject.StartTime);
             float angleError = Math.Abs(SticksHitObject.DeltaAngle(flickEvent.Angle, hitObject.Angle));
-            return IsEligibleFlickTarget(timingResult, angleError, hitObject.LenientHalfAngle);
+            return IsEligibleFlickTarget(timingResult, angleError, halfAngle);
         }
 
         public static HitResult HeadTimingResultFor(SticksHitObject hitObject, double timeOffset)
@@ -1045,7 +1046,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
                 if ((EitherStick || hitObject.Side == side)
                     && headCanNoLongerBeHit
-                    && Math.Abs(SticksHitObject.DeltaAngle(angle, targetAngle)) <= hitObject.LenientHalfAngle)
+                    && Math.Abs(SticksHitObject.DeltaAngle(angle, targetAngle)) <= hitObject.LenientHalfAngleAt(time))
                     return true;
             }
 

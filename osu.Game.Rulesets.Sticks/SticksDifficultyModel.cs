@@ -226,7 +226,7 @@ namespace osu.Game.Rulesets.Sticks
                     headWork[current.Side] = Math.Max(headWork.GetValueOrDefault(current.Side), Math.Max(impulse, transition));
                     mechanicalImpulses[current.Side] = Math.Max(mechanicalImpulses.GetValueOrDefault(current.Side), impulse);
 
-                    double continuousImpulse = controlImpulse(current, clockRate) * SticksDifficultyScaling.NoteSizeStrainMultiplier(current);
+                    double continuousImpulse = controlImpulse(current, clockRate) * SticksDifficultyScaling.ControlSizeStrainMultiplier(current, clockRate);
                     if (continuousImpulse > 0)
                         controlImpulses[current.Side] = Math.Max(controlImpulses.GetValueOrDefault(current.Side), continuousImpulse);
                 }

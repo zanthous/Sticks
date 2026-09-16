@@ -131,7 +131,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 state += "|" + slice.Direction;
             if (note is SticksSlider slider)
                 state += "|" + string.Join(";", Enumerable.Range(0, slider.SegmentCount).Select(i =>
-                    FormattableString.Invariant($"{slider.SegmentArcAngleAt(i):R}/{slider.SegmentDurationAt(i):R}")));
+                    FormattableString.Invariant($"{slider.SegmentArcAngleAt(i):R}/{slider.SegmentDurationAt(i):R}/{slider.NodeSizeAt(i):R}")))
+                    + FormattableString.Invariant($"|{slider.NodeSizeAt(slider.SegmentCount):R}");
             return state;
         }
 
@@ -184,7 +185,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             if (targets.All(note => note is not SticksClick))
                 addNumber(content, "Angle", "Angle (°)", () => common(note => SticksHitObject.NormaliseAngle(note.Angle)));
             if (targets.All(note => note is not SticksClick and not SticksSlice))
-                addNumber(content, "Size", "Note size (×)", () => common(note => note.SizeMultiplier));
+                addNumber(content, "Size", targets.All(note => note is SticksSlider) ? "Overall size scale (×)" : "Note size (×)", () => common(note => note.SizeMultiplier));
             addNumber(content, "Start time", "Start time (ms)", () => common(note => note.StartTime));
             if (targets.All(note => note is SticksSlice))
             {
@@ -217,13 +218,18 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 addNumber(content, "End time", "End time (ms)", () => common(note => ((SticksSlider)note).EndTime));
                 addNumber(content, "Duration", "Duration (ms)", () => common(note => ((SticksSlider)note).Duration));
                 bool hasMultipleSegments = targets.Cast<SticksSlider>().Any(slider => slider.SegmentCount > 1);
-                addSpeed(content, "Slider speed", hasMultipleSegments ? "Average speed" : "Speed", () => common(note =>
+                bool canEditSegments = SticksInspectorEdits.CanEditSegments(targets);
+                if (hasMultipleSegments || !canEditSegments)
                 {
-                    var slider = (SticksSlider)note;
-                    return slider.TotalAngularDistance / slider.Duration * 1000;
-                }));
-                if (SticksInspectorEdits.CanEditSegments(targets))
+                    addSpeed(content, "Slider speed", hasMultipleSegments ? "Average speed" : "Speed", () => common(note =>
+                    {
+                        var slider = (SticksSlider)note;
+                        return slider.TotalAngularDistance / slider.Duration * 1000;
+                    }));
+                }
+                if (canEditSegments)
                 {
+                    addNumber(content, "Point 0 size", "Start size (×)", () => common(note => ((SticksSlider)note).NodeSizeAt(0)));
                     var slider = (SticksSlider)targets[0];
                     var segments = new FillFlowContainer
                     {
@@ -236,7 +242,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                     content.Add(new OsuScrollContainer
                     {
                         RelativeSizeAxes = Axes.X,
-                        Height = Math.Min(180, slider.SegmentCount * 98),
+                        Height = Math.Min(180, slider.SegmentCount * 150),
                         Child = segments,
                     });
                     for (int i = 0; i < slider.SegmentCount; i++)
@@ -244,14 +250,13 @@ namespace osu.Game.Rulesets.Sticks.Edit
                         int index = i;
                         addNumber(segments, $"Segment {i + 1} angle", $"Segment {i + 1} turn (°)", () => ((SticksSlider)targets[0]).SegmentArcAngleAt(index));
                         addNumber(segments, $"Segment {i + 1} duration", "Segment duration (ms)", () => ((SticksSlider)targets[0]).SegmentDurationAt(index));
-                        if (hasMultipleSegments)
+                        addNumber(segments, $"Segment {i + 1} speed", "Speed (°/s)", () =>
                         {
-                            addSpeed(segments, $"Segment {i + 1} speed", "Speed", () =>
-                            {
-                                var currentSlider = (SticksSlider)targets[0];
-                                return Math.Abs(currentSlider.SegmentArcAngleAt(index)) / currentSlider.SegmentDurationAt(index) * 1000;
-                            });
-                        }
+                            var currentSlider = (SticksSlider)targets[0];
+                            return Math.Abs(currentSlider.SegmentArcAngleAt(index)) / currentSlider.SegmentDurationAt(index) * 1000;
+                        });
+                        addNumber(segments, $"Point {i + 1} size", i == slider.SegmentCount - 1 ? "Tail size (×)" : $"Point {i + 1} size (×)",
+                            () => common(note => ((SticksSlider)note).NodeSizeAt(index + 1)));
                     }
                 }
                 else
@@ -468,12 +473,21 @@ namespace osu.Game.Rulesets.Sticks.Edit
             double? read(string name) => values.TryGetValue(name, out double value) ? value : null;
             var segmentAngles = new Dictionary<int, double>();
             var segmentDurations = new Dictionary<int, double>();
+            var segmentSpeeds = new Dictionary<int, double>();
+            var nodeSizes = new Dictionary<int, double>();
+            for (int i = 0; i <= SticksSlider.MAX_SEGMENT_COUNT; i++)
+            {
+                if (read($"Point {i} size") is double size)
+                    nodeSizes.Add(i, size);
+            }
             for (int i = 0; i < SticksSlider.MAX_SEGMENT_COUNT; i++)
             {
                 if (read($"Segment {i + 1} angle") is double angle)
                     segmentAngles.Add(i, angle);
                 if (read($"Segment {i + 1} duration") is double duration)
                     segmentDurations.Add(i, duration);
+                if (read($"Segment {i + 1} speed") is double speed)
+                    segmentSpeeds.Add(i, speed);
             }
 
             return new SticksInspectorEdit
@@ -485,6 +499,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 Duration = read("Duration"),
                 SegmentAngles = segmentAngles,
                 SegmentDurations = segmentDurations,
+                SegmentSpeeds = segmentSpeeds,
+                NodeSizes = nodeSizes,
             };
         }
 

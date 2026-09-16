@@ -597,7 +597,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 StartTime = 1000,
                 Position = new Vector2(416, 192),
-                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo("sticks-v5~f~l~0.wav", 100) },
+                Samples = new[] { new ConvertHitObjectParser.FileHitSampleInfo("sticks-v6~f~l~0.wav", 100) },
             };
             source.HitObjects.Add(hitObject);
 
@@ -607,9 +607,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
-                Assert.That(inspection.Version, Is.EqualTo(5));
+                Assert.That(inspection.Version, Is.EqualTo(6));
                 Assert.That(converter.CanConvert(), Is.False);
-                Assert.That(converter.AuthoredCarrierError, Does.Contain("unsupported marker version v5"));
+                Assert.That(converter.AuthoredCarrierError, Does.Contain("unsupported marker version v6"));
                 Assert.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>()
                                                           .With.Message.Contains("Update Sticks"));
             });
@@ -766,8 +766,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [TestCase("samples/sticks-v5~f~l~0.wav")]
-        [TestCase(@"samples\sticks-v5~f~l~0.wav")]
+        [TestCase("samples/sticks-v6~f~l~0.wav")]
+        [TestCase(@"samples\sticks-v6~f~l~0.wav")]
         public void TestFutureMarkerPathsFailClosedWithEitherDirectorySeparator(string marker)
         {
             var hitObject = new TestPositionedHitObject
@@ -782,7 +782,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 Assert.That(SticksAuthoredBeatmapCodec.IsMarker(hitObject.Samples.Single()), Is.True);
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
-                Assert.That(inspection.Version, Is.EqualTo(5));
+                Assert.That(inspection.Version, Is.EqualTo(6));
             });
         }
 

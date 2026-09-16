@@ -117,9 +117,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(((SticksSlider)decoded).SegmentCount, Is.EqualTo(count));
         }
 
-        [TestCase("samples/sticks-v5~s~l~0~1000~90~1.wav")]
-        [TestCase(@"samples\sticks-v5~s~l~0~1000~90~1.wav")]
-        [TestCase("sticks-v5~p~l~0~2000~180~1~-1~2.wav")]
+        [TestCase("samples/sticks-v6~s~l~0~1000~90~1.wav")]
+        [TestCase(@"samples\sticks-v6~s~l~0~1000~90~1.wav")]
+        [TestCase("sticks-v6~p~l~0~2000~180~1~-1~2.wav")]
         public void TestUnsupportedCarrierCannotFallBackToProceduralConversion(string filename)
         {
             HitObject proxy = markerObject(filename);
@@ -128,7 +128,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
-                Assert.That(inspection.Version, Is.EqualTo(5));
+                Assert.That(inspection.Version, Is.EqualTo(6));
                 Assert.That(inspection.Decoded, Is.Null);
                 Assert.That(SticksAuthoredBeatmapCodec.TryDecode(proxy, out _), Is.False);
             });

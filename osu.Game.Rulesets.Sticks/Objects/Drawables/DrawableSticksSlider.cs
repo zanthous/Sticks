@@ -92,7 +92,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             AddInternal(headMarker = new SticksSliderHeadMarker(hitObject.Side, hitObject.InitialDirection, colourFor(hitObject.Side), true)
             {
                 Angle = hitObject.Angle,
-                Span = hitObject.PrimaryHitAngle,
+                Span = hitObject.PrimaryHitAngleAt(hitObject.StartTime),
                 Alpha = 0,
                 Depth = -11,
             });
@@ -153,7 +153,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             updateEditorHeadSample(now);
             double cueDuration = HitObject.ApproachDuration;
             bool cueActive = now >= HitObject.StartTime - cueDuration && now < HitObject.StartTime;
-            headMarker.Span = HitObject.PrimaryHitAngle;
+            headMarker.Span = HitObject.PrimaryHitAngleAt(
+                HitObject.IsStationary || playfield.SliderHeadFollowsPath ? now : HitObject.StartTime);
             float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
             headMarker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
             setRadialPathRegistered(now < HitObject.EndTime);
@@ -165,7 +166,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             updateHeadJudgement(now);
 
             bool tracking = active && TrackingAuthorised && isStickInRange(now);
-            updateHoldingSample(HitObject.IsStationary && tracking && !Judged);
+            updateHoldingSample(tracking && !Judged);
 
             radialPath.SetTrackingState(tracking, tracking ? HitObject.BeatPulseAt(now) : 0);
 
@@ -178,7 +179,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 showSparks,
                 now,
                 trackingAngle,
-                HitObject.PrimaryHitAngle,
+                HitObject.PrimaryHitAngleAt(now),
                 colourFor(HitObject.Side));
         }
 
@@ -217,7 +218,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
             float targetAngle = HitObject.AngleAt(Math.Clamp(now, HitObject.StartTime, HitObject.EndTime));
-            return Math.Abs(SticksHitObject.DeltaAngle(actualAngle, targetAngle)) <= HitObject.LenientHalfAngle;
+            return Math.Abs(SticksHitObject.DeltaAngle(actualAngle, targetAngle)) <= HitObject.LenientHalfAngleAt(now);
         }
 
         private void refreshEditorGeometry(double now)
@@ -273,7 +274,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                     HitObject.StartTime - SticksFlick.EARLY_HIT_WINDOW,
                     HitObject.EndTime,
                     trackingAngle,
-                    HitObject.LenientHalfAngle,
+                    HitObject.LenientHalfAngleAt(canAttemptHead ? HitObject.StartTime : flick.Time),
                     out bool canAuthoriseTracking);
             bool canStartTracking = canAuthoriseTracking
                                     && (canAttemptHead || flick.Time >= HitObject.StartTime);
@@ -494,13 +495,6 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         protected override void LoadSamples()
         {
             base.LoadSamples();
-
-            if (!HitObject.IsStationary)
-            {
-                updateHoldingSample(false);
-                holdingSample.ClearSamples();
-                return;
-            }
 
             var slidingSamples = HitObject.CreatePlayableSlidingSamples();
             if (slidingSamples.Count == 0)

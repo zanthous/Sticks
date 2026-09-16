@@ -143,10 +143,24 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
             double reversal = turns.Length == 0 ? 0 : 0.3 * Math.Log2(turns.Length + 1)
                                                     * Math.Pow(0.4 / Math.Max(0.1, shortest), 0.6)
                                                     * Math.Pow(Math.Max(velocity, 60) / 120, 0.35);
-            double total = impulse * control_scale * precisionOf(obj);
-            double reverseMass = stationary ? 0 : total * reversal / (0.3 + motion + reversal);
             double[] weights = segments.Select(s => (stationary ? 0.15 : 0.3
                 + SticksDifficultyModel.SliderMotionStrain(Math.Abs(s.Arc) / Math.Max(0.025, s.Duration / 1000 / clockRate))) * s.Duration).ToArray();
+            double precision = precisionOf(obj);
+            if (obj is SticksSlider { HasNodeSizes: true } slider)
+            {
+                double sizedWork = 0;
+                double preciseWork = 0;
+                for (int i = 0; i < weights.Length; i++)
+                {
+                    double work = weights[i] * SticksDifficultyScaling.AverageSliderSizeFactor(slider, i);
+                    sizedWork += work;
+                    weights[i] = work * SticksDifficultyScaling.AverageSliderSizeFactor(slider, i, precision: true);
+                    preciseWork += weights[i];
+                }
+                precision = sizedWork > 0 ? preciseWork / sizedWork : precision;
+            }
+            double total = impulse * control_scale * precision;
+            double reverseMass = stationary ? 0 : total * reversal / (0.3 + motion + reversal);
             double weightSum = weights.Sum();
             for (int i = 0; i < segments.Length; i++)
             {
@@ -172,7 +186,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
         }
 
         private static double precisionOf(SticksHitObject obj) => obj is SticksClick ? 1
-            : SticksDifficultyScaling.AngularPrecisionMultiplier(obj.PrimaryHitAngle, obj.SecondaryHitAngle);
+            : SticksDifficultyScaling.AngularPrecisionMultiplier(obj.PrimaryHitAngleAt(obj.StartTime), obj.SecondaryHitAngleAt(obj.StartTime));
 
         private static Segment[] segmentsOf(SticksHitObject obj)
         {
@@ -183,7 +197,7 @@ namespace osu.Game.Rulesets.Sticks.Difficulty
 
             // Stationary path subdivisions carry no movement or reversal. Use the same
             // interval as a legacy hold, including identical floating-point arithmetic.
-            if (slider.IsStationary)
+            if (slider.IsStationary && !slider.HasNodeSizes)
                 return new[] { new Segment(slider.StartTime, slider.Duration, 0, false) };
 
             double time = slider.StartTime;

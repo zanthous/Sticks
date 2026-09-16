@@ -403,8 +403,9 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             continuationObject.Duration = continuationGesture.Duration;
             continuationObject.Angle = terminalAngle;
             continuationObject.Side = slider.Side;
-            continuationObject.SizeMultiplier = slider.SizeMultiplier;
-            continuationObject.PrimaryHitAngle = slider.PrimaryHitAngle;
+            continuationObject.SizeMultiplier = slider.SizeMultiplierAt(slider.EndTime);
+            continuationObject.PrimaryHitAngle = slider.PrimaryHitAngleAt(slider.EndTime);
+            continuationObject.SecondaryHitAngle = slider.SecondaryHitAngleAt(slider.EndTime);
             continuationObject.ArcAngle = continuationGesture.Arc;
             continuationPreview.UpdateFrom(continuationObject, bothSticks: continuationTargets.Length > 1);
             continuationPreview.Show();

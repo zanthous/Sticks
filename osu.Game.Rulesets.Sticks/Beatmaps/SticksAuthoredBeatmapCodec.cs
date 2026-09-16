@@ -53,6 +53,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
                 SticksFlick => $"{MARKER_PREFIX}f~{side}~{angle}.wav",
                 _ => throw new ArgumentException($"Unsupported authored Sticks object: {hitObject.GetType().Name}", nameof(hitObject)),
             };
+            if (hitObject is SticksSlider { HasNodeSizes: true } sizedSlider)
+                return $"sticks-v5~{preciseNumber(hitObject.SizeMultiplier)}~{string.Join('_', Enumerable.Range(0, sizedSlider.SegmentCount + 1).Select(i => preciseNumber(sizedSlider.NodeSizeMultiplierAt(i))))}~{payload[7..]}";
+
             return hitObject.SizeMultiplier == 1 && hitObject is not SticksSlice
                 ? payload
                 : $"sticks-v4~{preciseNumber(hitObject.SizeMultiplier)}~{payload[7..]}";
@@ -119,7 +122,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             if (versionStatus == MarkerVersionParseStatus.Malformed)
                 return new MarkerInspection(MarkerStatus.MalformedSupported, 1, null, marker.Filename, null);
 
-            if (versionStatus == MarkerVersionParseStatus.Overflow || version is not 1 and not 2 and not 3 and not 4)
+            if (versionStatus == MarkerVersionParseStatus.Overflow || version is not 1 and not 2 and not 3 and not 4 and not 5)
                 return new MarkerInspection(MarkerStatus.UnsupportedVersion, 1, version, marker.Filename, null);
 
             SticksHitObject? decoded = tryDecodeSupportedMarker(source, marker);
@@ -138,6 +141,32 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         private static SticksHitObject? tryDecodeSupportedMarker(HitObject source, ConvertHitObjectParser.FileHitSampleInfo marker)
         {
             string fileName = getFileName(marker.Filename);
+            if (fileName.StartsWith("sticks-v5~", StringComparison.OrdinalIgnoreCase))
+            {
+                string[] envelope = fileName.Split('~', 4);
+                if (envelope.Length != 4 || !parseFloat(envelope[1], out float size) || size <= 0
+                    || !(envelope[3].StartsWith("v1~", StringComparison.OrdinalIgnoreCase)
+                         || envelope[3].StartsWith("v2~", StringComparison.OrdinalIgnoreCase)
+                         || envelope[3].StartsWith("v3~", StringComparison.OrdinalIgnoreCase)))
+                    return null;
+                var inner = new ConvertHitObjectParser.FileHitSampleInfo("sticks-" + envelope[3], marker.Volume);
+                if (tryDecodeSupportedMarker(source, inner) is not SticksSlider slider)
+                    return null;
+                string[] encodedSizes = envelope[2].Split('_', SticksSlider.MAX_SEGMENT_COUNT + 2);
+                if (encodedSizes.Length != slider.SegmentCount + 1)
+                    return null;
+                var sizes = new float[encodedSizes.Length];
+                for (int i = 0; i < sizes.Length; i++)
+                {
+                    if (!parseFloat(encodedSizes[i], out sizes[i]) || sizes[i] <= 0
+                        || !float.IsFinite(sizes[i] * size) || sizes[i] * size <= 0)
+                        return null;
+                }
+                slider.SizeMultiplier = size;
+                slider.SetNodeSizeMultipliers(sizes);
+                slider.Samples = decodedSamples(source, marker);
+                return slider;
+            }
             if (fileName.StartsWith("sticks-v4~", StringComparison.OrdinalIgnoreCase))
             {
                 string[] envelope = fileName.Split('~', 3);

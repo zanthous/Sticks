@@ -56,14 +56,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
-        [Test]
-        public void TestSegmentSpeedPreservesDirectionTimingAndOtherSegments()
+        [TestCase(-900, -720)]
+        [TestCase(900, 720)]
+        public void TestSignedSegmentSpeedPreservesTimingAndOtherSegments(double speed, float expectedArc)
         {
             var pair = new[] { slider(StickSide.Left), slider(StickSide.Right) };
             double[] originalDurations = Enumerable.Range(0, pair[0].SegmentCount).Select(pair[0].SegmentDurationAt).ToArray();
             Assert.That(SticksInspectorEdits.TryPrepare(pair, new SticksInspectorEdit
             {
-                SegmentSpeeds = new Dictionary<int, double> { [1] = 900 },
+                SegmentSpeeds = new Dictionary<int, double> { [1] = speed },
             }, null, out SticksInspectorEditPlan[] plans, out string error), Is.True, error);
             Assert.That(pair.All(note => note.SegmentArcAngleAt(1) == -60), Is.True, "Preparing the edit cannot change either note.");
 
@@ -74,7 +75,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(note.Angle, Is.EqualTo(10));
                 Assert.That(note.StartTime, Is.EqualTo(1000));
                 Assert.That(note.Duration, Is.EqualTo(1200));
-                Assert.That(note.SegmentArcAngles, Is.EqualTo(new[] { 30f, -720f }), "Authored speeds are not restricted by the conversion cap.");
+                Assert.That(note.SegmentArcAngles, Is.EqualTo(new[] { 30f, expectedArc }), "Signed authored speeds are not restricted by the conversion cap.");
                 Assert.That(Enumerable.Range(0, note.SegmentCount).Select(note.SegmentDurationAt), Is.EqualTo(originalDurations).Within(0.000001));
                 Assert.That(SticksAuthoredBeatmapCodec.TryDecode(SticksAuthoredBeatmapCodec.CreateLegacyProxy(note), out var decoded), Is.True);
                 var restored = (SticksSlider)decoded;
@@ -83,17 +84,18 @@ namespace osu.Game.Rulesets.Sticks.Tests
             }
         }
 
-        [Test]
-        public void TestZeroSpeedKeepsTheSegmentAndStationarySegmentsCanMoveAgain()
+        [TestCase(-150, -60)]
+        [TestCase(150, 60)]
+        public void TestZeroSpeedKeepsTheSegmentAndStationarySegmentsCanMoveAgain(double speed, float expectedArc)
         {
             var target = slider();
             target.SetTimedSegments(new[] { 30f, 0f, -60f }, new[] { 200d, 400d, 600d });
             Assert.That(SticksInspectorEdits.TryPrepare(new[] { target }, new SticksInspectorEdit
             {
-                SegmentSpeeds = new Dictionary<int, double> { [1] = 150, [2] = 0 },
+                SegmentSpeeds = new Dictionary<int, double> { [1] = speed, [2] = 0 },
             }, null, out var plans, out string error), Is.True, error);
             plans.Single().Apply();
-            Assert.That(target.SegmentArcAngles, Is.EqualTo(new[] { 30f, 60f, 0f }));
+            Assert.That(target.SegmentArcAngles, Is.EqualTo(new[] { 30f, expectedArc, 0f }));
             Assert.That(Enumerable.Range(0, target.SegmentCount).Select(target.SegmentDurationAt), Is.EqualTo(new[] { 200d, 400d, 600d }).Within(0.000001));
             Assert.That(target.Duration, Is.EqualTo(1200));
         }
@@ -191,11 +193,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 new SticksInspectorEdit { SegmentAngles = new Dictionary<int, double> { [2] = 40 } },
                 new SticksInspectorEdit { SegmentAngles = new Dictionary<int, double> { [0] = float.MaxValue, [1] = float.MaxValue } },
                 new SticksInspectorEdit { SegmentAngles = new Dictionary<int, double> { [0] = 2e38 } },
-                new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = -1 } },
                 new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = double.NaN } },
                 new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = double.PositiveInfinity } },
+                new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = double.NegativeInfinity } },
                 new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = double.MaxValue } },
+                new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = -double.MaxValue } },
                 new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = double.Epsilon } },
+                new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = -double.Epsilon } },
                 new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [2] = 120 } },
                 new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = 120 }, SegmentAngles = new Dictionary<int, double> { [0] = 45 } },
             };
@@ -267,6 +271,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                          new SticksInspectorEdit { SegmentAngles = new Dictionary<int, double> { [0] = 1e9 } },
                          new SticksInspectorEdit { Duration = 1e12 },
                          new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = 1e9 } },
+                         new SticksInspectorEdit { SegmentSpeeds = new Dictionary<int, double> { [0] = -1e9 } },
                      })
             {
                 Assert.That(SticksInspectorEdits.TryPrepare(selected, edit, null, out SticksInspectorEditPlan[] plans, out string error), Is.True, error);

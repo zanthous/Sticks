@@ -6,11 +6,14 @@ using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Primitives;
 using osu.Framework.Graphics.Shapes;
+using osu.Framework.Graphics.Sprites;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
+using osu.Framework.Localisation;
 using osu.Game.Input.Bindings;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
@@ -26,6 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
     public partial class SticksSelectionBlueprint : HitObjectSelectionBlueprint<SticksHitObject>, IKeyBindingHandler<GlobalAction>, IKeyBindingHandler<PlatformAction>
     {
         private readonly SticksBlueprintPiece piece;
+        private readonly AddSliderPointButton? addPointButton;
         private readonly List<SliderPointHandle> sliderHandles = new List<SliderPointHandle>();
         private SticksBlueprintPiece? continuationPreview;
         private SticksSlider? continuationObject;
@@ -42,6 +46,16 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private SticksSlider[] continuationTargets = Array.Empty<SticksSlider>();
 
         internal bool IsPlacingContinuation => placingContinuation;
+
+        private int selectedPoint => IsSelected && HitObject is SticksSlider slider
+            ? Math.Clamp(composer?.SelectedSliderPoint.Value ?? 0, 0, slider.SegmentCount)
+            : 0;
+
+        private SliderPointHandle? selectedPointHandle => selectedPoint > 0 && selectedPoint <= sliderHandles.Count
+            ? sliderHandles[selectedPoint - 1]
+            : null;
+
+        internal bool HasVisibleSelection => selectedPoint == 0 || selectedPointHandle?.Available == true;
 
         // Preserve the selected editor time, including authored endpoints off the beat grid.
         private double currentPointTime => editorClock.CurrentTimeAccurate;
@@ -64,15 +78,18 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             : base(hitObject)
         {
             InternalChild = piece = new SticksBlueprintPiece(false);
+            if (hitObject is SticksSlider)
+                AddInternal(addPointButton = new AddSliderPointButton { Action = beginContinuationFromButton });
         }
 
-        protected override bool AlwaysShowWhenSelected => placingContinuation || draggedSegment >= 0;
+        // Keep the add-point control reachable when selecting a slider outside its lifetime.
+        protected override bool AlwaysShowWhenSelected => HitObject is SticksSlider;
 
         protected override void Update()
         {
             base.Update();
             double now = editorClock.CurrentTimeAccurate;
-            piece.UpdateFrom(HitObject, now, IsSelected);
+            piece.UpdateFrom(HitObject, now, IsSelected && selectedPoint == 0);
 
             if (HitObject is SticksSlider slider)
             {
@@ -93,6 +110,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                     var handle = new SliderPointHandle
                     {
                         TurnName = $"Slider turn {index + 1}",
+                        PointSelected = () => composer?.SelectSliderPoint(slider, index + 1),
                         DragStarted = e => beginPointDrag(index, e),
                         Dragged = dragPoint,
                         DragEnded = _ => endPointDrag(),
@@ -122,9 +140,18 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                 handle.Name = isTail ? "Slider tail" : handle.TurnName;
                 handle.Position = SticksPlayfield.PointAt(angle, radius);
                 handle.FillColour = colour;
+                handle.IsPointSelected = composer?.SelectedSliderPoint.Value == i + 1;
                 handle.Available = IsSelected && !placingContinuation
-                                   && (i == draggedSegment || (isTail || slider.SegmentEndsWithReversal(i))
-                                       && radius >= 12 && now <= time + endpoint_time_tolerance);
+                                   && (i == draggedSegment || radius >= 12 && now <= time + endpoint_time_tolerance);
+            }
+
+            if (addPointButton != null)
+            {
+                float tailRadius = SticksEditorCoordinates.RadiusAt(now, slider.EndTime, approach);
+                addPointButton.Position = SticksPlayfield.PointAt(slider.SegmentStartAngleAt(slider.SegmentCount), tailRadius + 32);
+                addPointButton.FillColour = colour;
+                addPointButton.Available = IsSelected && !placingContinuation && draggedSegment < 0
+                                           && slider.SegmentCount < SticksSlider.MAX_SEGMENT_COUNT;
             }
         }
 
@@ -255,6 +282,16 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
         private bool tryGetPointerAngle(Vector2 screenSpacePosition, out float angle) =>
             SticksEditorCoordinates.TryGetAngle(piece.ToLocalSpace(screenSpacePosition), out angle);
 
+        private void beginContinuationFromButton()
+        {
+            if (!IsSelected || HitObject is not SticksSlider slider || slider.SegmentCount >= SticksSlider.MAX_SEGMENT_COUNT)
+                return;
+
+            editorClock.Stop();
+            editorClock.Seek(slider.EndTime);
+            BeginContinuationPlacement();
+        }
+
         public void BeginContinuationPlacement(SticksSlider[]? targets = null)
         {
             if (HitObject is not SticksSlider slider || slider.SegmentCount >= SticksSlider.MAX_SEGMENT_COUNT
@@ -265,6 +302,8 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             placingContinuation = true;
             continuationGesture = createContinuationGesture(slider);
             endPointDrag();
+            if (addPointButton != null)
+                addPointButton.Available = false;
             foreach (SliderPointHandle handle in sliderHandles)
                 handle.Available = false;
             updateContinuationPreview(slider, slider.AngleAt(slider.EndTime));
@@ -284,7 +323,13 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
 
             if (!placingContinuation || HitObject is not SticksSlider)
+            {
+                // Point handles consume their own presses. Clicking the note itself
+                // selects its head properties while retaining normal editor selection.
+                if (e.Button == MouseButton.Left && HitObject is SticksSlider && composer != null)
+                    composer.SelectedSliderPoint.Value = 0;
                 return base.OnMouseDown(e);
+            }
 
             if (e.Button == MouseButton.Left)
                 confirmContinuation(false);
@@ -324,6 +369,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
 
             releaseContinuationPreview();
+            composer?.SelectSliderPoint(slider, slider.SegmentCount);
             placingContinuation = keepPlacing && slider.SegmentCount < SticksSlider.MAX_SEGMENT_COUNT;
             continuationGesture = placingContinuation
                 ? createContinuationGesture(slider)
@@ -424,12 +470,68 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             }
 
             return piece.ReceiveAt(screenSpacePos)
+                   || addPointButton?.ReceivePositionalInputAt(screenSpacePos) == true
                    || sliderHandles.Any(handle => handle.ReceivePositionalInputAt(screenSpacePos));
         }
 
         public override Vector2 ScreenSpaceSelectionPoint => piece.Marker.ScreenSpaceDrawQuad.Centre;
 
-        public override Quad SelectionQuad => piece.SelectionQuad;
+        public override Quad SelectionQuad => selectedPointHandle?.ScreenSpaceDrawQuad ?? piece.SelectionQuad;
+
+        private partial class AddSliderPointButton : CircularContainer, IHasTooltip
+        {
+            private readonly Box fill;
+
+            public Action? Action { get; init; }
+
+            public LocalisableString TooltipText => "Add a slider point: jump to the tail, trace the next span, then scroll to its end time";
+
+            public bool Available
+            {
+                get => Alpha > 0;
+                set => Alpha = value ? 1 : 0;
+            }
+
+            public Color4 FillColour
+            {
+                set => fill.Colour = value;
+            }
+
+            public AddSliderPointButton()
+            {
+                Name = "Add slider point";
+                Origin = Anchor.Centre;
+                Size = new Vector2(24);
+                Alpha = 0;
+                Masking = true;
+                BorderThickness = 2;
+                BorderColour = Color4.White;
+                Depth = -21;
+                Children = new Drawable[]
+                {
+                    fill = new Box { RelativeSizeAxes = Axes.Both },
+                    new SpriteIcon
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(12),
+                        Icon = FontAwesome.Solid.Plus,
+                    },
+                };
+            }
+
+            public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) =>
+                Available && base.ReceivePositionalInputAt(screenSpacePos);
+
+            protected override bool OnMouseDown(MouseDownEvent e) => Available;
+
+            protected override bool OnClick(ClickEvent e)
+            {
+                if (Available && e.Button == MouseButton.Left)
+                    Action?.Invoke();
+                return true;
+            }
+        }
 
         private partial class SliderPointHandle : CircularContainer
         {
@@ -437,8 +539,21 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             private readonly Circle grabbedCentre;
             private bool available;
             private bool isGrabbed;
+            private bool isPointSelected;
 
             public string TurnName { get; init; } = string.Empty;
+
+            public Action? PointSelected { get; init; }
+
+            public bool IsPointSelected
+            {
+                get => isPointSelected;
+                set
+                {
+                    isPointSelected = value;
+                    grabbedCentre.Alpha = isGrabbed || value ? 1 : 0;
+                }
+            }
 
             public bool IsGrabbed
             {
@@ -450,7 +565,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
                     isGrabbed = value;
                     // Apply immediately: the editor clock may be paused or seeking backwards.
                     Size = new Vector2(value ? 26 : 22);
-                    grabbedCentre.Alpha = value ? 1 : 0;
+                    grabbedCentre.Alpha = value || IsPointSelected ? 1 : 0;
                 }
             }
 
@@ -511,6 +626,7 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             {
                 if (!Available || e.Button != MouseButton.Left)
                     return false;
+                PointSelected?.Invoke();
                 IsGrabbed = true;
                 return true;
             }

@@ -5,7 +5,9 @@ using System.Globalization;
 using System.Linq;
 using NUnit.Framework;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input;
 using osu.Framework.Testing;
 using osu.Game.Beatmaps.ControlPoints;
@@ -13,7 +15,10 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Sticks.Edit;
+using osu.Game.Rulesets.Sticks.Edit.Blueprints;
 using osu.Game.Rulesets.Sticks.Objects;
+using osu.Game.Rulesets.Sticks.UI;
+using osu.Game.Screens.Edit.Compose.Components;
 using osu.Game.Tests.Visual;
 using osuTK.Input;
 using StickChoice = osu.Game.Rulesets.Sticks.Edit.SticksHitObjectInspector.StickChoice;
@@ -57,7 +62,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 note.SetTimedSegments(new[] { 90f, -90f }, new[] { 500d, 1000d });
                 addSelected(note);
             });
-            AddUntilStep("start, turn and tail sizes appear", () => hasField("Point 0 size") && hasField("Point 1 size") && hasField("Point 2 size"));
+            AddUntilStep("head properties appear", () => hasField("Point 0 size") && hasField("Angle") && hasField("Start time"));
+            AddAssert("only selected head properties shown", () => !hasField("Point 1 size") && !hasField("Point 2 size")
+                && !hasField("Duration") && hasField("Segment 1 speed") && !hasField("Segment 2 speed"));
+            AddStep("seek to first point", () => EditorClock.Seek(2500));
+            AddUntilStep("first point handle available", () => pointHandle("Slider turn 1").IsPresent);
+            AddStep("click first point", () => clickHandle("Slider turn 1"));
+            AddUntilStep("inspector follows point click", () => hasField("Point 1 size") && hasField("Segment 2 speed") && pointField().Current.Value == 1);
+            AddAssert("head and other point fields hidden", () => !hasField("Angle") && !hasField("Start time") && !hasField("Point 0 size") && !hasField("Point 2 size"));
             AddStep("widen turn", () => field("Point 1 size").Text = "2");
             AddWaitStep("process size draft", 2);
             AddStep("commit turn size", () => commit("Point 1 size"));
@@ -73,38 +85,212 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 EditorBeatmap.SelectedHitObjects.Clear();
                 EditorBeatmap.SelectedHitObjects.Add(slider());
             });
+            AddUntilStep("selection resets to head", () => hasField("Point 0 size"));
+            AddStep("choose restored point", () => selectPoint(1));
             AddUntilStep("turn field reflects restored size", () => hasField("Point 1 size") && valueIs("Point 1 size", 2));
-            AddStep("enter invalid tail size", () => field("Point 2 size").Text = "0");
+            AddStep("choose last point", () => selectPoint(2));
+            AddUntilStep("last point has only its size", () => hasField("Point 2 size") && !hasSegmentFields() && !hasField("Point 1 size"));
+            AddStep("enter invalid point size", () => field("Point 2 size").Text = "0");
             AddWaitStep("process invalid size draft", 2);
             AddStep("commit invalid size", () => commit("Point 2 size"));
             AddUntilStep("invalid size rejected", () => hasError() && slider().NodeSizeAt(2) == 1 && valueIs("Point 2 size", 1));
+            AddStep("seek between points", () => EditorClock.Seek(2750));
+            AddWaitStep("update visible head", 2);
+            AddAssert("original head position has no stray selection handle", () =>
+            {
+                var selection = this.ChildrenOfType<SticksSelectionBlueprint>().Single();
+                return !selection.ReceivePositionalInputAt(selection.ToScreenSpace(SticksPlayfield.PointAt(0, SticksPlayfield.GUIDE_RADIUS)));
+            });
+            AddStep("click visible slider head", () =>
+            {
+                InputManager.MoveMouseTo(this.ChildrenOfType<SticksSelectionBlueprint>().Single().ScreenSpaceSelectionPoint);
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("head selected again", () => hasField("Point 0 size") && pointField().Current.Value == 0);
+            AddStep("change head size", () => field("Point 0 size").Text = "1.5");
+            AddStep("commit head size", () => commit("Point 0 size"));
+            AddUntilStep("only head size changes", () => slider().NodeSizeAt(0) == 1.5f && slider().NodeSizeAt(1) == 2 && slider().NodeSizeAt(2) == 1);
         }
 
         [Test]
-        public void TestSegmentSpeedInputUpdatesAngleAndSupportsUndoAndValidation()
+        public void TestSelectionOutlineFollowsPointAndBodyClickSelectsHead()
         {
             SticksSlider slider() => EditorBeatmap.HitObjects.OfType<SticksSlider>().Single();
-            bool pathIs(float secondAngle) => slider().Angle == 30 && slider().StartTime == 2000 && slider().Duration == 1500
-                && slider().SegmentArcAngles.SequenceEqual(new[] { 90f, secondAngle })
+            SticksSelectionBlueprint selection() => this.ChildrenOfType<SticksSelectionBlueprint>().Single();
+            SelectionBox outline() => this.ChildrenOfType<SticksSelectionHandler>().Single().ChildrenOfType<SelectionBox>().Single();
+            bool headHighlighted() => selection().ChildrenOfType<SticksBlueprintPiece>().Single().ChildrenOfType<CircularProgress>().Single().Alpha > 0;
+            bool outlinesPoint(string name) => outline().IsPresent
+                && (outline().ScreenSpaceDrawQuad.Centre - pointHandle(name).ScreenSpaceDrawQuad.Centre).Length < 0.1f;
+            bool outlinesHead() => outline().IsPresent
+                && (outline().ScreenSpaceDrawQuad.Centre - selection().ScreenSpaceSelectionPoint).Length < 0.1f;
+
+            AddStep("select slider with a wider ribbon", () =>
+            {
+                var note = new SticksSlider { StartTime = 2000, Duration = 200 };
+                note.SetTimedSegments(new[] { 90f, -90f }, new[] { 100d, 100d });
+                note.SetNodeSizeMultipliers(new[] { 1f, 3f, 3f });
+                addSelected(note);
+            });
+            AddUntilStep("head initially selected", () => hasField("Point 0 size") && outlinesHead() && headHighlighted());
+            AddStep("click first point", () => clickHandle("Slider turn 1"));
+            AddUntilStep("outline follows clicked point", () => hasField("Point 1 size") && outlinesPoint("Slider turn 1") && !headHighlighted());
+            AddStep("choose tail in inspector", () => selectPoint(2));
+            AddUntilStep("outline follows inspector selection", () => hasField("Point 2 size") && outlinesPoint("Slider tail") && !headHighlighted());
+            AddStep("click wide ribbon away from any point", () =>
+            {
+                const double pathTime = 2150;
+                double approach = this.ChildrenOfType<SticksHitObjectComposer>().Single().PlayerApproachDuration;
+                float radius = SticksEditorCoordinates.RadiusAt(EditorClock.CurrentTimeAccurate, pathTime, approach);
+                var position = selection().ToScreenSpace(SticksPlayfield.PointAt(slider().AngleAt(pathTime) - 24, radius));
+                Assert.That(selection().ReceivePositionalInputAt(position), Is.True);
+                InputManager.MoveMouseTo(position);
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("body selects head properties and highlight", () => hasField("Point 0 size") && pointField().Current.Value == 0
+                && outlinesHead() && headHighlighted());
+            AddStep("select first point again", () => selectPoint(1));
+            AddUntilStep("point highlighted again", () => outlinesPoint("Slider turn 1") && !headHighlighted());
+            AddStep("seek past selected point", () => EditorClock.Seek(2110));
+            AddUntilStep("hidden point leaves no phantom outline or head highlight", () => !pointHandle("Slider turn 1").IsPresent
+                && !outline().IsPresent && !headHighlighted() && pointField().Current.Value == 1);
+            AddStep("rewind to selected point", () => EditorClock.Seek(2000));
+            AddUntilStep("selected point outline returns", () => outlinesPoint("Slider turn 1") && !headHighlighted());
+            AddStep("rotate slider from its head", () =>
+            {
+                InputManager.MoveMouseTo(selection().ScreenSpaceSelectionPoint);
+                InputManager.PressButton(MouseButton.Left);
+                InputManager.MoveMouseTo(selection().ToScreenSpace(SticksPlayfield.PointAt(30, SticksPlayfield.GUIDE_RADIUS)));
+            });
+            AddStep("release head", () => InputManager.ReleaseButton(MouseButton.Left));
+            AddUntilStep("head drag still rotates the complete object", () => Math.Abs(slider().Angle - 30) < 0.1
+                && slider().SegmentArcAngles.SequenceEqual(new[] { 90f, -90f }) && slider().Duration == 200
+                && pointField().Current.Value == 0 && outlinesHead() && headHighlighted());
+        }
+
+        [Test]
+        public void TestPointSelectionDiscardsQueuedDraftAndIncludesOrdinaryJoins()
+        {
+            SticksSlider slider() => EditorBeatmap.HitObjects.OfType<SticksSlider>().Single();
+            OsuTextBox oldSize = null!;
+            AddStep("select slider with ordinary joins", () =>
+            {
+                var note = new SticksSlider { StartTime = 2000, Duration = 1500 };
+                note.SetTimedSegments(new[] { 90f, 45f, 45f }, new[] { 500d, 500d, 500d });
+                addSelected(note);
+                EditorClock.Seek(2500);
+            });
+            AddUntilStep("head properties loaded", () => hasField("Point 0 size"));
+            AddStep("focus head size", () =>
+            {
+                focus("Point 0 size");
+                oldSize = field("Point 0 size");
+            });
+            AddUntilStep("head size text selected", () => oldSize.SelectedText == "1");
+            AddStep("queue text and select another point", () =>
+            {
+                textInput.Type("3");
+                selectPoint(2);
+            });
+            AddUntilStep("new point has its own field", () => hasField("Point 2 size") && valueIs("Point 2 size", 1) && !oldSize.HasFocus);
+            AddAssert("draft did not change any point", () => Enumerable.Range(0, 4).All(i => slider().NodeSizeAt(i) == 1));
+            AddUntilStep("ordinary join can be selected", () => pointHandle("Slider turn 1").IsPresent);
+            AddStep("select ordinary join on playfield", () => clickHandle("Slider turn 1"));
+            AddUntilStep("inspector shows only the following segment", () => pointField().Current.Value == 1 && hasField("Segment 2 duration")
+                && !hasField("Segment 1 duration") && !hasField("Segment 3 duration") && !hasField("Point 0 size"));
+            AddStep("select last point", () => selectPoint(3));
+            AddUntilStep("last point selected without segment controls", () => hasField("Point 3 size") && !hasSegmentFields());
+            AddStep("shorten slider externally", () =>
+            {
+                slider().SetTimedSegments(new[] { 90f }, new[] { 1500d });
+                EditorBeatmap.Update(slider());
+            });
+            AddUntilStep("selection follows remaining endpoint", () => pointField().Current.Value == 1 && hasField("Point 1 size")
+                && !hasField("Point 3 size") && !hasSegmentFields());
+        }
+
+        [TestCase(false, false)]
+        [TestCase(true, false)]
+        [TestCase(true, true)]
+        public void TestHeadEditsFirstSegmentSpeedTurnAndDuration(bool multipleSegments, bool paired)
+        {
+            SticksSlider[] sliders() => EditorBeatmap.HitObjects.OfType<SticksSlider>().ToArray();
+            bool pathIs(float firstAngle, double firstDuration = 500) => sliders().Length == (paired ? 2 : 1)
+                && sliders().All(slider => slider.Angle == 30 && slider.StartTime == 2000 && slider.NodeSizeAt(0) == 1
+                    && slider.SegmentArcAngles.SequenceEqual(multipleSegments ? new[] { firstAngle, 45f } : new[] { firstAngle })
+                    && Math.Abs(slider.SegmentDurationAt(0) - firstDuration) < 0.001
+                    && slider.Duration == firstDuration + (multipleSegments ? 1000 : 0)
+                    && (!multipleSegments || Math.Abs(slider.SegmentDurationAt(1) - 1000) < 0.001));
+
+            AddStep("select slider heads", () =>
+            {
+                var notes = (paired ? new[] { StickSide.Left, StickSide.Right } : new[] { StickSide.Left }).Select(side =>
+                {
+                    var note = new SticksSlider { StartTime = 2000, Duration = multipleSegments ? 1500 : 500, Angle = 30, Side = side };
+                    note.SetTimedSegments(multipleSegments ? new[] { -90f, 45f } : new[] { -90f },
+                        multipleSegments ? new[] { 500d, 1000d } : new[] { 500d });
+                    return note;
+                }).ToArray();
+                addSelected(notes);
+            });
+            AddUntilStep("head exposes complete first segment controls", () => hasField("Point 0 size") && hasField("Angle") && hasField("Start time")
+                && hasField("Segment 1 speed") && valueIs("Segment 1 speed", -180)
+                && valueIs("Segment 1 angle", -90) && valueIs("Segment 1 duration", 500) && pointField().Current.Value == 0);
+            AddAssert("later segment fields are hidden", () => !hasField("Segment 2 speed"));
+            AddStep("focus head speed", () => focus("Segment 1 speed"));
+            AddUntilStep("head speed text selected", () => field("Segment 1 speed").SelectedText == "-180");
+            AddStep("type new speed", () => textInput.Type("-360"));
+            AddUntilStep("new speed received", () => valueIs("Segment 1 speed", -360));
+            AddStep("commit speed from head", enter);
+            AddUntilStep("only first segment changes and retains direction", () => pathIs(-180) && !hasError() && pointField().Current.Value == 0);
+            AddStep("undo head speed edit", () => Editor.Undo());
+            AddUntilStep("undo restores first segment", () => pathIs(-90));
+            AddStep("redo head speed edit", () => Editor.Redo());
+            AddUntilStep("redo restores first segment speed", () => pathIs(-180));
+            AddStep("reselect restored heads", () =>
+            {
+                EditorBeatmap.SelectedHitObjects.Clear();
+                EditorBeatmap.SelectedHitObjects.AddRange(sliders());
+            });
+            AddUntilStep("head speed restored in inspector", () => hasField("Point 0 size") && hasField("Segment 1 speed") && valueIs("Segment 1 speed", -360));
+            AddStep("change first segment duration", () => field("Segment 1 duration").Text = "250");
+            AddStep("commit head duration", () => commit("Segment 1 duration"));
+            AddUntilStep("only first segment timing changes", () => pathIs(-180, 250) && valueIs("Segment 1 speed", -720) && !hasError());
+            AddStep("change first segment turn", () => field("Segment 1 angle").Text = "-45");
+            AddStep("commit head turn", () => commit("Segment 1 angle"));
+            AddUntilStep("head turn updates speed readout", () => pathIs(-45, 250) && valueIs("Segment 1 speed", -180) && !hasError());
+            AddStep("enter invalid speed", () => field("Segment 1 speed").Text = "NaN");
+            AddStep("commit invalid head speed", () => commit("Segment 1 speed"));
+            AddUntilStep("invalid head speed rejected", () => hasError() && pathIs(-45, 250) && valueIs("Segment 1 speed", -180));
+        }
+
+        [Test]
+        public void TestPointEditsFollowingSegmentAndSupportsUndoAndValidation()
+        {
+            SticksSlider slider() => EditorBeatmap.HitObjects.OfType<SticksSlider>().Single();
+            bool pathIs(float secondAngle, double secondDuration = 1000) => slider().Angle == 30 && slider().StartTime == 2000
+                && slider().Duration == 750 + secondDuration
+                && slider().SegmentArcAngles.SequenceEqual(new[] { 90f, secondAngle, 45f })
                 && Math.Abs(slider().SegmentDurationAt(0) - 500) < 0.001
-                && Math.Abs(slider().SegmentDurationAt(1) - 1000) < 0.001;
+                && Math.Abs(slider().SegmentDurationAt(1) - secondDuration) < 0.001
+                && Math.Abs(slider().SegmentDurationAt(2) - 250) < 0.001;
 
             AddStep("select slider with reversal", () =>
             {
-                var note = new SticksSlider { StartTime = 2000, Duration = 1500, Angle = 30 };
-                note.SetTimedSegments(new[] { 90f, -90f }, new[] { 500d, 1000d });
+                var note = new SticksSlider { StartTime = 2000, Duration = 1750, Angle = 30 };
+                note.SetTimedSegments(new[] { 90f, -90f, 45f }, new[] { 500d, 1000d, 250d });
                 addSelected(note);
             });
-            AddUntilStep("per-segment speed fields loaded", () => hasField("Segment 1 speed") && hasField("Segment 2 speed"));
-            AddAssert("speeds reflect each segment", () => valueIs("Segment 1 speed", 180) && valueIs("Segment 2 speed", 90));
+            AddUntilStep("head loaded", () => hasField("Point 0 size"));
+            AddUntilStep("head shows first segment speed", () => hasField("Segment 1 speed") && valueIs("Segment 1 speed", 180));
+            AddStep("select first point", () => selectPoint(1));
+            AddUntilStep("point shows following segment speed", () => hasField("Segment 2 speed") && valueIs("Segment 2 speed", -90));
             AddStep("focus second segment speed", () => focus("Segment 2 speed"));
-            AddUntilStep("speed selected", () => field("Segment 2 speed").SelectedText == "90");
-            AddStep("type desired speed", () => textInput.Type("240"));
-            AddUntilStep("speed draft received", () => valueIs("Segment 2 speed", 240));
+            AddUntilStep("speed selected", () => field("Segment 2 speed").SelectedText == "-90");
+            AddStep("type desired speed", () => textInput.Type("-240"));
+            AddUntilStep("speed draft received", () => valueIs("Segment 2 speed", -240));
             AddStep("commit speed", enter);
             AddUntilStep("only turn angle changes", () => pathIs(-240) && valueIs("Segment 2 angle", -240) && !hasError());
-            AddAssert("average speed refreshes", () => inspector().ChildrenOfType<SpriteText>()
-                .Any(text => text.Name == "Slider speed" && text.Text.ToString() == "Average speed: 220 °/s"));
+            AddAssert("unselected segment fields stay hidden", () => !hasField("Segment 1 speed") && !hasField("Segment 3 speed"));
             AddStep("undo speed edit", () => Editor.Undo());
             AddUntilStep("one undo restores previous path", () => pathIs(-90));
             AddStep("redo speed edit", () => Editor.Redo());
@@ -114,17 +300,37 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 EditorBeatmap.SelectedHitObjects.Clear();
                 EditorBeatmap.SelectedHitObjects.Add(slider());
             });
-            AddUntilStep("speed field restored", () => hasField("Segment 2 speed") && valueIs("Segment 2 speed", 240));
-            AddStep("enter invalid speed", () => field("Segment 2 speed").Text = "-5");
+            AddUntilStep("restored head loaded", () => hasField("Point 0 size"));
+            AddStep("reselect first point", () => selectPoint(1));
+            AddUntilStep("speed field restored", () => hasField("Segment 2 speed") && valueIs("Segment 2 speed", -240));
+            AddStep("set positive speed", () => field("Segment 2 speed").Text = "240");
+            AddStep("commit positive speed", () => commit("Segment 2 speed"));
+            AddUntilStep("positive speed reverses only following segment", () => pathIs(240) && valueIs("Segment 2 angle", 240) && !hasError());
+            AddStep("set negative speed", () => field("Segment 2 speed").Text = "-240");
+            AddStep("commit negative speed", () => commit("Segment 2 speed"));
+            AddUntilStep("negative speed reverses only following segment", () => pathIs(-240) && valueIs("Segment 2 angle", -240) && !hasError());
+            AddStep("enter invalid speed", () => field("Segment 2 speed").Text = "NaN");
             AddWaitStep("update invalid draft", 2);
             AddStep("commit invalid speed", () => commit("Segment 2 speed"));
-            AddUntilStep("invalid speed rejected without modifying slider", () => hasError() && pathIs(-240) && valueIs("Segment 2 speed", 240));
+            AddUntilStep("invalid speed rejected without modifying slider", () => hasError() && pathIs(-240) && valueIs("Segment 2 speed", -240));
             AddStep("set speed to zero", () => field("Segment 2 speed").Text = "0");
             AddWaitStep("update zero speed draft", 2);
-            AddStep("commit on focus loss", () => focus("Angle"));
+            AddStep("commit on focus loss", () => focus("Point 1 size"));
             AddUntilStep("segment is stationary with original timing", () => pathIs(0) && valueIs("Segment 2 angle", 0) && !hasError());
+            AddStep("change following segment duration", () => field("Segment 2 duration").Text = "750");
+            AddStep("commit point duration", () => commit("Segment 2 duration"));
+            AddUntilStep("only following segment timing changes", () => pathIs(0, 750) && !hasError());
+            AddStep("change following segment turn", () => field("Segment 2 angle").Text = "-60");
+            AddStep("commit point turn", () => commit("Segment 2 angle"));
+            AddUntilStep("only following segment shape changes", () => pathIs(-60, 750) && valueIs("Segment 2 speed", -80) && !hasError());
+            AddStep("select next point", () => selectPoint(2));
+            AddUntilStep("next point shows its own following segment", () => hasField("Segment 3 speed") && valueIs("Segment 3 speed", 180)
+                && valueIs("Segment 3 angle", 45) && valueIs("Segment 3 duration", 250) && !hasField("Segment 2 speed"));
             AddStep("select a single-segment slider", () => addSelected(new SticksSlider { StartTime = 4000, Duration = 500, ArcAngle = 60 }));
+            AddUntilStep("single slider head loaded", () => hasField("Point 0 size"));
             AddUntilStep("single-segment speed is editable too", () => hasField("Segment 1 speed") && !hasField("Segment 2 speed") && valueIs("Segment 1 speed", 120));
+            AddStep("select single segment endpoint", () => selectPoint(1));
+            AddUntilStep("endpoint has no following segment controls", () => hasField("Point 1 size") && !hasSegmentFields());
         }
 
         [Test]
@@ -190,7 +396,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             OsuTextBox editedAngle = null!;
             OsuTextBox editedDuration = null!;
-            OsuTextBox endTime = null!;
+            OsuTextBox speed = null!;
             double draftStarted = 0;
             SticksSlider slider() => EditorBeatmap.HitObjects.OfType<SticksSlider>().Single();
 
@@ -202,14 +408,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Angle = 30,
                 ArcAngle = 90,
             }));
-            AddUntilStep("editable slider fields loaded", () => hasField("Angle") && hasField("Duration"));
-            AddStep("hover inspector angle", () => InputManager.MoveMouseTo(field("Angle")));
+            AddUntilStep("head properties ready", () => hasField("Point 0 size"));
+            AddUntilStep("editable slider fields loaded", () => hasField("Segment 1 angle") && hasField("Segment 1 duration"));
+            AddStep("hover inspector angle", () => InputManager.MoveMouseTo(field("Segment 1 angle")));
             AddWaitStep("expand inspector", 3);
             AddStep("focus and enter an unfinished draft", () =>
             {
-                editedAngle = field("Angle");
-                editedDuration = field("Duration");
-                endTime = field("End time");
+                editedAngle = field("Segment 1 angle");
+                editedDuration = field("Segment 1 duration");
+                speed = field("Segment 1 speed");
                 InputManager.MoveMouseTo(editedAngle);
                 InputManager.Click(MouseButton.Left);
                 editedAngle.Text = "75";
@@ -217,9 +424,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 draftStarted = Time.Current;
             });
             AddUntilStep("wait longer than old inspector refresh", () => Time.Current - draftStarted >= 400);
-            AddAssert("same focused field retains draft", () => ReferenceEquals(field("Angle"), editedAngle)
-                && editedAngle.HasFocus && editedAngle.Text == "75" && field("Duration").Text == "-5");
-            AddAssert("typing has not edited the slider", () => slider().Angle == 30 && slider().Duration == 1000);
+            AddAssert("same focused field retains draft", () => ReferenceEquals(field("Segment 1 angle"), editedAngle)
+                && editedAngle.HasFocus && editedAngle.Text == "75" && field("Segment 1 duration").Text == "-5");
+            AddAssert("typing has not edited the slider", () => slider().Angle == 30 && slider().ArcAngle == 90 && slider().Duration == 1000);
             AddAssert("no Apply or Reset buttons", () => !inspector().ChildrenOfType<OsuButton>()
                 .Any(button => button.Text.ToString() is "Apply" or "Reset"));
             AddStep("click Duration to commit Angle", () =>
@@ -227,35 +434,36 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 InputManager.MoveMouseTo(editedDuration);
                 InputManager.Click(MouseButton.Left);
             });
-            AddUntilStep("focus transfer commits only Angle", () => slider().Angle == 75 && editedDuration.HasFocus);
+            AddUntilStep("focus transfer commits only Angle", () => slider().ArcAngle == 75 && editedDuration.HasFocus);
             AddAssert("other field draft remains uncommitted", () => slider().Duration == 1000
-                && ReferenceEquals(field("Duration"), editedDuration) && editedDuration.Text == "-5");
+                && ReferenceEquals(field("Segment 1 duration"), editedDuration) && editedDuration.Text == "-5");
             AddStep("commit invalid duration with Enter", enter);
             AddUntilStep("validation error appears", hasError);
-            AddAssert("invalid duration changes no authored properties", () => slider().Angle == 75 && slider().Duration == 1000
-                && slider().StartTime == 2000 && slider().ArcAngle == 90);
-            AddAssert("invalid field restores its value and keeps focus", () => valueIs("Duration", 1000) && editedDuration.HasFocus);
-            AddStep("correct duration", () => field("Duration").Text = "1500");
+            AddAssert("invalid duration changes no authored properties", () => slider().ArcAngle == 75 && slider().Duration == 1000
+                && slider().StartTime == 2000 && slider().Angle == 30);
+            AddAssert("invalid field restores its value and keeps focus", () => valueIs("Segment 1 duration", 1000) && editedDuration.HasFocus);
+            AddStep("correct duration", () => field("Segment 1 duration").Text = "1500");
             AddWaitStep("update valid draft", 2);
             AddStep("commit valid duration with Enter", enter);
             AddUntilStep("duration and dependent values update", () => slider().Duration == 1500
-                && valueIs("End time", 3500) && valueIs("Segment 1 duration", 1500));
-            AddAssert("refresh preserves controls and focused field", () => ReferenceEquals(field("Angle"), editedAngle)
-                && ReferenceEquals(field("Duration"), editedDuration) && ReferenceEquals(field("End time"), endTime)
+                && valueIs("Segment 1 speed", 50) && valueIs("Segment 1 duration", 1500));
+            AddAssert("refresh preserves controls and focused field", () => ReferenceEquals(field("Segment 1 angle"), editedAngle)
+                && ReferenceEquals(field("Segment 1 duration"), editedDuration) && ReferenceEquals(field("Segment 1 speed"), speed)
                 && editedDuration.HasFocus && !hasError());
             AddStep("undo duration edit", () => Editor.Undo());
-            AddUntilStep("undo restores duration but retains committed angle", () => slider().Angle == 75 && slider().Duration == 1000);
+            AddUntilStep("undo restores duration but retains committed angle", () => slider().ArcAngle == 75 && slider().Duration == 1000);
             AddStep("undo angle edit", () => Editor.Undo());
-            AddUntilStep("second undo restores angle", () => slider().Angle == 30 && slider().Duration == 1000);
+            AddUntilStep("second undo restores angle", () => slider().Angle == 30 && slider().ArcAngle == 90 && slider().Duration == 1000);
             AddStep("redo angle edit", () => Editor.Redo());
-            AddUntilStep("redo angle only", () => slider().Angle == 75 && slider().Duration == 1000);
+            AddUntilStep("redo angle only", () => slider().ArcAngle == 75 && slider().Duration == 1000);
             AddStep("redo duration edit", () => Editor.Redo());
-            AddUntilStep("redo duration", () => slider().Angle == 75 && slider().Duration == 1500);
+            AddUntilStep("redo duration", () => slider().ArcAngle == 75 && slider().Duration == 1500);
             AddStep("select restored slider", () =>
             {
                 EditorBeatmap.SelectedHitObjects.Clear();
                 EditorBeatmap.SelectedHitObjects.Add(slider());
             });
+            AddUntilStep("restored head properties ready", () => hasField("Point 0 size"));
             AddUntilStep("segment fields loaded", () => hasField("Segment 1 angle") && hasField("Segment 1 duration"));
             AddStep("draft stationary and shorter segment", () =>
             {
@@ -266,10 +474,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddStep("commit segment angle", () => commit("Segment 1 angle"));
             AddUntilStep("segment angle commits separately", () => slider().SegmentArcAngleAt(0) == 0 && slider().Duration == 1500);
             AddStep("commit segment duration", () => commit("Segment 1 duration"));
-            AddUntilStep("segment timing updates total duration", () => slider().Angle == 75 && slider().Duration == 750
+            AddUntilStep("segment timing updates total duration", () => slider().Angle == 30 && slider().Duration == 750
                 && slider().SegmentArcAngleAt(0) == 0 && slider().TotalAngularDistance == 0);
             AddStep("undo segment duration", () => Editor.Undo());
-            AddUntilStep("segment duration undo preserves committed shape", () => slider().Angle == 75 && slider().Duration == 1500
+            AddUntilStep("segment duration undo preserves committed shape", () => slider().Angle == 30 && slider().Duration == 1500
                 && slider().SegmentArcAngleAt(0) == 0);
         }
 
@@ -468,7 +676,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 slider.SetTimedSegments(new float[] { 45, 0, -90 }, new double[] { 250, 150, 600 });
                 addSelected(slider);
             });
-            AddUntilStep("slider inspector ready", () => hasField("Segment 3 duration"));
+            AddUntilStep("slider inspector ready", () => hasField("Point 0 size") && pointField().Items.Count() == 4);
             AddStep("choose Both for slider", () => stickField().Current.Value = StickChoice.Both);
             AddUntilStep("both selected sliders retain exact independent timing", () => matchingSliders(2)
                 && EditorBeatmap.HitObjects.Cast<SticksSlider>().Select(slider => slider.Side).Distinct().Count() == 2
@@ -494,7 +702,22 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
         private SticksHitObjectInspector inspector() => this.ChildrenOfType<SticksHitObjectInspector>().Single();
 
+        private OsuDropdown<int> pointField() => inspector().ChildrenOfType<OsuDropdown<int>>().Single(dropdown => dropdown.Name == "Slider point");
+
+        private void selectPoint(int point) => pointField().Current.Value = point;
+
+        private Drawable pointHandle(string name) => this.ChildrenOfType<SticksSelectionBlueprint>().Single()
+            .ChildrenOfType<Drawable>().Single(drawable => drawable.Name == name);
+
+        private void clickHandle(string name)
+        {
+            InputManager.MoveMouseTo(pointHandle(name).ScreenSpaceDrawQuad.Centre);
+            InputManager.Click(MouseButton.Left);
+        }
+
         private bool hasField(string name) => inspector().ChildrenOfType<OsuTextBox>().Any(textBox => textBox.Name == name);
+
+        private bool hasSegmentFields() => inspector().ChildrenOfType<OsuTextBox>().Any(textBox => textBox.Name.StartsWith("Segment ", StringComparison.Ordinal));
 
         private OsuTextBox field(string name) => inspector().ChildrenOfType<OsuTextBox>().Single(textBox => textBox.Name == name);
 

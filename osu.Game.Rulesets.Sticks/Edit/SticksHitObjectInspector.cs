@@ -44,7 +44,11 @@ namespace osu.Game.Rulesets.Sticks.Edit
         private OsuSpriteText selectionLabel = null!;
         private bool updatingControls;
         private int segmentFieldCount;
+        private int inspectedPoint;
         private bool subscribed;
+
+        [Resolved]
+        private SticksHitObjectComposer composer { get; set; } = null!;
 
         [Resolved]
         private Bindable<WorkingBeatmap> workingBeatmap { get; set; } = null!;
@@ -67,11 +71,13 @@ namespace osu.Game.Rulesets.Sticks.Edit
             EditorBeatmap.HitObjectAdded += objectUpdated;
             EditorBeatmap.HitObjectRemoved += objectUpdated;
             EditorBeatmap.TransactionEnded += queueRefresh;
+            composer.SelectedSliderPoint.BindValueChanged(pointSelectionChanged);
             subscribed = true;
             rebuild();
         }
 
         private void selectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => queueRefresh();
+        private void pointSelectionChanged(ValueChangedEvent<int> e) => queueRefresh();
         private void objectUpdated(HitObject hitObject)
         {
             if (hitObject is SticksHitObject)
@@ -84,7 +90,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         private void refresh()
         {
-            if (!targets.SequenceEqual(selected()) || editableSegmentCount() != segmentFieldCount)
+            if (!targets.SequenceEqual(selected()) || editableSegmentCount() != segmentFieldCount
+                || inspectedPoint != currentPoint())
             {
                 rebuild();
                 return;
@@ -103,6 +110,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         private int editableSegmentCount() => SticksInspectorEdits.CanEditSegments(targets)
             ? ((SticksSlider)targets[0]).SegmentCount : 0;
+
+        private int currentPoint() => Math.Clamp(composer.SelectedSliderPoint.Value, 0, editableSegmentCount());
 
         private void refreshValues()
         {
@@ -162,6 +171,8 @@ namespace osu.Game.Rulesets.Sticks.Edit
             targetSet.UnionWith(targets);
             originalStates = targets.Select(stateOf).ToArray();
             segmentFieldCount = editableSegmentCount();
+            inspectedPoint = currentPoint();
+            composer.SelectedSliderPoint.Value = inspectedPoint;
             fields.Clear();
             refreshReadouts.Clear();
             side = null;
@@ -182,11 +193,37 @@ namespace osu.Game.Rulesets.Sticks.Edit
             refreshStickControl();
             side.Current.BindValueChanged(_ => commitSide());
 
-            if (targets.All(note => note is not SticksClick))
+            bool sliders = targets.All(note => note is SticksSlider);
+            if (sliders)
+            {
+                var pointSelector = new SliderPointDropdown
+                {
+                    Name = "Slider point",
+                    RelativeSizeAxes = Axes.X,
+                    Items = Enumerable.Range(0, segmentFieldCount + 1),
+                };
+                pointSelector.Current.Value = inspectedPoint;
+                pointSelector.Current.BindValueChanged(value =>
+                {
+                    if (!updatingControls)
+                        composer.SelectedSliderPoint.Value = value.NewValue;
+                });
+                content.Add(pointSelector);
+                if (segmentFieldCount == 0)
+                    content.Add(label("Select one slider or matching sliders to edit points."));
+            }
+
+            if (inspectedPoint == 0 && targets.All(note => note is not SticksClick))
                 addNumber(content, "Angle", "Angle (°)", () => common(note => SticksHitObject.NormaliseAngle(note.Angle)));
-            if (targets.All(note => note is not SticksClick and not SticksSlice))
-                addNumber(content, "Size", targets.All(note => note is SticksSlider) ? "Overall size scale (×)" : "Note size (×)", () => common(note => note.SizeMultiplier));
-            addNumber(content, "Start time", "Start time (ms)", () => common(note => note.StartTime));
+            if (sliders)
+            {
+                int point = inspectedPoint;
+                addNumber(content, $"Point {point} size", "Size (×)", () => common(note => ((SticksSlider)note).NodeSizeAt(point)));
+            }
+            else if (targets.All(note => note is not SticksClick and not SticksSlice))
+                addNumber(content, "Size", "Size (×)", () => common(note => note.SizeMultiplier));
+            if (inspectedPoint == 0)
+                addNumber(content, "Start time", "Start time (ms)", () => common(note => note.StartTime));
             if (targets.All(note => note is SticksSlice))
             {
                 content.Add(label("Slice direction"));
@@ -213,54 +250,17 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 content.Add(direction);
             }
 
-            if (targets.All(note => note is SticksSlider))
+            if (sliders && inspectedPoint < segmentFieldCount)
             {
-                addNumber(content, "End time", "End time (ms)", () => common(note => ((SticksSlider)note).EndTime));
-                addNumber(content, "Duration", "Duration (ms)", () => common(note => ((SticksSlider)note).Duration));
-                bool hasMultipleSegments = targets.Cast<SticksSlider>().Any(slider => slider.SegmentCount > 1);
-                bool canEditSegments = SticksInspectorEdits.CanEditSegments(targets);
-                if (hasMultipleSegments || !canEditSegments)
+                int segment = inspectedPoint;
+                content.Add(label(inspectedPoint == 0 ? "First segment" : $"Segment from point {inspectedPoint}"));
+                addNumber(content, $"Segment {segment + 1} angle", "Turn (°)", () => common(note => ((SticksSlider)note).SegmentArcAngleAt(segment)));
+                addNumber(content, $"Segment {segment + 1} duration", "Duration (ms)", () => common(note => ((SticksSlider)note).SegmentDurationAt(segment)));
+                addNumber(content, $"Segment {segment + 1} speed", "Speed (°/s)", () => common(note =>
                 {
-                    addSpeed(content, "Slider speed", hasMultipleSegments ? "Average speed" : "Speed", () => common(note =>
-                    {
-                        var slider = (SticksSlider)note;
-                        return slider.TotalAngularDistance / slider.Duration * 1000;
-                    }));
-                }
-                if (canEditSegments)
-                {
-                    addNumber(content, "Point 0 size", "Start size (×)", () => common(note => ((SticksSlider)note).NodeSizeAt(0)));
-                    var slider = (SticksSlider)targets[0];
-                    var segments = new FillFlowContainer
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        AutoSizeAxes = Axes.Y,
-                        Direction = FillDirection.Vertical,
-                        Spacing = new Vector2(0, 6),
-                        Padding = new MarginPadding { Right = 12 },
-                    };
-                    content.Add(new OsuScrollContainer
-                    {
-                        RelativeSizeAxes = Axes.X,
-                        Height = Math.Min(180, slider.SegmentCount * 150),
-                        Child = segments,
-                    });
-                    for (int i = 0; i < slider.SegmentCount; i++)
-                    {
-                        int index = i;
-                        addNumber(segments, $"Segment {i + 1} angle", $"Segment {i + 1} turn (°)", () => ((SticksSlider)targets[0]).SegmentArcAngleAt(index));
-                        addNumber(segments, $"Segment {i + 1} duration", "Segment duration (ms)", () => ((SticksSlider)targets[0]).SegmentDurationAt(index));
-                        addNumber(segments, $"Segment {i + 1} speed", "Speed (°/s)", () =>
-                        {
-                            var currentSlider = (SticksSlider)targets[0];
-                            return Math.Abs(currentSlider.SegmentArcAngleAt(index)) / currentSlider.SegmentDurationAt(index) * 1000;
-                        });
-                        addNumber(segments, $"Point {i + 1} size", i == slider.SegmentCount - 1 ? "Tail size (×)" : $"Point {i + 1} size (×)",
-                            () => common(note => ((SticksSlider)note).NodeSizeAt(index + 1)));
-                    }
-                }
-                else
-                    content.Add(label("Select matching sliders to edit segments."));
+                    var slider = (SticksSlider)note;
+                    return slider.SegmentArcAngleAt(segment) / slider.SegmentDurationAt(segment) * 1000;
+                }));
             }
 
             content.Add(errorText = new OsuTextFlowContainer(text => text.Font = OsuFont.GetFont(size: 13))
@@ -282,26 +282,6 @@ namespace osu.Game.Rulesets.Sticks.Edit
         {
             double first = value(targets[0]);
             return targets.All(note => value(note).Equals(first)) ? first : null;
-        }
-
-        private void addSpeed(FillFlowContainer parent, string name, string caption, Func<double?> readValue)
-        {
-            var text = label(string.Empty);
-            text.Name = name;
-            void refreshReadout()
-            {
-                double? value = readValue();
-                string speed = value.HasValue
-                    ? double.IsFinite(value.Value) && value.Value >= 0
-                        ? value.Value.ToString("0.##", CultureInfo.InvariantCulture) + " °/s"
-                        : "—"
-                    : "Mixed";
-                text.Text = $"{caption}: {speed}";
-            }
-
-            refreshReadouts.Add(refreshReadout);
-            refreshReadout();
-            parent.Add(text);
         }
 
         private void addNumber(FillFlowContainer parent, string name, string caption, Func<double?> readValue)
@@ -461,7 +441,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
             targetSet.Clear();
             targetSet.UnionWith(targets);
             selectionLabel.Text = targets.Length == 1 ? "Note properties" : $"{targets.Length} selected notes";
-            if (editableSegmentCount() != segmentFieldCount)
+            if (editableSegmentCount() != segmentFieldCount || inspectedPoint != currentPoint())
                 rebuild();
             else
                 refreshValues();
@@ -586,6 +566,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 EditorBeatmap.HitObjectAdded -= objectUpdated;
                 EditorBeatmap.HitObjectRemoved -= objectUpdated;
                 EditorBeatmap.TransactionEnded -= queueRefresh;
+                composer.SelectedSliderPoint.ValueChanged -= pointSelectionChanged;
             }
             base.Dispose(isDisposing);
         }
@@ -615,6 +596,11 @@ namespace osu.Game.Rulesets.Sticks.Edit
         {
             protected override LocalisableString GenerateItemText(StickChoice item) =>
                 item.ToString();
+        }
+
+        private partial class SliderPointDropdown : OsuDropdown<int>
+        {
+            protected override LocalisableString GenerateItemText(int item) => item == 0 ? "Head" : $"Point {item}";
         }
 
         private partial class InspectorNumberBox : OsuTextBox

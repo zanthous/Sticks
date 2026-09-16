@@ -195,32 +195,42 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddAssert("carrier marker current after redo", markerIsCurrent);
         }
 
-        [Test]
-        public void TestExistingSliderContinuationUsesTraceAndScrolledTime()
+        [TestCase(2500)]
+        [TestCase(4000)]
+        public void TestAddSliderPointUsesTraceAndScrolledTime(double selectionTime)
         {
-            AddStep("add and select slider at its tail", () =>
+            Drawable addPointButton() => selectionBlueprints().Single().ChildrenOfType<Drawable>().Single(drawable => drawable.Name == "Add slider point");
+
+            AddStep("select slider away from its tail time", () =>
             {
+                EditorClock.Stop();
                 continuationSlider = new SticksSlider
                 {
                     StartTime = 2000,
-                    Duration = 1000,
+                    Duration = 1003.5,
                     Side = StickSide.Left,
                     Angle = 0,
                     ArcAngle = 90,
                 };
+                continuationSlider.SetNodeSizeMultipliers(new[] { 1f, 1.5f });
                 continuationSlider.EnsureLegacyEditorMarker();
                 EditorBeatmap.Add(continuationSlider);
-                EditorClock.Seek(3000);
+                EditorClock.Seek(selectionTime);
                 EditorBeatmap.SelectedHitObjects.Add(continuationSlider);
             });
-            AddUntilStep("slider selection loaded", () => selectionBlueprints().Length == 1);
-            AddStep("move to tail", () => InputManager.MoveMouseTo(playfield().ToScreenSpace(SticksPlayfield.PointAt(90, 230))));
-            AddWaitStep("update cursor", 2);
-            AddStep("right-click to continue", () => InputManager.Click(MouseButton.Right));
+            AddUntilStep("add point button visible", () => selectionBlueprints().Length == 1 && addPointButton().IsPresent);
+            AddStep("click plus to continue", () =>
+            {
+                InputManager.MoveMouseTo(addPointButton().ScreenSpaceDrawQuad.Centre);
+                InputManager.Click(MouseButton.Left);
+            });
             AddUntilStep("point placement active", () => selectionBlueprints().Single().IsPlacingContinuation);
+            AddAssert("jumps to exact off-grid tail time", () => Math.Abs(EditorClock.CurrentTimeAccurate - 3003.5) < 0.001);
+            AddAssert("button click preserves the original slider", () => EditorBeatmap.HitObjects.Contains(continuationSlider)
+                && continuationSlider.SegmentCount == 1 && continuationSlider.Duration == 1003.5);
             AddAssert("point handles hide during continuation", () => !selectionBlueprints().Single().ChildrenOfType<Drawable>()
                 .Any(drawable => (drawable.Name == "Slider tail" || drawable.Name.StartsWith("Slider turn ", StringComparison.Ordinal)) && drawable.IsPresent));
-            AddAssert("old button panel is gone", () => !selectionBlueprints().Single().ChildrenOfType<SpriteIcon>().Any());
+            AddAssert("add button hides during continuation", () => !addPointButton().IsPresent);
             AddStep("trace reverse arc", () => InputManager.MoveMouseTo(playfield().ToScreenSpace(SticksPlayfield.PointAt(15, 246))));
             AddWaitStep("update trace", 3);
             AddStep("click on same beat", () => InputManager.Click(MouseButton.Left));
@@ -228,17 +238,36 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 && selectionBlueprints().Single().IsPlacingContinuation);
             AddStep("scroll before current segment", () => EditorClock.Seek(2900));
             AddStep("reject backwards point", () => InputManager.Click(MouseButton.Right));
-            AddAssert("old slider still intact", () => continuationSlider.Duration == 1000 && continuationSlider.SegmentCount == 1);
-            AddStep("scroll to new end", () => EditorClock.Seek(3500));
+            AddAssert("old slider still intact", () => continuationSlider.Duration == 1003.5 && continuationSlider.SegmentCount == 1);
+            AddStep("scroll to new end", () => EditorClock.Seek(3503.5));
             AddWaitStep("update end preview", 3);
             AddAssert("modern directional preview is visible", () => selectionBlueprints().Single()
                 .ChildrenOfType<SticksSliderHeadMarker>().Any(marker => marker.IsPresent));
             AddStep("finish with left click", () => InputManager.Click(MouseButton.Left));
             AddUntilStep("continuation committed", () => continuationSlider.SegmentCount == 2);
-            AddAssert("time and shape are independent", () => Math.Abs(continuationSlider.Duration - 1500) < 0.001
-                && Math.Abs(continuationSlider.SegmentDurationAt(0) - 1000) < 0.001
+            AddAssert("time and shape are independent", () => Math.Abs(continuationSlider.Duration - 1503.5) < 0.001
+                && Math.Abs(continuationSlider.SegmentDurationAt(0) - 1003.5) < 0.001
                 && Math.Abs(continuationSlider.SegmentArcAngleAt(1) + 75) < 0.01);
+            AddAssert("new span inherits the tail size", () => continuationSlider.NodeSizeMultiplierAt(0) == 1
+                && continuationSlider.NodeSizeMultiplierAt(1) == 1.5f && continuationSlider.NodeSizeMultiplierAt(2) == 1.5f);
             AddAssert("point placement finished", () => !selectionBlueprints().Single().IsPlacingContinuation);
+            AddStep("undo new point", () => Editor.Undo());
+            AddUntilStep("one undo restores original slider", () => currentSlider().SegmentCount == 1 && currentSlider().Duration == 1003.5);
+            AddStep("redo new point", () => Editor.Redo());
+            AddUntilStep("new point restored", () => currentSlider().SegmentCount == 2 && currentSlider().Duration == 1503.5);
+            AddStep("reselect extended slider", selectAllNotes);
+            AddUntilStep("add point button returns", () => addPointButton().IsPresent);
+            AddStep("start another point", () =>
+            {
+                InputManager.MoveMouseTo(addPointButton().ScreenSpaceDrawQuad.Centre);
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("another point placement active", () => selectionBlueprints().Single().IsPlacingContinuation);
+            AddStep("cancel pending point", () => InputManager.Key(Key.Escape));
+            AddUntilStep("pending point cancelled", () => !selectionBlueprints().Single().IsPlacingContinuation);
+            AddAssert("cancel keeps both committed points", () => currentSlider().SegmentCount == 2 && currentSlider().Duration == 1503.5);
+            AddStep("reselect after cancellation", selectAllNotes);
+            AddUntilStep("add button available again", () => addPointButton().IsPresent);
         }
 
         [TestCase(false)]

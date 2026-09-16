@@ -271,8 +271,9 @@ namespace osu.Game.Rulesets.Sticks.Edit.Blueprints
             {
                 double pathTime = displayedTime + (1 - radius / SticksPlayfield.GUIDE_RADIUS) * displayedApproachDuration;
                 double endTime = displayedObject is SticksSlider slider ? slider.EndTime : ((SticksHold)displayedObject).EndTime;
+                float pathTolerance = displayedObject.PrimaryHitAngleAt(pathTime) / 2 + 3;
                 return pathTime >= displayedObject.StartTime && pathTime <= endTime
-                       && Math.Abs(SticksHitObject.DeltaAngle(SticksEditorCoordinates.AngleAt(displayedObject, pathTime), angle)) <= tolerance;
+                       && Math.Abs(SticksHitObject.DeltaAngle(SticksEditorCoordinates.AngleAt(displayedObject, pathTime), angle)) <= pathTolerance;
             }
 
             return false;

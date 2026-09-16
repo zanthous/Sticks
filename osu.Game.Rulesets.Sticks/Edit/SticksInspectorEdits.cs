@@ -162,7 +162,7 @@ namespace osu.Game.Rulesets.Sticks.Edit
                 return fail("Change either the overall duration or individual segment durations in one edit.", out error);
             if ((globalDurationChanged || segmentAnglesChanged || segmentDurationsChanged || segmentSpeedsChanged || nodeSizesChanged) && selection.Any(note => note is not SticksSlider))
                 return fail("Duration and path fields require a selection containing only sliders.", out error);
-            if ((segmentAnglesChanged || segmentDurationsChanged || segmentSpeedsChanged || nodeSizesChanged) && !CanEditSegments(selection))
+            if ((segmentAnglesChanged || segmentDurationsChanged || segmentSpeedsChanged) && !CanEditSegments(selection))
                 return fail("Edit segment fields together only when the selected sliders have matching paths and segment durations.", out error);
             if (segmentSpeedsChanged && segmentAnglesChanged && edit.SegmentSpeeds!.Keys.Intersect(edit.SegmentAngles!.Keys).Any())
                 return fail("Change either a segment's speed or its turn angle, not both together.", out error);
@@ -261,15 +261,14 @@ namespace osu.Game.Rulesets.Sticks.Edit
                         {
                             if (index < 0 || index >= segments.Length)
                                 return fail("A selected segment no longer exists.", out error);
-                            if (!double.IsFinite(speed) || speed < 0)
-                                return fail($"Segment {index + 1}'s speed must be finite and nonnegative.", out error);
+                            if (!double.IsFinite(speed))
+                                return fail($"Segment {index + 1}'s speed must be finite.", out error);
 
-                            // Timing stays on the music. Positive speed retains the current
-                            // direction; a stationary segment starts clockwise by default.
+                            // Timing stays on the music. The speed's sign specifies the turn direction.
                             double travel = speed * (durations[index] / 1000);
-                            if (!tryAngle(travel, out float arc) || speed > 0 && arc == 0)
+                            if (!tryAngle(travel, out float arc) || speed != 0 && arc == 0)
                                 return fail($"Segment {index + 1}'s speed produces an unrepresentable turn angle.", out error);
-                            segments[index] = segments[index] < 0 ? -arc : arc;
+                            segments[index] = arc;
                         }
                     }
 

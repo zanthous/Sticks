@@ -7,6 +7,7 @@ using osu.Framework.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Sticks.Edit.Blueprints;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Edit.Compose.Components;
@@ -21,6 +22,15 @@ namespace osu.Game.Rulesets.Sticks.Edit
 
         [Resolved]
         private EditorClock? editorClock { get; set; }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            // A point outside the visible timeline has no handle to outline.
+            if (SelectedBlueprints.Count > 0)
+                SelectionBox.Alpha = SelectedBlueprints.Any(blueprint => blueprint is not SticksSelectionBlueprint sticks || sticks.HasVisibleSelection) ? 1 : 0;
+        }
 
         public override bool HandleMovement(MoveSelectionEvent<HitObject> moveEvent)
         {

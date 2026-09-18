@@ -28,7 +28,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             processor.ApplyResult(hit);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor.HitEvents, Has.Count.EqualTo(1));
                 Assert.That(processor.HitEvents[0].Position, Is.Not.Null);
@@ -64,7 +64,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksScoreStatistics.Summary summary = SticksScoreStatistics.Calculate(events);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(summary.TimingEvents, Has.Count.EqualTo(1));
                 Assert.That(summary.AverageAngleError, Is.EqualTo(10).Within(0.001));
@@ -92,7 +92,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 1 / SticksPerformanceCalculator.PERFORMANCE_NORM_EXPONENT)
                 * SticksPerformanceCalculator.PERFORMANCE_BASE_MULTIPLIER;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(performance.Mechanical, Is.GreaterThan(0));
                 Assert.That(performance.Reading, Is.GreaterThan(0));
@@ -118,7 +118,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var droppedPerformance = (SticksPerformanceAttributes)calculator.Calculate(droppedTracking, attributes);
             double expectedAccuracy = Math.Pow(1.52163, 5) * 2.83 * Math.Pow(100 / 1000.0, 0.3);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(perfectPerformance.Accuracy, Is.EqualTo(expectedAccuracy).Within(0.0000001));
                 Assert.That(droppedPerformance.Accuracy, Is.EqualTo(perfectPerformance.Accuracy).Within(0.0000001),
@@ -149,7 +149,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var performance = (SticksPerformanceAttributes)calculator.Calculate(storedScore, attributes);
             double expectedAccuracy = Math.Pow(1.52163, 5) * 2.83 * Math.Pow(100 / 1000.0, 0.3);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(performance.Accuracy, Is.EqualTo(expectedAccuracy).Within(0.0000001));
                 Assert.That(performance.EffectiveMissCount, Is.GreaterThan(0));
@@ -165,7 +165,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var inaccurate = (SticksPerformanceAttributes)calculator.Calculate(
                 scoreWithHeadResults(90, 10, 0, 0, 20, 0, 10, 130), attributes);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inaccurate.Mechanical, Is.LessThan(perfect.Mechanical));
                 Assert.That(inaccurate.Reading, Is.LessThan(perfect.Reading));
@@ -219,7 +219,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             var attributes = ruleset.GetBeatmapAttributesForDisplay(beatmapInfo, []).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(attributes.Select(attribute => attribute.Acronym), Is.EqualTo(new[] { "CS", "OD", "HP" }));
                 Assert.That(attributes, Has.None.Matches<osu.Game.Rulesets.Difficulty.RulesetBeatmapAttribute>(attribute => attribute.Acronym == "AR"));

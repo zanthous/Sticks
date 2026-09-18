@@ -111,7 +111,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double stars = SticksConversionCoordinationAllowance.CalculateSourceStars(source, CancellationToken.None);
             source.BeatmapInfo.StarRating = -1;
             Assert.That(SticksConversionCoordinationAllowance.CalculateSourceStars(source, CancellationToken.None), Is.EqualTo(stars));
-            Assert.Throws<OperationCanceledException>(() => SticksConversionCoordinationAllowance.CalculateSourceStars(source, new CancellationToken(true)));
+            NUnitCompatibility.Throws<OperationCanceledException>(() => SticksConversionCoordinationAllowance.CalculateSourceStars(source, new CancellationToken(true)));
         }
 
         [Test]

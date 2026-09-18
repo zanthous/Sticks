@@ -185,7 +185,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                       && playfield().ColourFor(StickSide.Right) == customRight);
             AddStep("verify image roles and real hit geometry", () =>
             {
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(slot("sticks-playfield").Size, Is.EqualTo(new Vector2(SticksPlayfield.SIZE)));
                     Assert.That(slot("sticks-cursor-left").Texture, Is.SameAs(first));
@@ -217,7 +217,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 var image = repeat().ChildrenOfType<SticksSkinnedSprite>().Single();
                 float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
                     manual.CurrentTime, repeat().HitObject.StartTime, repeat().HitObject.ApproachDuration);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(slot("sticks-slider-head").Texture, Is.SameAs(first));
                     Assert.That(repeat().HitObject.StartTime, Is.EqualTo(2400));

@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             // BeatmapManager.Save() performs this assignment immediately before encoding.
             carrier.BeatmapInfo = source.BeatmapInfo;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(source.BeatmapInfo.Ruleset.ShortName, Is.EqualTo("sticks"));
                 Assert.That(source.BeatmapInfo.Ruleset.OnlineID, Is.EqualTo(-1));
@@ -56,7 +56,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             new LegacyBeatmapEncoder(carrier, null, null).Encode(writer);
             string encoded = writer.ToString();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(encoded, Does.Contain("Mode: 0"));
                 Assert.That(encoded, Does.Contain("sticks-v1~f~l~45.wav"));
@@ -70,7 +70,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] roundTripped = new SticksBeatmapConverter(decodedCarrier, sticksRuleset)
                                                    .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(decodedCarrier.HitObjects[0], Is.Not.InstanceOf<IHasDuration>());
                 Assert.That(((IHasDuration)decodedCarrier.HitObjects[1]).EndTime, Is.EqualTo(2250));

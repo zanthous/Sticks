@@ -56,7 +56,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var decodedBeatmap = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader);
             SticksAuthoredBeatmapCodec.MarkerInspection marker = SticksAuthoredBeatmapCodec.InspectMarker(decodedBeatmap.HitObjects.Single());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(marker.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.ValidSupported));
                 Assert.That(marker.Version, Is.EqualTo(3));
@@ -91,7 +91,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             HitObject proxy = markerObject(filename);
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(proxy);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksAuthoredBeatmapCodec.IsMarker(proxy.Samples.Single()), Is.True);
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
@@ -125,7 +125,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             HitObject proxy = markerObject(filename);
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(proxy);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
                 Assert.That(inspection.Version, Is.EqualTo(6));
@@ -145,7 +145,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var segmented = new SticksSlider { Duration = 900, Angle = 10, Side = StickSide.Left };
             segmented.SetCustomSegments(new[] { 90f, -180f, 45f });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksAuthoredBeatmapCodec.EncodeMarker(repeated), Is.EqualTo("sticks-v1~s~l~10~900~90~2.wav"));
                 Assert.That(SticksAuthoredBeatmapCodec.EncodeMarker(segmented), Is.EqualTo("sticks-v2~s~l~10~900~90_-180_45.wav"));
@@ -170,7 +170,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider converted = convertWithoutReversals(source);
 
             assertSamePath(source, converted);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.SegmentDurationWeights, Is.EqualTo(source.SegmentDurationWeights));
                 Assert.That(SticksAuthoredBeatmapCodec.EncodeMarker(converted), Is.EqualTo(SticksAuthoredBeatmapCodec.EncodeMarker(source)));
@@ -191,7 +191,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider converted = convertWithoutReversals(source);
 
             assertSamePath(expected, converted);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(source.SegmentEndsWithReversal(2), Is.True, "The original motion reverses when it leaves the middle pause.");
                 Assert.That(Enumerable.Range(0, converted.SegmentCount - 1).Any(converted.SegmentEndsWithReversal), Is.False);
@@ -258,7 +258,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
         private static void assertSamePath(SticksSlider expected, SticksSlider actual)
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(actual.HasTimedSegments, Is.EqualTo(expected.HasTimedSegments));
                 Assert.That(actual.StartTime, Is.EqualTo(expected.StartTime));

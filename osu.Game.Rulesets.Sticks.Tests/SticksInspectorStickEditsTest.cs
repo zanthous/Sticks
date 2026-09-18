@@ -21,7 +21,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksInspectorStickEdits.TryPrepare(notes, notes, null, out SticksInspectorStickEditPlan plan, out error), Is.True, error);
 
             SticksHitObject counterpart = plan.Additions.Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(counterpart, Is.TypeOf<SticksFlick>());
                 Assert.That(counterpart.Side, Is.EqualTo(StickSide.Right));
@@ -46,7 +46,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var selected = new SticksHitObject[] { left };
             var all = new SticksHitObject[] { left, right };
             Assert.That(SticksInspectorStickEdits.TryPrepare(selected, all, null, out SticksInspectorStickEditPlan plan, out string error), Is.True, error);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(plan.Additions, Is.Empty);
                 Assert.That(plan.Selection, Is.EqualTo(all));
@@ -68,7 +68,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick right = flick(StickSide.Right, 1000, 15);
             var pair = new SticksHitObject[] { right, left };
             Assert.That(SticksInspectorStickEdits.TryPrepare(pair, pair, StickSide.Left, out SticksInspectorStickEditPlan plan, out string error), Is.True, error);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(plan.Removals, Is.EqualTo(new[] { right }));
                 Assert.That(plan.Selection, Is.EqualTo(new[] { left }));
@@ -92,7 +92,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksInspectorStickEdits.GetSelectionSide(notes), Is.Null);
             Assert.That(SticksInspectorStickEdits.IsBoth(notes), Is.False);
             Assert.That(SticksInspectorStickEdits.TryPrepare(notes, notes, StickSide.Right, out SticksInspectorStickEditPlan plan, out string error), Is.True, error);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(plan.Updates.Single().Target, Is.SameAs(left));
                 Assert.That(plan.Additions, Is.Empty);
@@ -115,7 +115,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(SticksInspectorStickEdits.TryPrepare(notes, notes, null, out SticksInspectorStickEditPlan plan, out string error), Is.True, error);
             var copy = (SticksSlider)plan.Additions.Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(copy.Duration, Is.EqualTo(source.Duration));
                 Assert.That(copy.SegmentArcAngles, Is.EqualTo(source.SegmentArcAngles));

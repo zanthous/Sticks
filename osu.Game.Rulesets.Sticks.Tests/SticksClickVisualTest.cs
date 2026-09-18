@@ -57,7 +57,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     float haloRadius = (halo.DrawWidth - halo.BorderThickness) / 2;
                     float expectedRadius = SticksPlayfield.GUIDE_RADIUS * (float)progress;
 
-                    Assert.Multiple(() =>
+                    NUnitCompatibility.Multiple(() =>
                     {
                         Assert.That(halo.BorderThickness, Is.EqualTo(5));
                         Assert.That(haloRadius, Is.EqualTo(expectedRadius).Within(0.001));
@@ -94,7 +94,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
                 // The framework draws this sorted child list forwards. Test the loaded
                 // container so insertion and lifetime ordering are exercised together.
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(haloIndex, Is.GreaterThanOrEqualTo(0));
                     Assert.That(Array.IndexOf(drawOrder, flick), Is.GreaterThan(haloIndex), "Flick must cover the halo");

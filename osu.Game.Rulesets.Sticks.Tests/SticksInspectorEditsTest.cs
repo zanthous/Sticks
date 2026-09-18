@@ -32,7 +32,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SegmentAngles = new Dictionary<int, double> { [1] = -20 },
             }, 4000, out SticksInspectorEditPlan[] plans, out string error), Is.True, error);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(left.StartTime, Is.EqualTo(1000), "Preparation must not mutate either selected note.");
                 Assert.That(right.SegmentArcAngles, Is.EqualTo(new[] { 30f, -60f }));
@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             foreach (SticksInspectorEditPlan plan in plans)
                 plan.Apply();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(pair.Select(note => note.StartTime), Is.EqualTo(new[] { 1500d, 1500d }));
                 Assert.That(pair.Select(note => note.Angle), Is.EqualTo(new[] { 720f, 720f }), "Angles are not arbitrarily capped or normalised.");
@@ -110,7 +110,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksInspectorEdits.TryPrepare(selected, new SticksInspectorEdit { Duration = 2400 }, 10000,
                 out SticksInspectorEditPlan[] plans, out string error), Is.True, error);
             plans.Single().Apply();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(target.SegmentDurationAt(0), Is.EqualTo(400).Within(0.000001));
                 Assert.That(target.SegmentDurationAt(1), Is.EqualTo(2000).Within(0.000001));
@@ -122,7 +122,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SegmentDurations = new Dictionary<int, double> { [1] = 800 },
             }, 10000, out plans, out error), Is.True, error);
             plans.Single().Apply();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(target.Duration, Is.EqualTo(1200));
                 Assert.That(target.SegmentDurationAt(0), Is.EqualTo(400).Within(0.000001));
@@ -145,7 +145,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksInspectorEdits.TryPrepare(selected, new SticksInspectorEdit { StartTime = 2500, EndTime = 4000 }, 4000,
                 out plans, out error), Is.True, error);
             plans.Single().Apply();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(target.Duration, Is.EqualTo(1500));
                 Assert.That(target.EndTime, Is.EqualTo(4000));
@@ -163,7 +163,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(SticksInspectorEdits.TryPrepare(selected, new SticksInspectorEdit { StartTime = 9500, Angle = 40 }, 10000,
                 out SticksInspectorEditPlan[] plans, out string error), Is.False);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(plans, Is.Empty);
                 Assert.That(error, Does.Contain("audio"));
@@ -212,7 +212,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(error, Is.Not.Empty);
             }
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(target.Duration, Is.EqualTo(1200));
                 Assert.That(target.SegmentArcAngles, Is.EqualTo(new[] { 30f, -60f }));
@@ -251,7 +251,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             plans.Single().Apply();
             Assert.That(target.HasTimedSegments, Is.True, "A legacy marker would round this duration to zero.");
             Assert.That(SticksAuthoredBeatmapCodec.TryDecode(SticksAuthoredBeatmapCodec.CreateLegacyProxy(target), out SticksHitObject decoded), Is.True);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(((SticksSlider)decoded).Duration, Is.EqualTo(0.0001));
                 Assert.That(((SticksSlider)decoded).SegmentArcAngles, Is.EqualTo(target.SegmentArcAngles));
@@ -279,7 +279,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(error, Does.Contain("4096 checkpoints"));
             }
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(target.Duration, Is.EqualTo(1200));
                 Assert.That(target.SegmentArcAngles, Is.EqualTo(new[] { 30f, -60f }));
@@ -348,7 +348,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksInspectorEdits.TryPrepare(new SticksHitObject[] { target }, new SticksInspectorEdit(), null,
                 out SticksInspectorEditPlan[] plans, out string error), Is.True, error);
             plans.Single().Apply();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(target.HasTimedSegments, Is.False);
                 Assert.That(target.Angle, Is.EqualTo(-720));

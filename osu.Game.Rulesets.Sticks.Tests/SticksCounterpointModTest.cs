@@ -25,7 +25,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var ruleset = new SticksRuleset();
             Mod[] visible = ruleset.GetModsFor(ModType.Conversion).ToArray();
             SticksModCounterpoint counterpoint = ruleset.GetModsFor(ModType.System).OfType<SticksModCounterpoint>().Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(counterpoint.Ranked, Is.False);
                 Assert.That(counterpoint.Type, Is.EqualTo(ModType.System));
@@ -50,7 +50,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(sourcePhrase(), new SticksRuleset()) { ConversionMode = mode, UseCounterpoint = false };
             Assert.That(converter.UseCounterpoint, Is.False);
             new SticksModCounterpoint().ApplyToBeatmapConverter(converter);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.UseCounterpoint, Is.True);
                 Assert.That(converter.ConversionMode, Is.EqualTo(mode));
@@ -76,7 +76,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 foreach (int index in order)
                     mods[index].ApplyToBeatmapConverter(converter);
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(converter.UseCounterpoint, Is.True);
                     Assert.That(converter.ConversionMode, Is.EqualTo(SticksConversionMode.ParityDuet));
@@ -134,7 +134,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             new SticksModEncore().ApplyToBeatmapConverter(converter);
             new SticksModDifficultyAdjust().ApplyToBeatmapConverter(converter);
             SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.IsAuthoredCarrier, Is.EqualTo(carrier));
                 Assert.That(converted, Has.Length.EqualTo(authored.Length), "Authored maps must not receive generated accents or phrases.");
@@ -162,7 +162,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(signature(converter.Convert().HitObjects.Cast<SticksHitObject>()), Is.EqualTo(baseline));
             converter.UseCounterpoint = true;
             Assert.That(signature(converter.Convert().HitObjects.Cast<SticksHitObject>()), Is.EqualTo(enabled));
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(source.HitObjects, Is.EqualTo(originalObjects));
                 Assert.That(sourceSignature(source), Is.EqualTo(sourceBefore));

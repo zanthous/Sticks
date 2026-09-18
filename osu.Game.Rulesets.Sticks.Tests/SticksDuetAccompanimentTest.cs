@@ -25,7 +25,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick accent = duet.OfType<SticksFlick>().Single();
             SticksSlider primary = duet.OfType<SticksSlider>().Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(duet, Has.Length.EqualTo(baseline.Length + 1));
                 Assert.That(accent.StartTime, Is.EqualTo(1000));
@@ -48,7 +48,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             float progress = (float)((accent.StartTime - before.StartTime) / (after.StartTime - before.StartTime));
             float expected = SticksHitObject.NormaliseAngle(before.Angle + progress * SticksHitObject.DeltaAngle(before.Angle, after.Angle));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(accent.StartTime, Is.EqualTo(1250));
                 Assert.That(accent.Side, Is.Not.EqualTo(primary.Side));
@@ -80,7 +80,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] duet = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksFlick accent = added(baseline, duet).OfType<SticksFlick>().Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(accent.StartTime, Is.EqualTo(1500));
                 Assert.That(accent.Samples.Single().Name, Is.EqualTo(disableHitsounds ? HitSampleInfo.HIT_NORMAL : HitSampleInfo.HIT_CLAP));
@@ -120,7 +120,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider primary = duet.OfType<SticksSlider>().Single();
             SticksFlick interior = duet.OfType<SticksFlick>().Single(note => note.StartTime == 1300);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(primary.RepeatCount, Is.EqualTo(disableReversals ? 0 : 1));
                 Assert.That(interior.Angle, Is.EqualTo(SticksHitObject.NormaliseAngle(primary.AngleAt(interior.StartTime))).Within(0.001));
@@ -171,7 +171,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             converter.ConversionMode = SticksConversionMode.Standard;
             string[] restored = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(signature).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(first, Has.Length.EqualTo(2));
                 Assert.That(repeated, Is.EqualTo(first));

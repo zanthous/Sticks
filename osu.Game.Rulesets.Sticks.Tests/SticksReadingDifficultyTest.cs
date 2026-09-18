@@ -30,7 +30,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var swapped = notes.Select(n => note(n.StartTime, n.Angle, n.Side == StickSide.Left ? StickSide.Right : StickSide.Left)).ToArray();
             var shifted = notes.Select(n => note(n.StartTime + 13000, n.Angle, n.Side)).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(reading(rotated), Is.EqualTo(expected).Within(1e-8));
                 Assert.That(reading(reflected), Is.EqualTo(expected).Within(1e-8));

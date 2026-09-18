@@ -39,7 +39,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestDwellsAccumulateAccordingToTheActualReversalJudgement()
         {
             SticksSlider slider = path(new[] { 10f, 0f, 0f, -10f, 0f }, new[] { 100d, 50d, 100d, 100d, 150d });
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.SegmentEndsWithReversal(0), Is.False);
                 Assert.That(slider.SegmentEndsWithReversal(1), Is.False);
@@ -53,7 +53,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksSlider source = path(new[] { 20f, -20f }, new[] { 500d, 500d });
             SticksSlider fitted = path(source.SegmentArcAngles.ToArray(), new[] { 200d, 200d });
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksCounterpointMotion.HasReadableReversals(source), Is.True);
                 Assert.That(SticksCounterpointMotion.HasReadableReversals(fitted), Is.False);

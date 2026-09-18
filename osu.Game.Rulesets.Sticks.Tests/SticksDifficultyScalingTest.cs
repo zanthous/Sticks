@@ -11,7 +11,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestGlobalStarCalibrationReducesInflatedRatings()
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksDifficultyScaling.CalibrateStarRating(0), Is.Zero);
                 Assert.That(SticksDifficultyScaling.CalibrateStarRating(1), Is.LessThan(0.4));
@@ -28,7 +28,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double reference = SticksDifficultyScaling.AngularPrecisionMultiplier(4);
             double hard = SticksDifficultyScaling.AngularPrecisionMultiplier(5.4f);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(easy, Is.EqualTo(11.0 / 14).Within(0.0001));
                 Assert.That(reference, Is.EqualTo(1).Within(0.0001));
@@ -53,7 +53,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double trivialHard = SticksDifficultyScaling.AngularPrecisionStarAdjustment(trivial_map_stars,
                 SticksDifficultyScaling.AngularPrecisionMultiplier(20, 10));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(easy, Is.LessThan(-0.35), "Wide windows must not hit the old fixed reduction cap.");
                 Assert.That(reference, Is.Zero.Within(0.0001));
@@ -84,7 +84,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestPrecisionAloneKeepsTrivialPatternsEasy()
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(adjustedStars(0.5, 15), Is.LessThan(1), "Precision alone should not turn a trivial pattern into a difficult map.");
                 Assert.That(adjustedStars(0, 4), Is.Zero);
@@ -101,7 +101,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double below = SticksDifficultyScaling.AngularPrecisionStarAdjustment(baseStars, boundary - step);
             double above = SticksDifficultyScaling.AngularPrecisionStarAdjustment(baseStars, boundary + step);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(at, Is.Zero);
                 Assert.That(below, Is.LessThan(0));
@@ -139,7 +139,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 previous = current;
             }
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(0), Is.EqualTo(11.0 / 18).Within(0.0001));
                 Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(10), Is.EqualTo(11.0 / 6).Within(0.0001));
@@ -149,7 +149,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestTimingPrecisionUsesGameplayGreatWindows()
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksDifficultyScaling.TimingPrecisionMultiplier(0), Is.EqualTo(49.5 / 79.5).Within(0.0001));
                 Assert.That(SticksDifficultyScaling.TimingPrecisionMultiplier(5), Is.EqualTo(1).Within(0.0001));
@@ -180,7 +180,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             double expected = SticksDifficultyScaling.OverallDifficultyMultiplier(7);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksDifficultyScaling.StarRatingPrecisionMultiplier(lowApproachRate), Is.EqualTo(expected).Within(0.0001));
                 Assert.That(SticksDifficultyScaling.StarRatingPrecisionMultiplier(highApproachRate), Is.EqualTo(expected).Within(0.0001));
@@ -190,7 +190,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestActualObjectBandsCanOverrideCircleSize()
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(35, 17.5f), Is.EqualTo(11.0 / 14).Within(0.0001));
                 Assert.That(SticksDifficultyScaling.AngularPrecisionMultiplier(27.5f, 13.75f), Is.EqualTo(1).Within(0.0001));

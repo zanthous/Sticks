@@ -29,7 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             assertPosition(collar, SticksPlayfield.PointAt(firstAngle, 115));
             layer.UpdateOverlaps(heads, 1000);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(overlap.Alpha, Is.EqualTo(1));
                 Assert.That(collar.Alpha, Is.EqualTo(1));
@@ -54,7 +54,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             layer.UpdateOverlaps(heads, 1000);
 
             Drawable overlap = pool(layer)[0];
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(overlap.Alpha, Is.EqualTo(1), "The existing partial-overlap arc remains visible.");
                 Assert.That(field<Drawable>(overlap, "collar").Alpha, Is.Zero);
@@ -98,7 +98,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             heads[0].Angle = heads[1].Angle = 120;
             layer.UpdateOverlaps(heads, 1000);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(pool(layer)[0], Is.SameAs(overlap));
                 Assert.That(field<Drawable>(overlap, "collar"), Is.SameAs(collar));
@@ -128,7 +128,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(originalPool.Count(overlap => overlap.Alpha > 0), Is.EqualTo(2));
             layer.UpdateOverlaps(ReadOnlySpan<SticksHitObject>.Empty, 1000);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(originalPool.Select(overlap => overlap.Alpha), Has.All.Zero);
                 Assert.That(pool(layer), Is.EqualTo(originalPool), "Presentation updates must reuse the allocated visual pool.");

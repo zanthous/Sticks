@@ -40,7 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 .GetField("pointCount", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(ribbon)!;
             var points = (SticksRibbonPoint[])typeof(SticksRadialTimelinePath)
                 .GetField("points", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(ribbon)!;
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.SegmentCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT));
                 Assert.That(preview.ChildrenOfType<SmoothPath>().Sum(path => path.Vertices.Count), Is.LessThanOrEqualTo(10),
@@ -57,7 +57,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             using var selection = new SticksBlueprintPiece(showNote: false);
             selection.UpdateFrom(slider, 2250, selected: true);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(selection.ChildrenOfType<SmoothPath>(), Is.Empty);
                 Assert.That(selection.ChildrenOfType<BufferedContainer>(), Is.Empty);
@@ -116,7 +116,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 $"{session_count} editor carrier close/reopen cycles retained {retained / 1024d / 1024:0.0} MiB " +
                 $"and {retainedSessions}/{sessionReferences.Count} session objects");
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(retainedSessions, Is.LessThanOrEqualTo(2),
                     "Editor beatmaps or change handlers are being retained after their session becomes unreachable.");

@@ -16,7 +16,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestFixedReferenceResponseIsBoundedAndIndependentOfMapLength()
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksCoordinationDifficulty.Response(0), Is.Zero);
                 Assert.That(SticksCoordinationDifficulty.Response(0.5), Is.EqualTo(0.75));
@@ -40,7 +40,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                        .Sum(skill => Math.Pow(skill, 3.3)), 1 / 3.3);
             double calibrated = SticksDifficultyScaling.CalibrateStarRating(0.89 * combined * result.TimingPrecision);
             double expected = Math.Clamp(calibrated + SticksDifficultyScaling.AngularPrecisionStarAdjustment(calibrated, result.AngularPrecision), 0, 30);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(result.StarRating, Is.EqualTo(expected).Within(1e-9));
                 Assert.That(result.Coordination, Is.GreaterThan(0).And.LessThanOrEqualTo(8));
@@ -73,7 +73,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var full = calculate(Array.Empty<BreakPeriod>());
             var partial = calculate(new[] { new BreakPeriod(-1000, -500), new BreakPeriod(250, 625), new BreakPeriod(500, 750), new BreakPeriod(1500, 2000) });
             var silent = calculate(new[] { new BreakPeriod(-1, 1001) });
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(full.CoordinatedWork, Is.EqualTo(4).Within(1e-9));
                 Assert.That(partial.CoordinatedWork, Is.EqualTo(2).Within(1e-9));

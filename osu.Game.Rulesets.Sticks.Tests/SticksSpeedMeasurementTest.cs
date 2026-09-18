@@ -19,7 +19,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             measurement.Update(0.90f, 310);
             measurement.Update(0, 400);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(measurement.LatestPressTime, Is.EqualTo(95).Within(0.001));
                 Assert.That(measurement.AveragePressTime, Is.EqualTo(95).Within(0.001));
@@ -47,7 +47,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             measurement.Update(0.5f, 50);
             measurement.Update(0, 100);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(measurement.PressCount, Is.Zero);
                 Assert.That(measurement.ReturnCount, Is.Zero);
@@ -62,7 +62,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             performTrial(measurement, 0, 100, 200);
             performTrial(measurement, 300, 500, 700);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(measurement.AveragePressTime, Is.EqualTo(142.5).Within(0.001));
                 Assert.That(measurement.AverageReturnTime, Is.EqualTo(135).Within(0.001));
@@ -91,7 +91,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             // positive to negative X passes directly through it.
             measurement.Update(new Vector2(-0.2f, 0), 200);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(measurement.ReturnCount, Is.EqualTo(1));
                 Assert.That(measurement.LatestReturnTime, Is.EqualTo(75).Within(0.001));

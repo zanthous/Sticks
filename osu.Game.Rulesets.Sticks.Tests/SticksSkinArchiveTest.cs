@@ -51,7 +51,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     Assert.That(archive.Filenames, Does.Contain($"{name}@2x.png"));
                     Texture? texture = SticksSkinTextureLookup.Get(skin, name);
                     Assert.That(texture, Is.Not.Null, name);
-                    Assert.Multiple(() =>
+                    NUnitCompatibility.Multiple(() =>
                     {
                         Assert.That(texture!.DisplaySize, Is.EqualTo(size), $"{name} logical size");
                         Assert.That(texture.Width, Is.EqualTo(size.X * 2), $"{name} image width");
@@ -59,7 +59,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     });
                 }
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(SticksSkinTextureLookup.Get(skin, "sticks-missing"), Is.Null);
                     Assert.That(colour(skin, "SticksLeft"), Is.EqualTo(new Color4((byte)51, (byte)190, (byte)234, byte.MaxValue)));

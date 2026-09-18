@@ -25,7 +25,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             // dependency loaders have supplied a playfield.
             Assert.DoesNotThrow(parent.Dispose);
             Assert.DoesNotThrow(parent.Dispose);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(isDisposed(note), Is.True);
                 Assert.That(isDisposed(sibling), Is.True);

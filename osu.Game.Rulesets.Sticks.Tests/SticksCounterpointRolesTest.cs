@@ -26,7 +26,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double[] pulse = { start, start + 400, start + 800, start + 1200 };
             double[] fills = { start + 1100, start + 1400 };
             SticksHitObject[] pulseNotes = pulse.Select(time => result.Single(note => note.StartTime == time)).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(pulseNotes.Select(note => note.Side).Distinct().Count(), Is.EqualTo(1));
                 Assert.That(fills.Select(time => result.Single(note => note.StartTime == time).Side), Has.All.EqualTo(other(pulseNotes[0].Side)));
@@ -36,7 +36,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             foreach (SticksHitObject original in baseline.Where(note => note.StartTime >= start && note.StartTime <= start + 1400))
             {
                 SticksHitObject converted = result.Single(note => note.StartTime == original.StartTime);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(converted.GetType(), Is.EqualTo(original.GetType()));
                     Assert.That(converted.GetEndTime(), Is.EqualTo(original.GetEndTime()));
@@ -83,7 +83,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             StickSide lead = result.Single(note => note.StartTime == pulse[0]).Side;
             double[] fills = earlyComboBoundary ? new[] { 1900 + shift, 3100 + shift } : new[] { 1900 + shift, 3100 + shift, 3400 + shift };
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(pulse.Select(time => result.Single(note => note.StartTime == time).Side), Has.All.EqualTo(lead));
                 Assert.That(fills.Select(time => result.Single(note => note.StartTime == time).Side), Has.All.EqualTo(other(lead)),
@@ -93,7 +93,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             foreach (SticksHitObject original in baseline.Where(note => note.StartTime >= 1900 + shift && note.StartTime <= Math.Max(pulse[^1], fills[^1])))
             {
                 SticksHitObject converted = result.Single(note => note.StartTime == original.StartTime);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(converted.GetType(), Is.EqualTo(original.GetType()));
                     Assert.That(converted.GetEndTime(), Is.EqualTo(original.GetEndTime()));

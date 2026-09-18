@@ -104,7 +104,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Beatmap<HitObject> beatmap = map(375, slider, 250, 625, 1375, 1750);
             SticksCounterpointRhythm.SupportedCheckpoint checkpoint = evaluate(beatmap, slider).Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(checkpoint.Checkpoint.Time, Is.EqualTo(1093.75));
                 Assert.That(checkpoint.ExplicitAccent, Is.True);
@@ -151,7 +151,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             beatmap.Difficulty.SliderTickRate = 2;
             SticksCounterpointRhythm.SupportedCheckpoint[] supported = evaluate(beatmap, slider);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(supported.Select(point => point.Checkpoint.Time), Is.EqualTo(new[] { 1300.0, 1600, 1900 }));
                 Assert.That(supported.Select(point => point.Evidence).Distinct().Count(), Is.EqualTo(1), "Being a tail is not independent musical evidence.");
@@ -179,7 +179,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SliderEventDescriptor[] actual = checkpoints(beatmap, slider);
             SticksCounterpointRhythm.Response[] selected = responses(beatmap, slider, minimumInterval: 500);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(selected.Max(response => response.Checkpoints.Length), Is.EqualTo(2));
                 Assert.That(selected.SelectMany(response => response.Checkpoints).Select(point => point.Time).Distinct(), Is.SubsetOf(actual.Select(point => point.Time)));
@@ -254,11 +254,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
-                Assert.Throws<OperationCanceledException>(() => SticksCounterpointRhythm.Evaluate(beatmap.HitObjects.ToArray(), beatmap.HitObjects.IndexOf(slider),
+                NUnitCompatibility.Throws<OperationCanceledException>(() => SticksCounterpointRhythm.Evaluate(beatmap.HitObjects.ToArray(), beatmap.HitObjects.IndexOf(slider),
                     beatmap, checkpoints(beatmap, slider), cancellation.Token));
-                Assert.Throws<OperationCanceledException>(() => SticksCounterpointRhythm.Select(Array.Empty<SticksCounterpointRhythm.SupportedCheckpoint>(), 200, 3, cancellation.Token));
+                NUnitCompatibility.Throws<OperationCanceledException>(() => SticksCounterpointRhythm.Select(Array.Empty<SticksCounterpointRhythm.SupportedCheckpoint>(), 200, 3, cancellation.Token));
             });
         }
 

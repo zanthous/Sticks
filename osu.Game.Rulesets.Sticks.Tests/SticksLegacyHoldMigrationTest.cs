@@ -43,7 +43,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             legacy.ApplyDefaults(beatmap.ControlPointInfo, beatmap.Difficulty);
             slider.ApplyDefaults(beatmap.ControlPointInfo, beatmap.Difficulty);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.IsStationary, Is.True);
                 Assert.That(slider.StartTime, Is.EqualTo(legacy.StartTime));
@@ -84,7 +84,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
             Assert.That(converter.CanConvert(), Is.True);
             var slider = (SticksSlider)converter.Convert().HitObjects.Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.IsStationary, Is.True);
                 Assert.That(slider.StartTime, Is.EqualTo(1000));
@@ -138,7 +138,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
             var converted = (SticksSlider)converter.Convert().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(source.HitObjects.Single(), Is.SameAs(hold));
                 Assert.That(converted.IsStationary, Is.True);

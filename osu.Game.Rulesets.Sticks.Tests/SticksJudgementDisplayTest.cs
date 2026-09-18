@@ -31,7 +31,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             display.Process(angleFirst ? timing : angle);
             Drawable dot = visible(display).Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(dot.Position.X, Is.EqualTo(SticksPlayfield.SIZE / 2).Within(0.001));
                 Assert.That(dot.Position.Y, Is.EqualTo(SticksPlayfield.SIZE / 2 + SticksJudgementDisplay.DOT_RADIUS).Within(0.001));
@@ -65,7 +65,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             display.Process(result(angleOf(left), HitResult.Great));
             Drawable[] dots = visible(display);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(dots.Length, Is.EqualTo(2));
                 Assert.That((dots[0].Position - dots[1].Position).Length, Is.GreaterThan(SticksJudgementDisplay.DOT_DIAMETER));
@@ -113,7 +113,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 processHead(display, createHead(angle: i * 10), HitResult.Meh, HitResult.Ok);
 
             processHead(display, createHead(side: StickSide.Right, angle: 90), HitResult.Ok, HitResult.Ok);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(display.Children, Is.EqualTo(pool));
                 Assert.That(visible(display).Length, Is.EqualTo(SticksJudgementDisplay.MAX_DOTS));
@@ -159,7 +159,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             display.Process(angleFirst ? angle : timing, showDots: false);
             Assert.That(resolved, Is.Null);
             display.Process(angleFirst ? timing : angle, showDots: false);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(count, Is.EqualTo(1));
                 Assert.That(resolved, Is.EqualTo(expected));

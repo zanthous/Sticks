@@ -12,7 +12,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         public void TestFlickRequiresNeutralAndFreshOutwardCrossing()
         {
             var tracker = new SticksInputTracker();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(tracker.ActivationThreshold, Is.EqualTo(0.95f));
                 Assert.That(tracker.RechargeThreshold, Is.EqualTo(0.65f).Within(0.0001));
@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             tracker.Update(StickSide.Left, physicalNeutral, mappedNeutral, 0);
             tracker.Update(StickSide.Left, physicalEdge, mappedEdge, 100);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(physicalNeutral.Length, Is.EqualTo(tracker.RechargeThreshold).Within(0.0001));
                 Assert.That(mappedNeutral.Length, Is.EqualTo(0.8125f).Within(0.0001));
@@ -76,7 +76,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             tracker.Update(StickSide.Right, Vector2.Zero, 0);
             tracker.Update(StickSide.Right, new Vector2(-1, 0), 100);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(tracker.SequenceFor(StickSide.Left), Is.Zero);
                 Assert.That(tracker.SequenceFor(StickSide.Right), Is.EqualTo(1));
@@ -110,7 +110,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             tracker.Update(StickSide.Left, new Vector2(1, 0), 100);
             long firstSequence = tracker.SequenceFor(StickSide.Left);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(tracker.TryConsumeFlick(StickSide.Left, firstSequence), Is.True);
                 Assert.That(tracker.TryConsumeFlick(StickSide.Left, firstSequence), Is.False);
@@ -129,7 +129,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var tracker = new SticksInputTracker { ActivationThreshold = 0.85f };
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(tracker.ActivationThreshold, Is.EqualTo(0.85f));
                 Assert.That(tracker.RechargeThreshold, Is.EqualTo(0.55f).Within(0.0001));
@@ -171,7 +171,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 20,
                 out bool canAuthorise);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sawNewGesture, Is.False);
                 Assert.That(canAuthorise, Is.False);
@@ -193,7 +193,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             if (canAuthorise && tracker.TryConsumeFlick(StickSide.Left, tracker.SequenceFor(StickSide.Left)))
                 eligibility.Authorise();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sawNewGesture, Is.True);
                 Assert.That(canAuthorise, Is.True);
@@ -263,7 +263,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             if (canAuthorise && tracker.TryConsumeFlick(StickSide.Left, sequence))
                 eligibility.Authorise();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sawNewGesture, Is.True);
                 Assert.That(canAuthorise, Is.True);

@@ -62,7 +62,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             slider.ApplyDefaults(controlPoints, difficulty());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.NestedHitObjects.OfType<SticksSliderRepeat>().Single().StartTime, Is.EqualTo(1900));
                 Assert.That(slider.NestedHitObjects.OfType<SticksSliderTick>().Select(tick => tick.StartTime),

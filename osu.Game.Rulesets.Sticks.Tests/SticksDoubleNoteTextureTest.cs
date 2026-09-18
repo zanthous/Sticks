@@ -15,7 +15,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             using Image<Rgba32> image = SticksDoubleNoteTexture.CreateImage(SticksPlayfield.OVERLAP_COLOUR);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(pixelAt(image, 12, 0), Is.EqualTo(new Rgba32(0x68, 0x2d, 0x93)));
                 Assert.That(pixelAt(image, -12, 0), Is.EqualTo(new Rgba32(0x50, 0x24, 0x77)));
@@ -43,7 +43,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             for (int x = 0; x < image.Width; x++)
                 transparentPadding &= image[x, 0].A == 0 && image[x, image.Height - 1].A == 0;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(image.Width, Is.EqualTo(144));
                 Assert.That(image.Height, Is.EqualTo(160));
@@ -72,7 +72,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 }
             }
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(symmetricColour, Is.True, "Each radial-side facet has one flat colour on both tangential halves.");
                 Assert.That(symmetricAlpha, Is.True, "The two facet colours share a symmetric diamond silhouette.");
@@ -94,7 +94,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     sameAlpha &= normal[x, y].A == recoloured[x, y].A;
             }
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(pixelAt(recoloured, 15, 0), Is.EqualTo(new Rgba32(96, 46, 128)));
                 Assert.That(pixelAt(recoloured, 12, 0), Is.EqualTo(new Rgba32(52, 23, 74)));

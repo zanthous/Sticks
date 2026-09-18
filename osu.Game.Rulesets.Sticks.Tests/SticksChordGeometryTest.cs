@@ -43,7 +43,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksChordGeometry.ResolveReadableChords(atBoundary, width);
             SticksChordGeometry.ResolveReadableChords(belowOverlap, width);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(atBoundary[0].Angle, Is.EqualTo(atBoundary[1].Angle));
                 Assert.That(belowOverlap.Select(note => note.Angle), Is.EqualTo(original));
@@ -70,7 +70,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             float forward = SticksChordGeometry.SharedAngle(first, second, source);
             float backward = SticksChordGeometry.SharedAngle(second, first, source);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(forward, Is.EqualTo(backward).Within(0.001));
                 Assert.That(forward, Is.EqualTo(SticksHitObject.NormaliseAngle(110 + rotation)).Within(0.001));
@@ -141,7 +141,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider soloSlider = solo.OfType<SticksSlider>().Single();
             float correction = SticksHitObject.DeltaAngle(soloSlider.AngleAt(soloSlider.EndTime), slider.AngleAt(slider.EndTime));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.Angle, Is.EqualTo(coupled.Single(note => note.StartTime == 500 && note.Side == StickSide.Right).Angle));
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 15f, -5 }));
@@ -174,7 +174,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksParityConversion.Apply(ordinary, map(), default);
             SticksParityConversion.Apply(experiment, map(), default, readableChords: true, fullHitAngle: 27.5f);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(ordinary[0].Angle, Is.EqualTo(350));
                 Assert.That(ordinary[1].Angle, Is.EqualTo(2));
@@ -196,7 +196,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksParityConversion.Apply(ordinary, map(), default);
             SticksParityConversion.Apply(experiment, map(), default, readableChords: true, fullHitAngle: 20);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(ordinary[2].Angle, Is.Not.EqualTo(ordinary[3].Angle));
                 Assert.That(SticksChordGeometry.ShouldStack(ordinary[2].Angle, 20, ordinary[3].Angle, 20), Is.True);
@@ -239,7 +239,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             if (mod is IApplicableToHitObject hitObjectMod)
                 hitObjectMod.ApplyToHitObject(finalHead);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.CounterpointHitAngleFor(source.Difficulty), Is.EqualTo(finalHead.PrimaryHitAngle).Within(0.001));
                 Assert.That(source.Difficulty.CircleSize, Is.EqualTo(cs));

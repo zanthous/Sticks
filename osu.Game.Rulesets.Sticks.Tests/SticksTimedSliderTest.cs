@@ -18,7 +18,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksSlider slider = create(new[] { 30f, 60f }, new[] { 200d, 800d });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HasTimedSegments, Is.True);
                 Assert.That(slider.SegmentDurationWeights, Is.EqualTo(new[] { 0.2d, 0.8d }));
@@ -48,7 +48,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                               .OrderBy(obj => obj.StartTime)
                                               .ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.AngleAt(1400), Is.EqualTo(40));
                 Assert.That(slider.AngleAt(1550), Is.EqualTo(20));
@@ -69,7 +69,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksSlider slider = create(new[] { 10f, 20f, 0f, -40f, 20f }, new[] { 200d, 100d, 200d, 100d, 400d });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(Enumerable.Range(0, slider.SegmentCount).Select(slider.SegmentEndsWithReversal),
                     Is.EqualTo(new[] { false, false, true, true, false }));
@@ -81,7 +81,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksSlider slider = create(new[] { 0f, -30f, 0f, -20f }, new[] { 100d, 400d, 200d, 300d });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.InitialDirection, Is.EqualTo(-1));
                 Assert.That(slider.AngleAt(1050), Is.EqualTo(10));
@@ -112,7 +112,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider slider = create(new[] { 0.25f, 0f, -40f }, new[] { 200d, 300d, 500d });
             slider.Duration = 2000;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.SegmentEndTimeAt(0), Is.EqualTo(1400));
                 Assert.That(slider.SegmentEndTimeAt(1), Is.EqualTo(2000));
@@ -122,7 +122,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             slider.Duration = 1;
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.AngleAt(1000.1), Is.EqualTo(10.125f).Within(0.00001));
                 Assert.That(slider.AngleAt(1000.2), Is.EqualTo(10.25f).Within(0.00001));
@@ -137,7 +137,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider slider = create(new[] { 30f, 0f, -60f }, new[] { 200d, 100d, 700d });
             slider.ReplaceFinalSegment(-90);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HasTimedSegments, Is.True);
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 30f, 0f, -90f }));
@@ -154,7 +154,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             slider.Duration = 900;
             slider.AppendSegmentAtConstantSpeed(30);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HasTimedSegments, Is.True);
                 Assert.That(slider.Duration, Is.EqualTo(1200).Within(0.000001));
@@ -191,7 +191,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(slider.AppendTimedSegment(0, 2500), Is.True);
             Assert.That(slider.AppendTimedSegment(10, 2500), Is.False);
             Assert.That(slider.AppendTimedSegment(float.NaN, 2700), Is.False);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HasTimedSegments, Is.True);
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 30f, 60f, -15f, 0f }));
@@ -214,7 +214,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(slider.ContinuationArcAt(2300), Is.EqualTo(40).Within(0.00001));
             Assert.That(slider.AppendTimedSegmentAtConstantSpeed(2300), Is.True);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.Duration, Is.EqualTo(1300));
                 Assert.That(slider.SegmentEndTimeAt(0), Is.EqualTo(1200).Within(0.000001));
@@ -230,9 +230,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider slider = create(Enumerable.Repeat(1f, SticksSlider.MAX_SEGMENT_COUNT).ToArray(),
                 Enumerable.Repeat(1d, SticksSlider.MAX_SEGMENT_COUNT).ToArray());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
-                Assert.That(() => slider.AppendSegmentAtConstantSpeed(10), Throws.InvalidOperationException);
+                NUnitCompatibility.That(() => slider.AppendSegmentAtConstantSpeed(10), Throws.InvalidOperationException);
                 Assert.That(slider.AppendTimedSegmentAtConstantSpeed(2200), Is.False);
                 Assert.That(slider.AppendTimedSegment(-10, 2200), Is.False);
                 Assert.That(slider.Duration, Is.EqualTo(1000));
@@ -246,7 +246,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksSlider slider = create(new[] { 0f, 10f }, new[] { 200d, 800d });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.RemoveFinalSegmentAtConstantSpeed(), Is.True);
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 0f }));
@@ -288,8 +288,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksSlider slider = create(new[] { 30f, 60f }, new[] { 200d, 800d });
 
-            Assert.Throws<ArgumentException>(() => slider.SetTimedSegments(arcs, durations));
-            Assert.Multiple(() =>
+            NUnitCompatibility.Throws<ArgumentException>(() => slider.SetTimedSegments(arcs, durations));
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 30f, 60f }));
                 Assert.That(slider.SegmentDurationWeights, Is.EqualTo(new[] { 0.2d, 0.8d }));
@@ -322,7 +322,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 string json = JsonConvert.SerializeObject(slider);
                 slider = JsonConvert.DeserializeObject<SticksSlider>(json);
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(slider.HasTimedSegments, Is.True);
                     Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 0.25f, 0f, -40f }));
@@ -340,7 +340,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             const string json = "{\"segmentDurationWeights\":[0.2,0.3,0.5],\"segments\":[0.25,0,-40],\"StartTime\":1000,\"Duration\":1000,\"Angle\":10,\"ArcAngle\":90,\"RepeatCount\":0}";
             SticksSlider slider = JsonConvert.DeserializeObject<SticksSlider>(json);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HasTimedSegments, Is.True);
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 0.25f, 0f, -40f }));
@@ -355,7 +355,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             const string json = "{\"segments\":[90,-180,45],\"StartTime\":1000,\"Duration\":3500,\"Angle\":10}";
             SticksSlider slider = JsonConvert.DeserializeObject<SticksSlider>(json);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HasTimedSegments, Is.False);
                 Assert.That(slider.SegmentEndTimeAt(0), Is.EqualTo(2000));

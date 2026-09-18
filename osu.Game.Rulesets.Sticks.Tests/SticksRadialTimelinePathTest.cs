@@ -23,7 +23,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             // inward to tailRadius * cos(halfSpan), producing a straight cutout.
             List<Quad> mesh = createRibbon(span, _ => 45);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(contains(mesh, SticksPlayfield.PointAt(45, 205)), Is.True,
                     "The intended hold body remains filled.");

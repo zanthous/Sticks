@@ -69,7 +69,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var beatmap = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader);
             var controlPoints = (LegacyControlPointInfo)beatmap.ControlPointInfo;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(beatmap.BeatmapInfo.Ruleset.OnlineID, Is.Zero);
                 Assert.That(beatmap.BeatmapInfo.BeatDivisor, Is.EqualTo(8));
@@ -81,7 +81,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             // Inherited rows at the exact timestamp of their red line must win for gameplay.
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(controlPoints.DifficultyPointAt(-250.5).SliderVelocity, Is.EqualTo(2).Within(0.000001));
                 Assert.That(controlPoints.DifficultyPointAt(1000.125).SliderVelocity, Is.EqualTo(1.25).Within(0.000001));
@@ -109,7 +109,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             using var reader = new LineBufferedReader(stream);
             var controlPoints = new LegacyBeatmapDecoder { ApplyOffsets = false }.Decode(reader).ControlPointInfo;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(controlPoints.TimingPointAt(-1000).Time, Is.EqualTo(-250.5));
                 Assert.That(controlPoints.TimingPointAt(1000.124).BeatLength, Is.EqualTo(600.25));

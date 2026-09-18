@@ -106,7 +106,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider[] voices = convert(source).OfType<SticksSlider>().Where(note => note.StartTime >= 600).ToArray();
 
             Assert.That(voices, Has.Length.EqualTo(2));
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(voices.Select(note => note.StartTime), Is.EqualTo(new[] { 600d, 900 }));
                 Assert.That(voices.Select(note => note.EndTime), Is.EqualTo(new[] { 1800d, 2100 }));
@@ -174,7 +174,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             converter.ConversionMode = SticksConversionMode.Duet;
             SticksHitObject[] currentAgain = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(historical.Any(note => note is SticksHold or SticksSlider), Is.True,
                     "This fixture must exercise the former circle-to-sustain substitution.");
@@ -193,7 +193,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 HitObject original = source.HitObjects[index];
                 SticksHitObject note = converted[index];
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     if (checkAngles)
                         Assert.That(Math.Abs(SticksHitObject.DeltaAngle(note.Angle, sourceAngle((IHasPosition)original))),

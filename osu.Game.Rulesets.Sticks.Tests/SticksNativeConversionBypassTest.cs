@@ -53,7 +53,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             for (int iteration = 0; iteration < 2; iteration++)
             {
                 SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(converted.OfType<SticksHold>(), Is.Empty, "Legacy native holds become stationary sliders.");
                     Assert.That(signature(converted), Is.EqualTo(expected), "Authored geometry must bypass procedural pattern and angle changes.");

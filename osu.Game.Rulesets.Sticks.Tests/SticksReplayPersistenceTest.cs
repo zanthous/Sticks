@@ -43,7 +43,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var first = (SticksReplayFrame)restored.Replay.Frames[0];
             var second = (SticksReplayFrame)restored.Replay.Frames[1];
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(first.Time, Is.EqualTo(900));
                 Assert.That(first.LeftStick, Is.EqualTo(Vector2.Zero));
@@ -193,7 +193,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(new SticksReplayStore(storage).TryRestore(score, out float threshold), Is.True);
             Assert.That(threshold, Is.EqualTo(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD));
             var frame = (SticksReplayFrame)score.Replay.Frames[0];
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(frame.Time, Is.EqualTo(1000));
                 Assert.That(frame.LeftStick, Is.EqualTo(new Vector2(0.9f, 0)));

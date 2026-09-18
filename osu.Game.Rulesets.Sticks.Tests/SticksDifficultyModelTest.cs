@@ -29,7 +29,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double sixNotes = rate(clusteredStream(6, 125));
             double twelveNotes = rate(clusteredStream(12, 125));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sixNotes, Is.GreaterThan(triple));
                 Assert.That(twelveNotes, Is.GreaterThan(sixNotes));
@@ -42,7 +42,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksDifficultyBreakdown triple = SticksDifficultyCalculator.CalculateDifficulty(clusteredStream(3, 125));
             SticksDifficultyBreakdown twelveNotes = SticksDifficultyCalculator.CalculateDifficulty(clusteredStream(12, 125));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(triple.MechanicalDifficultStrainCount, Is.GreaterThan(0));
                 Assert.That(twelveNotes.MechanicalDifficultStrainCount, Is.GreaterThan(triple.MechanicalDifficultStrainCount));
@@ -57,7 +57,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double tenSeconds = rate(clusteredStream(noteCountFor(10, 125), 125));
             double thirtySeconds = rate(clusteredStream(noteCountFor(30, 125), 125));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(tenSeconds, Is.GreaterThan(fiveSeconds));
                 Assert.That(thirtySeconds, Is.GreaterThan(tenSeconds));
@@ -94,7 +94,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var slow = sample(250, true);
             var fast = sample(125, true);
             var repeated = sample(125, false);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(fast.Coordination, Is.Zero);
                 Assert.That(fast.Mechanical, Is.GreaterThan(slow.Mechanical * 1.5),
@@ -121,7 +121,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 i => i % 2 == 0 ? StickSide.Left : StickSide.Right,
                 i => scatteredAngles[i % scatteredAngles.Length])).Reading;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(repeatedWidePattern, Is.GreaterThan(clustered));
 
@@ -134,7 +134,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestCoordinationSpatialWorkRetainsItsCalibration()
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksDifficultyModel.CoordinationSpatialSearchMultiplier(1, 0.5, 2), Is.GreaterThan(1),
                     "A predictable two-region 180-degree pattern must retain its large-jump cost.");
@@ -162,7 +162,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
             double burst = rate(clusteredStream(6, 125));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(longSlowSlider, Is.LessThan(fastSlider));
                 Assert.That(longSlowSlider, Is.LessThan(burst));
@@ -199,7 +199,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double reversalStars = rate(new[] { reversal });
             double fastStars = rate(new[] { twiceAsFast });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(reversalStars, Is.GreaterThan(noReversalStars));
                 Assert.That(reversalStars, Is.LessThan(fastStars));
@@ -241,7 +241,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
             double burst = rate(clusteredStream(6, 125));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(chord, Is.GreaterThan(single));
                 Assert.That(chord, Is.LessThan(burst));
@@ -260,7 +260,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double easierAdjusted = rate(clusteredStream(12, 250), circleSize: circleSize);
             double harderAdjusted = rate(clusteredStream(48, 100), circleSize: circleSize);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(harderReference, Is.GreaterThan(easierReference));
                 Assert.That(harderAdjusted / harderReference, Is.EqualTo(easierAdjusted / easierReference).Within(0.0000001),
@@ -277,7 +277,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 flicks(120, 160, i => i % 2 == 0 ? StickSide.Left : StickSide.Right, i => i * 47 % 360),
                 circleSize: circleSize)).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 for (int i = 1; i < stars.Length; i++)
                 {
@@ -299,7 +299,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double at = rate(scatteredStream(), circleSize: circleSize);
             double above = rate(scatteredStream(), circleSize: circleSize + 0.001f);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(at, Is.GreaterThan(below));
                 Assert.That(above, Is.GreaterThan(at));
@@ -323,7 +323,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksDifficultyBreakdown reference = difficultyFor(pattern());
             SticksDifficultyBreakdown adjusted = difficultyFor(pattern(), circleSize: circleSize);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(adjusted.StarRating, Is.Not.EqualTo(reference.StarRating));
                 Assert.That(adjusted.AngularPrecision, Is.Not.EqualTo(reference.AngularPrecision));
@@ -348,7 +348,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double isolated = rate(new[] { flick(1000, StickSide.Left, 0) }, circleSize: 10);
             double developed = rate(scatteredStream(), circleSize: 10);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(empty, Is.Zero);
                 Assert.That(double.IsFinite(isolated), Is.True);
@@ -384,7 +384,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double equivalentStars = new SticksDifficultyCalculator(ruleset.RulesetInfo, workingBeatmap(equivalentCircleSize)).Calculate().StarRating;
             double adjustedStars = new SticksDifficultyCalculator(ruleset.RulesetInfo, adjusted).Calculate(mods).StarRating;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(playable.Difficulty.CircleSize, Is.EqualTo(4), "An angle override does not change the map's nominal CS.");
                 Assert.That(playable.HitObjects.Cast<SticksHitObject>(), Has.All.Matches<SticksHitObject>(note =>
@@ -485,7 +485,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     overallDifficulty: difficulty.OverallDifficulty);
                 var actual = (SticksDifficultyAttributes)timed[i].Attributes;
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(actual.StarRating, Is.EqualTo(expected.StarRating).Within(0.0000001));
                     Assert.That(actual.MechanicalDifficulty, Is.EqualTo(expected.Mechanical).Within(0.0000001));
@@ -555,7 +555,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 var prefixAttributes = (SticksDifficultyAttributes)new SticksDifficultyCalculator(
                     ruleset.RulesetInfo, new PassthroughWorkingBeatmap(prefix)).Calculate();
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(actual.StarRating, Is.EqualTo(expected.StarRating).Within(0.0000001), $"Prefix {i + 1}");
                     Assert.That(actual.MaxCombo, Is.EqualTo(prefixAttributes.MaxCombo), $"Combo prefix {i + 1}");
@@ -573,7 +573,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             // Two two-note chord groups cost 1 + 2 evaluations each; all four other objects
             // are processed once. Completed prefixes are never replayed.
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(calculator.IncrementalObjectEvaluationCount, Is.EqualTo(10));
                 Assert.That(calculator.ProcessedDifficultyCheckpointCount, Is.EqualTo(beatmap.HitObjects.Count));
@@ -603,7 +603,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var calculator = new SticksDifficultyCalculator(ruleset.RulesetInfo, new PassthroughWorkingBeatmap(beatmap));
             List<TimedDifficultyAttributes> timed = calculator.CalculateTimed();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(timed, Has.Count.EqualTo(object_count));
                 Assert.That(calculator.IncrementalObjectEvaluationCount, Is.EqualTo(object_count));
@@ -640,9 +640,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                         cancellation.Cancel();
                 });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
-                Assert.Throws<OperationCanceledException>(() => calculator.CalculateTimed(cancellation.Token));
+                NUnitCompatibility.Throws<OperationCanceledException>(() => calculator.CalculateTimed(cancellation.Token));
                 Assert.That(calculator.ProcessedDifficultyCheckpointCount, Is.EqualTo(cancellation_checkpoint));
             });
         }
@@ -678,7 +678,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             calculator.CalculateTimed();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(calculator.ProcessedDifficultyCheckpointCount, Is.EqualTo(beatmap.HitObjects.Count));
                 Assert.That(calculator.ModelObjectCountsAtCheckpoints, Has.Count.EqualTo(beatmap.HitObjects.Count));
@@ -719,9 +719,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
                         cancellation.Cancel();
                 });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
-                Assert.Throws<OperationCanceledException>(() => calculator.CalculateTimed(cancellation.Token));
+                NUnitCompatibility.Throws<OperationCanceledException>(() => calculator.CalculateTimed(cancellation.Token));
                 Assert.That(calculator.ProcessedDifficultyCheckpointCount, Is.EqualTo(beatmap.HitObjects.Count));
                 Assert.That(calculator.IncrementalObjectEvaluationCount, Is.Zero,
                     "Cancellation after the final run-ahead checkpoint must be observed before prefix model work begins.");
@@ -765,7 +765,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 clockRate: 1.5,
                 overallDifficulty: difficulty.OverallDifficulty);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(afterMutation.StarRating, Is.EqualTo(expectedMutation.StarRating).Within(0.0000001));
                 Assert.That(afterMutation.ReadingDifficulty, Is.EqualTo(expectedMutation.Reading).Within(0.0000001));
@@ -838,7 +838,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             values.RollbackTo(checkpoint);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(values.Checkpoint, Is.EqualTo(checkpoint));
                 Assert.That(values.Median(), Is.EqualTo(3));
@@ -873,7 +873,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             strains.RollbackTo(checkpoint);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(strains.Checkpoint, Is.EqualTo(checkpoint));
                 Assert.That(strains.HarmonicDifficulty(harmonic_scale),
@@ -902,7 +902,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             long insertionComparisons = values.MutationComparisonCount;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(values.Count, Is.EqualTo(value_count));
                 Assert.That(values.TreeHeight, Is.LessThanOrEqualTo(logarithmicBound));
@@ -915,7 +915,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             values.RollbackTo(checkpoint);
             long removalComparisons = values.MutationComparisonCount - insertionComparisons;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(values.Count, Is.EqualTo(checkpoint_count));
                 Assert.That(values.TreeHeight, Is.LessThanOrEqualTo(logarithmicBound));
@@ -936,7 +936,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             double first = strains.HarmonicDifficulty(harmonic_scale);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(strains.LastHarmonicVisitCount, Is.EqualTo(value_count));
                 Assert.That(strains.HarmonicWeightComputationCount, Is.EqualTo(value_count));
@@ -944,7 +944,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             double second = strains.HarmonicDifficulty(harmonic_scale);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(second, Is.EqualTo(first));
                 Assert.That(strains.LastHarmonicVisitCount, Is.EqualTo(value_count));
@@ -955,7 +955,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             strains.Add(value_count + 1);
             _ = strains.HarmonicDifficulty(harmonic_scale);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(strains.LastHarmonicVisitCount, Is.EqualTo(value_count + 1));
                 Assert.That(strains.HarmonicWeightComputationCount, Is.EqualTo(value_count + 1),
@@ -1084,7 +1084,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
         private static void assertDifficultyMatches(SticksDifficultyAttributes actual, SticksDifficultyBreakdown expected)
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(actual.StarRating, Is.EqualTo(expected.StarRating).Within(0.0000001));
                 Assert.That(actual.MechanicalDifficulty, Is.EqualTo(expected.Mechanical).Within(0.0000001));

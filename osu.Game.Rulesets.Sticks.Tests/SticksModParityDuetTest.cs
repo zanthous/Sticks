@@ -28,7 +28,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] combined = assertComposition(source, duet);
             SticksHitObject[] chords = combined.Where(note => note.StartTime >= 500).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(chords, Has.Length.EqualTo(8));
                 Assert.That(chordCount(combined), Is.EqualTo(chordCount(duet)));
@@ -60,7 +60,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject previous = combined.Last(note => note.Side == accent.Side && note.StartTime < accent.StartTime);
             SticksHitObject originalPrevious = duet.Last(note => note.Side == accent.Side && note.StartTime < accent.StartTime);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(standard.Any(note => note.StartTime == accent.StartTime), Is.False);
                 Assert.That(combined.Length, Is.GreaterThan(standard.Length));
@@ -81,7 +81,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] combined = assertComposition(source, duet);
             SticksSlider[] voices = combined.OfType<SticksSlider>().Where(note => note.StartTime >= 600).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(voices, Has.Length.EqualTo(2));
                 Assert.That(voices.Select(note => note.StartTime), Is.EqualTo(new[] { 600d, 900 }));
@@ -129,7 +129,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] combined = assertComposition(source, duet, disableReversals);
             SticksSlider[] sliders = combined.OfType<SticksSlider>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sliders, Has.Length.EqualTo(2));
                 Assert.That(sliders.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
@@ -146,7 +146,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SticksHitObject originalAfter = duet.Single(note => note.Side == convertedSlider.Side && note.StartTime == 3500);
                 float rotation = convertedSlider.Angle - originalSlider.Angle;
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     assertWiderSourceTurn(originalBefore, originalSlider, before, convertedSlider);
                     assertWiderSourceTurn(originalSlider, originalAfter, convertedSlider, after);
@@ -170,7 +170,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()).Convert()
                 .HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(signature(converted), Is.EqualTo(signature(expected)));
                 Assert.That(chordCount(converted), Is.GreaterThan(chordCount(legacy)));
@@ -188,7 +188,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, ruleset);
             ((IApplicableToBeatmapConverter)mod).ApplyToBeatmapConverter(converter);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(mod.Type, Is.EqualTo(ModType.System));
                 Assert.That(mod.Ranked, Is.False);
@@ -257,7 +257,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { DisableReversals = disableReversals };
             new SticksModParityDuet().ApplyToBeatmapConverter(converter);
             SticksHitObject[] combined = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(combined.Select(shape), Is.EqualTo(duet.Select(shape)), "Duet timing, stick assignment, paths and samples must survive parity.");
                 Assert.That(signature(combined), Is.EqualTo(signature(expected)), "Parity must run after all Duet objects have been emitted.");

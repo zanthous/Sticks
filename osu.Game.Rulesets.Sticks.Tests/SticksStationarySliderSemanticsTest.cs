@@ -49,7 +49,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             applyDefaults(legacy);
             applyDefaults(modern);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(events(modern).Select(hitObject => (hitObject.StartTime, hitObject.Judgement.MaxResult)),
                     Is.EqualTo(events(legacy).Select(hitObject => (hitObject.StartTime, hitObject.Judgement.MaxResult))));
@@ -80,7 +80,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var mod = new TestSuddenDeath();
             mod.FailOnSliderTail.Value = failOnSliderTail;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(mod.FailsFor(legacy.NestedHitObjects.OfType<SticksHoldTail>().Single(), HitResult.IgnoreMiss), Is.False);
                 Assert.That(mod.FailsFor(stationary.NestedHitObjects.OfType<SticksSliderTail>().Single(), HitResult.IgnoreMiss), Is.False);
@@ -99,7 +99,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             applyDefaults(stationary);
             var health = new TestHealthProcessor();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(moving.IsStationary, Is.False);
                 Assert.That(moving.NestedHitObjects.OfType<SticksSliderTick>().All(tick => !tick.IsStationary), Is.True);

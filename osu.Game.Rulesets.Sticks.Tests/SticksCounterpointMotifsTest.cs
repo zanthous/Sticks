@@ -36,7 +36,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             addPhrase(source, 10000, 375, phrase_positions.Select(point => rotate(point, rotation) + new Vector2(210, 83)).ToArray());
             var motifs = analyse(source);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(motifs.KeyAt(0), Is.Not.Null);
                 Assert.That(motifs.KeyAt(8), Is.EqualTo(motifs.KeyAt(0)));
@@ -96,7 +96,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             addPhrase(source, 0, 500, phrase_positions.Take(6).ToArray());
             source.ControlPointInfo.Add(625, new TimingControlPoint { BeatLength = 500 });
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(analyse(source).KeyAt(0), Is.Null);
                 Assert.That(analyse(source).KeyAt(3), Is.Null);
@@ -206,7 +206,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             source.HitObjects.Add(new SourceCircle { StartTime = 2000, Position = new Vector2(-100, -100) });
             var second = analyse(source);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(second.KeyAt(0), Is.EqualTo(key));
                 Assert.That(source.HitObjects.Take(8).Cast<SourceCircle>().Select(note => note.Position), Is.EqualTo(positions));
@@ -226,7 +226,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             addPhrase(source, 0, 500, Enumerable.Range(0, heads).Select(i => new Vector2(i * 16, 0)).ToArray());
             var motifs = analyse(source);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(motifs.KeyAt(0), Is.EqualTo(motifs.KeyAt(1)));
                 Assert.That(motifs.OccurrencesAt(0), Is.EqualTo(expectedOccurrences));
@@ -242,7 +242,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
 
-            Assert.Throws<OperationCanceledException>(() => new SticksCounterpointMotifs(source.HitObjects.ToArray(), source, cancellation.Token));
+            NUnitCompatibility.Throws<OperationCanceledException>(() => new SticksCounterpointMotifs(source.HitObjects.ToArray(), source, cancellation.Token));
         }
 
         private static SticksCounterpointMotifs analyse(Beatmap<HitObject> source) => new SticksCounterpointMotifs(source.HitObjects.ToArray(), source);

@@ -48,7 +48,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Type[] rulesets = assembly.GetTypes().Where(type => type.IsPublic && type.IsSubclassOf(typeof(Ruleset))).ToArray();
             var icon = (SticksRulesetIcon)new SticksRuleset().CreateIcon();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(rulesets, Has.Length.EqualTo(1));
                 Assert.That(Activator.CreateInstance(rulesets.Single()), Is.TypeOf<SticksRuleset>());
@@ -85,7 +85,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             using var resources = new SticksRuleset().CreateResourceStore();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(resources.Get("Textures/Cursors/blue.png"), Is.Not.Null);
                 Assert.That(resources.Get("Textures/Cursors/red.png"), Is.Not.Null);
@@ -106,7 +106,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     var position = SticksPlayfield.PointAt(angle, SticksPlayfield.RadiusFor(side));
 
                     Assert.That(SticksEditorCoordinates.TryGetPlacement(position, out StickSide decodedSide, out float decodedAngle), Is.True);
-                    assertMultiple(() =>
+                    NUnitCompatibility.Multiple(() =>
                     {
                         Assert.That(decodedSide, Is.EqualTo(side));
                         Assert.That(decodedAngle, Is.EqualTo(angle).Within(0.001f));
@@ -119,7 +119,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksEditorCoordinates.TryGetPlacement(SticksEditorCoordinates.Centre, out _, out _), Is.False);
 
             Assert.That(SticksEditorCoordinates.TryGetPlacement(SticksPlayfield.PointAt(0, 280), out StickSide outerSide, out _, out bool outerBoth), Is.True);
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(outerSide, Is.EqualTo(StickSide.Left));
                 Assert.That(outerBoth, Is.False);
@@ -141,7 +141,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             placement.HitObject.StartTime = 1000;
             placement.HitObject.Side = StickSide.Left;
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(placement.ReplacesExistingObject(new SticksFlick
                 {
@@ -159,7 +159,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestEditorAdjustmentsClampLogically()
         {
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, false), Is.EqualTo(82));
                 Assert.That(SticksSelectionBlueprint.AdjustDraggedArcAngle(82, true), Is.EqualTo(75));
@@ -198,7 +198,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 ArcAngle = 90,
             };
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.ContinuationArcAt(2000), Is.Zero);
                 Assert.That(slider.ContinuationArcAt(2500), Is.EqualTo(-45).Within(0.001));
@@ -208,7 +208,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(slider.AppendTimedSegmentAtConstantSpeed(2500), Is.True);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.SegmentCount, Is.EqualTo(2));
                 Assert.That(slider.SegmentArcAngleAt(1), Is.EqualTo(-45).Within(0.001));
@@ -231,7 +231,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             sliderHead.SetLaneAndDirection(StickSide.Right, -1, SticksPlayfield.RIGHT_COLOUR);
             sliderHead.Angle = 225;
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(arc.Side, Is.EqualTo(StickSide.Right));
                 Assert.That(arc.Angle, Is.EqualTo(135));
@@ -253,7 +253,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var playfield = new SticksPlayfield();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(playfield.RelativeSizeAxes, Is.EqualTo(Axes.Both));
                 Assert.That(playfield.Size.X, Is.EqualTo(1));
@@ -293,7 +293,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var drawableRuleset = new DrawableSticksRuleset(new SticksRuleset(), new Beatmap<SticksHitObject>());
             mod.ApplyToDrawableRuleset(drawableRuleset);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.PrimaryHitAngle, Is.EqualTo(30));
                 Assert.That(slider.SecondaryHitAngle, Is.EqualTo(15));
@@ -335,7 +335,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Vector2 beyondEdge = SticksPlayfield.MapStickDistance(Vector2.UnitX, 0.8f);
             Vector2 unchanged = SticksPlayfield.MapStickDistance(new Vector2(0.6f, 0.8f), 1);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksPlayfield.MapStickDistance(Vector2.Zero, 0.8f), Is.EqualTo(Vector2.Zero));
                 Assert.That((half - new Vector2(0.5f, 0)).Length, Is.LessThan(0.0001f));
@@ -348,7 +348,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestFlickTargetRequiresSuccessfulTiming()
         {
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksPlayfield.IsEligibleFlickTarget(HitResult.Great, 0, 20), Is.True);
                 Assert.That(SticksPlayfield.IsEligibleFlickTarget(HitResult.Meh, 20, 20), Is.True);
@@ -372,7 +372,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             foreach (SticksHitObject hitObject in objects)
                 hitObject.ApplyDefaults(controlPoints, difficulty);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 foreach (SticksHitObject hitObject in objects)
                 {
@@ -390,7 +390,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var earlier = new SticksPlayfield.FlickTarget(1000, 0, 20);
             var later = new SticksPlayfield.FlickTarget(1200, 5, 20);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksPlayfield.IsBetterFlickTarget(earlier, later, 1175, 5), Is.True);
                 Assert.That(SticksPlayfield.IsBetterFlickTarget(later, earlier, 1175, 5), Is.False);
@@ -403,7 +403,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var closerAngle = new SticksPlayfield.FlickTarget(1000, 5, 20);
             var fartherAngle = new SticksPlayfield.FlickTarget(1000, 15, 20);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksPlayfield.IsBetterFlickTarget(closerAngle, fartherAngle, 1000, 0), Is.True);
                 Assert.That(SticksPlayfield.IsBetterFlickTarget(fartherAngle, closerAngle, 1000, 0), Is.False);
@@ -413,7 +413,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestModernPerStickNoteLockBoundary()
         {
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksPlayfield.IsEarlierHeadBlocking(999.99, 1100, 1000), Is.True,
                     "A later matching note must not be hit before the skipped note begins.");
@@ -440,7 +440,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             mod.ApplyToHitObject(flick);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(mod.PrimaryHitAngle.Value, Is.Null);
                 Assert.That(flick.PrimaryHitAngle, Is.EqualTo(35));
@@ -451,7 +451,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestCircleSizeControlsDefaultHitAngles()
         {
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksHitObject.HitAngleForCircleSize(0), Is.EqualTo(45));
                 Assert.That(SticksHitObject.HitAngleForCircleSize(3), Is.EqualTo(35));
@@ -482,7 +482,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SliderTickRate = 1,
             });
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.PrimaryHitAngle, Is.EqualTo(27.5f).Within(0.0001f));
                 Assert.That(slider.SecondaryHitAngle, Is.EqualTo(13.75f).Within(0.0001f));
@@ -504,7 +504,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             new SticksModEasy().ApplyToDifficulty(difficulty);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(difficulty.CircleSize, Is.EqualTo(2.5f));
                 Assert.That(difficulty.OverallDifficulty, Is.EqualTo(4));
@@ -526,7 +526,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty { ApproachRate = 10 });
 
             Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(7.5f));
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksHitObject.ApproachDurationFor(0), Is.EqualTo(1800));
                 Assert.That(SticksHitObject.ApproachDurationFor(5), Is.EqualTo(1200));
@@ -541,7 +541,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             config.SetValue(SticksRulesetSetting.ApproachRate, 8f);
             slider.ApplyPlayerApproachRate(config.Get<float>(SticksRulesetSetting.ApproachRate));
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(config.Get<float>(SticksRulesetSetting.ApproachRate), Is.EqualTo(8));
                 Assert.That(slider.ApproachDuration, Is.EqualTo(750).Within(0.001));
@@ -555,7 +555,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(config.Get<float>(SticksRulesetSetting.FlickActivationThreshold), Is.EqualTo(0.95f));
                 Assert.That(SticksInputTracker.RechargeThresholdFor(
@@ -578,7 +578,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             threshold.Value = 0.87f;
             using var first = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
             Assert.That(threshold.Disabled, Is.True);
-            Assert.Throws<InvalidOperationException>(() => threshold.Value = 0.99f);
+            NUnitCompatibility.Throws<InvalidOperationException>(() => threshold.Value = 0.99f);
 
             using var retry = new SticksReplayRecorder(new Score(), new SticksPlayfield(), config.LockFlickActivationThreshold(scheduler));
             first.Dispose();
@@ -700,7 +700,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(input.TriggerRelaxFlick(StickSide.Left, 1100), Is.True);
             SticksInputTracker.FlickEvent second = input.LastFlickFor(StickSide.Left);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(direction.Length, Is.EqualTo(1).Within(0.0001));
                 Assert.That(unchangedBelowSliderCutoff, Is.EqualTo(direction));
@@ -734,7 +734,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(input.TriggerStrum(StickSide.Left, 1000), Is.True);
 
             SticksInputTracker.FlickEvent strum = input.LastFlickFor(StickSide.Left);
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(strum.Sequence, Is.EqualTo(1));
                 Assert.That(strum.Time, Is.EqualTo(1000));
@@ -749,7 +749,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var trigger = new SticksStrumButtonState();
             var shoulder = new SticksStrumButtonState();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(trigger.Update(false), Is.False);
                 Assert.That(shoulder.Update(false), Is.False);
@@ -769,7 +769,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That((Color4)config.Get<Colour4>(SticksRulesetSetting.LeftStickColour), Is.EqualTo(SticksPlayfield.LEFT_COLOUR));
                 Assert.That((Color4)config.Get<Colour4>(SticksRulesetSetting.RightStickColour), Is.EqualTo(SticksPlayfield.RIGHT_COLOUR));
@@ -790,7 +790,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var leftTrail = (SticksCursorTrail)typeof(SticksPlayfield).GetField("leftTrail", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(playfield)!;
             var rightTrail = (SticksCursorTrail)typeof(SticksPlayfield).GetField("rightTrail", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(playfield)!;
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(playfield.ColourFor(StickSide.Left), Is.EqualTo(new Color4(customLeft.R, customLeft.G, customLeft.B, 1)));
                 Assert.That(playfield.ColourFor(StickSide.Right), Is.EqualTo(new Color4(customRight.R, customRight.G, customRight.B, 1)));
@@ -801,7 +801,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             playfield.SetColours(SticksPlayfield.LEFT_COLOUR, SticksPlayfield.RIGHT_COLOUR, SticksPlayfield.OVERLAP_COLOUR);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(leftTrail.Colour.AverageColour.SRGB, Is.EqualTo(Color4.White),
                     "The default blue trail must render its authored sprite without a second tint.");
@@ -813,7 +813,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var storedDefaultRight = new Color4(byte.MaxValue, (byte)64, (byte)77, byte.MaxValue);
             playfield.SetColours(storedDefaultLeft, storedDefaultRight, SticksPlayfield.OVERLAP_COLOUR);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(leftTrail.Colour.AverageColour.SRGB, Is.EqualTo(Color4.White),
                     "An 8-bit settings round-trip must still select the authored blue trail.");
@@ -825,7 +825,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestCenterOutTimingAndCursorThresholds()
         {
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksPlayfield.CenterOutProgressAt(-200, 1000, 1200), Is.Zero);
                 Assert.That(SticksPlayfield.CenterOutProgressAt(400, 1000, 1200), Is.EqualTo(0.5f).Within(0.0001));
@@ -858,7 +858,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 out _,
                 out _);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(overlaps, Is.True);
                 Assert.That(start, Is.EqualTo(expectedStart).Within(0.001));
@@ -930,7 +930,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksReplayFrame holdTail = frames.Single(frame => frame.Time == 5000);
             SticksReplayFrame afterHold = frames.Single(frame => frame.Time == 5030);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(beforeChord.LeftStick, Is.EqualTo(osuTK.Vector2.Zero));
                 Assert.That(beforeChord.RightStick, Is.EqualTo(osuTK.Vector2.Zero));
@@ -960,7 +960,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             (osuTK.Vector2 left, osuTK.Vector2 right) = provider.Snapshot();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(provider.Active, Is.True);
                 Assert.That(left.X, Is.EqualTo(0.999f).Within(0.0001));
@@ -977,7 +977,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             provider.Deactivate();
             (Vector2 left, Vector2 right) = provider.Snapshot();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(provider.Active, Is.False);
                 Assert.That(left, Is.EqualTo(Vector2.Zero));
@@ -1007,7 +1007,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                .GetMethod("captureFrame", BindingFlags.Instance | BindingFlags.NonPublic)!
                                                .Invoke(recorder, new object[] { 1234d })!;
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(frame.Time, Is.EqualTo(1234));
                 Assert.That(frame.LeftStick, Is.EqualTo(new Vector2(0.8f, -0.25f)),
@@ -1041,7 +1041,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 var restored = new SticksReplayFrame();
                 restored.FromLegacy(legacy, beatmap);
 
-                assertMultiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(legacy.ButtonState, Is.Not.EqualTo((ReplayButtonState)int.MinValue),
                         "The legacy parser intentionally rejects int.MinValue.");
@@ -1081,7 +1081,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             handler.CollectPendingInputs(new List<IInput>());
             (Vector2 left, Vector2 right) = provider.Snapshot();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(left.Length, Is.EqualTo(1).Within(0.0001));
                 Assert.That(SticksHitObject.NormaliseAngle(System.MathF.Atan2(left.Y, left.X) * 180 / System.MathF.PI), Is.EqualTo(22.5f).Within(0.001));
@@ -1093,7 +1093,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             handler.CollectPendingInputs(new List<IInput>());
             (left, right) = provider.Snapshot();
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(left, Is.EqualTo(Vector2.UnitY));
                 Assert.That(right, Is.EqualTo(Vector2.UnitX));
@@ -1126,7 +1126,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             handler.CollectPendingInputs(new List<IInput>());
             replayedInput.Update(StickSide.Left, provider.Snapshot().Left, 1000);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(originalInput.SequenceFor(StickSide.Left), Is.Zero);
                 Assert.That(replayedInput.SequenceFor(StickSide.Left), Is.EqualTo(originalInput.SequenceFor(StickSide.Left)),
@@ -1151,7 +1151,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Vector2 neutralEndpoint = SticksFramedReplayInputHandler.InterpolateStick(beforeNeutral, neutral, 1000, 0, 1000);
             Vector2 wideRotation = SticksFramedReplayInputHandler.InterpolateStick(Vector2.UnitX, -Vector2.UnitX, 500, 0, 1000);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksPlayfield.MapStickDistance(activationApproach, 0.8f).Length, Is.LessThan(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD));
                 Assert.That(SticksPlayfield.MapStickDistance(activationEndpoint, 0.8f).Length, Is.GreaterThanOrEqualTo(SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD));
@@ -1178,7 +1178,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Vector2 replayed = SticksFramedReplayInputHandler.InterpolateStick(Vector2.UnitX, Vector2.UnitY, time, 1000, 2000);
                 float replayedAngle = SticksHitObject.NormaliseAngle(System.MathF.Atan2(replayed.Y, replayed.X) * 180 / System.MathF.PI);
 
-                assertMultiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(replayed.Length, Is.EqualTo(1).Within(0.0001), $"Magnitude at {time}");
                     Assert.That(SticksHitObject.DeltaAngle(replayedAngle, slider.AngleAt(time)), Is.Zero.Within(0.001), $"Slider angle at {time}");
@@ -1224,7 +1224,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                       false,
                                   });
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(notifications, Is.EqualTo(1));
                 Assert.That(reportedAsImportant, Is.True, "A flick-threshold crossing must be recorded without the 60 Hz movement limit.");
@@ -1293,7 +1293,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double sameClusteredStars = SticksDifficultyCalculator.CalculateStarRating(sameStickClustered);
             double sameWideStars = SticksDifficultyCalculator.CalculateStarRating(sameStickWide);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(crossWideStars, Is.GreaterThan(crossClusteredStars));
                 Assert.That(sameWideStars, Is.GreaterThan(sameClusteredStars));
@@ -1359,7 +1359,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Side = StickSide.Left,
             };
 
-            assertThat(() => new DrawableSticksSlider(slider), Throws.Nothing);
+            NUnitCompatibility.That(() => new DrawableSticksSlider(slider), Throws.Nothing);
         }
 
         [Test]
@@ -1377,7 +1377,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 "Invisible contact effects should sleep until their owning duration object activates them.");
 
             effect.SetState(true, 1000, 30, 20, Color4.White);
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(effect.Alpha, Is.GreaterThan(0),
                     "Activation must wake the sleeping effect so its smoothing can begin immediately.");
@@ -1398,7 +1398,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestHoldHeadRemainsVisibleForEntireDuration()
         {
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(DrawableSticksHold.HeadMarkerAlphaAt(900, 2000), Is.EqualTo(1));
                 Assert.That(DrawableSticksHold.HeadMarkerAlphaAt(1000, 2000), Is.EqualTo(1));
@@ -1416,7 +1416,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var clockwiseMarker = new SticksSliderHeadMarker(clockwise.Side, clockwise.InitialDirection, Color4.White);
             var counterClockwiseMarker = new SticksSliderHeadMarker(counterClockwise.Side, counterClockwise.InitialDirection, Color4.White);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(clockwise.InitialDirection, Is.EqualTo(1));
                 Assert.That(counterClockwise.InitialDirection, Is.EqualTo(-1));
@@ -1436,10 +1436,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SecondaryHitAngle = 20,
             };
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(repeat.DirectionAfter, Is.EqualTo(-1));
-                assertThat(() => new DrawableSticksSliderRepeat(repeat), Throws.Nothing);
+                NUnitCompatibility.That(() => new DrawableSticksSliderRepeat(repeat), Throws.Nothing);
                 Assert.That(SticksSliderRepeat.IsAngleInRange(20, repeat.PrimaryHitAngle, repeat.SecondaryHitAngle), Is.True);
             });
         }
@@ -1457,10 +1457,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Angle = 30,
             };
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(extension.PreemptDuration, Is.EqualTo(2200));
-                assertThat(() => new DrawableSticksSliderExtension(extension), Throws.Nothing);
+                NUnitCompatibility.That(() => new DrawableSticksSliderExtension(extension), Throws.Nothing);
             });
         }
 
@@ -1472,7 +1472,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var hold = new DrawableSticksHold(new SticksHold { StartTime = 1000, Duration = 1000 });
             var flick = new DrawableSticksFlick(new SticksFlick { StartTime = 1500 });
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(container.CompareForTest(flick, slider), Is.GreaterThan(0));
                 Assert.That(container.CompareForTest(slider, flick), Is.LessThan(0));
@@ -1500,7 +1500,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Duration = 1000,
             };
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.CreateJudgement().MaxResult, Is.EqualTo(HitResult.IgnoreHit));
                 Assert.That(new SticksSliderTailJudgement().MaxResult, Is.EqualTo(HitResult.SliderTailHit));
@@ -1518,7 +1518,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Test]
         public void TestEditorSliderHeadSampleCrossing()
         {
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(DrawableSticksSlider.CrossedStartTime(999, 1000, 1000), Is.True);
                 Assert.That(DrawableSticksSlider.CrossedStartTime(990, 1010, 1000), Is.True);
@@ -1550,7 +1550,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             bool headJudged = (bool)drawableType
                 .GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable)!;
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(headJudged, Is.False);
                 Assert.That(drawableType.GetField("headHit", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(drawable), Is.False);
@@ -1581,7 +1581,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             bool sliderHasResult = (bool)typeof(DrawableSticksSlider).GetProperty("HasResult", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(slider)!;
             bool holdHeadJudged = (bool)typeof(DrawableSticksHold).GetProperty("HeadJudged", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(hold)!;
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(100, Is.LessThan(SticksHitWindows.MISS_WINDOW), "The regression requires a duration shorter than the open head miss window.");
                 Assert.That(sliderHeadJudged, Is.True);
@@ -1609,7 +1609,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             slider.ResolveAt(1100);
             hold.ResolveAt(1100);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HeadWasJudged, Is.True);
                 Assert.That(slider.Judged, Is.True);
@@ -1629,7 +1629,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
             slider.SetCustomSegments(new[] { 90f, -180f, 45f });
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.TotalAngularDistance, Is.EqualTo(315));
                 Assert.That(slider.SegmentDurationAt(0), Is.EqualTo(1000).Within(0.001));
@@ -1642,7 +1642,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             double speed = slider.TotalAngularDistance / slider.Duration;
             slider.AppendSegmentAtConstantSpeed(-90);
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.Duration, Is.EqualTo(4500).Within(0.001));
                 Assert.That(slider.TotalAngularDistance / slider.Duration, Is.EqualTo(speed).Within(0.000001));
@@ -1681,7 +1681,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Mod[] increases = new SticksRuleset().GetModsFor(ModType.DifficultyIncrease).ToArray();
             var failModes = (MultiMod)increases.Single(mod => mod is MultiMod);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(reductions.Any(mod => mod is SticksModEasy), Is.True);
                 Assert.That(reductions.Any(mod => mod is SticksModNoFail), Is.True);
@@ -1707,7 +1707,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             new SticksModHardRock().ApplyToDifficulty(difficulty);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(difficulty.ApproachRate, Is.EqualTo(7));
                 Assert.That(difficulty.CircleSize, Is.EqualTo(5.2).Within(0.001));
@@ -1721,7 +1721,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var calculator = new SticksScoreMultiplierCalculator(new ScoreMultiplierContext(new BeatmapDifficulty()));
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(calculator.CalculateFor(new Mod[] { new SticksModEasy() }), Is.EqualTo(0.8));
                 Assert.That(calculator.CalculateFor(new Mod[] { new SticksModNoFail() }), Is.EqualTo(0.5));
@@ -1743,7 +1743,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             ((IApplicableToHealthProcessor)mod).ApplyToHealthProcessor(healthProcessor);
             healthProcessor.Health.Value -= 0.75;
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(overlay.ShowHealthBar.Value, Is.False);
                 Assert.That(healthProcessor.Health.MinValue, Is.EqualTo(1));
@@ -1779,7 +1779,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             double[] judgementTimes = new TestSticksHealthProcessor(0).JudgementTimes(beatmap);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(judgementTimes, Is.Ordered.Ascending,
                     "Drain calibration must not gain fake health by stepping backwards from a duration tail to an overlapping note.");
@@ -1794,7 +1794,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var hitObject = new SticksFlick();
             var healthProcessor = new TestSticksHealthProcessor(0);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(healthProcessor.HealthIncrease(hitObject, HitResult.Great) * 2,
                     Is.EqualTo(0.03 + 0.07 / 6).Within(0.0000001));
@@ -1822,7 +1822,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var healthProcessor = new TestSticksHealthProcessor(0);
             healthProcessor.ApplyBeatmap(beatmap);
 
-            assertMultiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(healthProcessor.SimulatedGreatIncreases, Has.Count.EqualTo(4),
                     "Health simulation queries each of the two accuracy components while applying and recording it.");
@@ -1831,10 +1831,6 @@ namespace osu.Game.Rulesets.Sticks.Tests
                     "The two half-weighted accuracy components must calibrate drain from standard's original 3% total gain.");
             });
         }
-
-        private static void assertMultiple(Action action) => Assert.Multiple(action);
-
-        private static void assertThat<T>(Func<T> actual, NUnit.Framework.Constraints.IResolveConstraint expression) => Assert.That(actual, expression);
 
         private partial class TestSticksHitObjectContainer : SticksHitObjectContainer
         {

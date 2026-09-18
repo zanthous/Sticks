@@ -31,7 +31,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var windows = new SticksHitWindows();
             windows.SetDifficulty(overallDifficulty);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(windows.WindowFor(HitResult.Great), Is.EqualTo(great));
                 Assert.That(windows.WindowFor(HitResult.Ok), Is.EqualTo(ok));
@@ -57,7 +57,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(processor.Combo.Value, Is.EqualTo(1));
 
             processor.ApplyResult(angle);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor.Combo.Value, Is.EqualTo(1));
                 Assert.That(processor.HighestCombo.Value, Is.EqualTo(1));
@@ -65,7 +65,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             processor.RevertResult(angle);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor.Combo.Value, Is.EqualTo(1));
                 Assert.That(processor.HighestCombo.Value, Is.EqualTo(1));
@@ -91,7 +91,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 processor.ApplyResult(result(head, timing));
                 processor.ApplyResult(result(new SticksAngleComponent(), aim));
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(processor.GetScoreProcessorStatistics().MaximumBaseScore, Is.EqualTo(300));
                     Assert.That(processor.GetScoreProcessorStatistics().BaseScore, Is.EqualTo(headValue));
@@ -126,7 +126,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             processor.RevertResult(tick);
             processor.RevertResult(aim);
             processor.RevertResult(timing);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor.GetScoreProcessorStatistics().ComboPortion, Is.Zero.Within(0.000001));
                 Assert.That(processor.GetScoreProcessorStatistics().MaximumBaseScore, Is.Zero);
@@ -159,7 +159,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var score = new ScoreInfo();
             processor.PopulateScore(score);
             int tickCount = score.MaximumStatistics.GetValueOrDefault(HitResult.LargeTickHit);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(tickCount, Is.GreaterThan(0));
                 Assert.That(processor.Accuracy.Value, Is.EqualTo((3 * 75.0 + 2 * 150) / (3 * 300 + tickCount * 30 + 2 * 150)).Within(0.000001));
@@ -181,7 +181,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var score = new ScoreInfo();
             processor.PopulateScore(score);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor.MaximumStatistics.GetValueOrDefault(HitResult.Great), Is.EqualTo(2),
                     "The two timing components should retain their native maximum result.");
@@ -234,7 +234,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             processor.ApplyBeatmap(beatmap);
             applyPerfectResultsChronologically(processor, beatmap);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor.TotalScore.Value, Is.EqualTo(1_000_000),
                     "A real perfect play must use the same chronological judgement order as maximum-score simulation.");
@@ -252,7 +252,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             processor.ApplyResult(result(new SticksFlick(), timing));
             processor.ApplyResult(result(new SticksAngleComponent(), angle));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor.Combo.Value, Is.Zero);
                 Assert.That(processor.HighestCombo.Value, Is.Zero);
@@ -310,7 +310,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksScoreProcessor originalScore = score(hitObject, originalTiming, originalAngle);
             SticksScoreProcessor replayScore = score(hitObject, replayTiming, replayAngle);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(replayedFlick.Sequence, Is.EqualTo(originalFlick.Sequence));
                 Assert.That(replayedFlick.Time, Is.EqualTo(originalFlick.Time));
@@ -374,7 +374,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var display = new SticksJudgementDisplay();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(display.Size.X, Is.EqualTo(SticksPlayfield.SIZE));
                 Assert.That(display.Size.Y, Is.EqualTo(SticksPlayfield.SIZE));
@@ -427,7 +427,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             display.Process(result(new SticksSliderTail(), HitResult.IgnoreMiss));
             display.Process(result(new SticksSliderRepeat(), HitResult.LargeTickMiss));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(display.LastResult, Is.Null);
                 Assert.That(display.Alpha, Is.Zero);
@@ -455,7 +455,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksSliderHead head = (SticksSliderHead)slider.NestedHitObjects[0];
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.CreateJudgement().MaxResult, Is.EqualTo(HitResult.IgnoreHit));
                 Assert.That(head.AccuracyComponent, Is.EqualTo(SticksAccuracyComponent.Timing));
@@ -488,7 +488,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHoldHead head = (SticksHoldHead)hold.NestedHitObjects[0];
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(hold.CreateJudgement().MaxResult, Is.EqualTo(HitResult.IgnoreHit));
                 Assert.That(head.AccuracyComponent, Is.EqualTo(SticksAccuracyComponent.Timing));

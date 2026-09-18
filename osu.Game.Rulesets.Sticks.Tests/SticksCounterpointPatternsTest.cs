@@ -52,7 +52,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] baseline = convert(source, false);
             SticksHitObject[] experimental = convert(source, true);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(baseline, Has.Length.EqualTo(source.HitObjects.Count));
                 Assert.That(baseline, Has.All.TypeOf<SticksFlick>());
@@ -71,7 +71,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(echoes, Has.Length.EqualTo(1), "The source has a long free secondary window and should produce a delayed voice.");
             SticksSlider echo = echoes.Single();
             double expectedArc = primary.SegmentArcAngleAt(0) * echo.Duration / primary.Duration;
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(Math.Abs(expectedArc), Is.GreaterThan(180), "This fixture must catch accidental shortest-angle wrapping.");
                 Assert.That(echo.Side, Is.Not.EqualTo(primary.Side));
@@ -98,7 +98,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             double span = original.Duration / (original.RepeatCount + 1);
             int startingNode = (int)Math.Round((echo.StartTime - original.StartTime) / span);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(startingNode, Is.GreaterThan(0));
                 Assert.That(echo.SegmentCount, Is.GreaterThanOrEqualTo(2), "Exercise an interior reversal, not just a trailing segment.");
@@ -109,7 +109,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             for (int i = 0; i < echo.SegmentCount; i++)
             {
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(echo.SegmentStartTimeAt(i), Is.EqualTo(primary.SegmentStartTimeAt(startingNode + i)).Within(0.001));
                     Assert.That(echo.SegmentDurationAt(i), Is.EqualTo(primary.SegmentDurationAt(startingNode + i)).Within(0.001));
@@ -137,7 +137,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksSlider echo = convert(source, true).OfType<SticksSlider>().Single(note => note.StartTime > original.StartTime);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(echo.StartTime, Is.LessThan(original.EndTime));
                 Assert.That(echo.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
@@ -158,7 +158,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] additions = addedObjects(baseline, experimental);
 
             Assert.That(additions, Is.Not.Empty, "The easy release opportunity should remain available.");
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(additions, Has.All.TypeOf<SticksFlick>());
                 Assert.That(additions.Select(note => note.StartTime), Has.All.EqualTo(original.EndTime));
@@ -187,7 +187,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] baseline = convert(source, false);
             SticksHitObject[] experimental = convert(source, true);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(baseline.Count(note => note.StartTime == original.EndTime), Is.EqualTo(1));
                 Assert.That(experimental.Count(note => note.StartTime == original.EndTime), Is.EqualTo(1));
@@ -212,7 +212,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             foreach (var chord in newChords)
             {
                 SticksHitObject[] notes = chord.ToArray();
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(source.HitObjects.Select(note => note.StartTime), Does.Contain(chord.Key));
                     Assert.That(notes[0].Side, Is.Not.EqualTo(notes[1].Side));
@@ -237,7 +237,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             converter.UseCounterpoint = false;
             string[] restored = converter.Convert().HitObjects.Cast<SticksHitObject>().Select(note => signature(note, true)).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(first.Length, Is.GreaterThan(baseline.Length));
                 Assert.That(second, Is.EqualTo(first));
@@ -299,14 +299,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick[] originalAttacks = baseline.OfType<SticksFlick>().Where(note => note.StartTime >= 250).ToArray();
             SticksHitObject[] additions = addedObjects(baseline, experimental);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(originalAttacks, Has.Length.EqualTo(4), "The base must leave this source combo articulated.");
                 Assert.That(additions, Has.Length.EqualTo(1));
                 Assert.That(additions.Single(), Is.TypeOf<SticksSlider>());
             });
             SticksSlider support = (SticksSlider)additions.Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(support.StartTime, Is.EqualTo(250));
                 Assert.That(support.EndTime, Is.EqualTo(1750));
@@ -317,7 +317,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             for (int i = 0; i < originalAttacks.Length; i++)
             {
                 SticksFlick attack = experimental.OfType<SticksFlick>().Single(note => note.StartTime == originalAttacks[i].StartTime);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(attack.Side, Is.Not.EqualTo(support.Side));
                     Assert.That(attack.Angle, Is.EqualTo(originalAttacks[i].Angle).Within(0.001));
@@ -360,7 +360,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider template = result.OfType<SticksSlider>().Where(note => note.StartTime == 7300)
                 .OrderBy(note => Math.Abs(SticksHitObject.DeltaAngle(note.Angle, 150))).First();
             SticksSlider echo = addedObjects(baseline, result).OfType<SticksSlider>().Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(echo.StartTime, Is.EqualTo(2500));
                 Assert.That(echo.EndTime, Is.EqualTo(7000));
@@ -374,7 +374,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(soundSignature(echo.NodeSamples.Last()), Is.EqualTo(soundSignature(original.NodeSamples.Last())));
             });
             for (int i = 0; i < template.SegmentCount; i++)
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(echo.SegmentArcAngleAt(i), Is.EqualTo(template.SegmentArcAngleAt(i)).Within(0.001));
                     Assert.That(echo.SegmentDurationAt(i) / echo.Duration, Is.EqualTo(template.SegmentDurationAt(i) / template.Duration).Within(0.00001));

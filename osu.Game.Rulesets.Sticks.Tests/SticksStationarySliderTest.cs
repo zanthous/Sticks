@@ -25,7 +25,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var samples = new float[17];
             slider.FillAngleSamples(500, 3500, samples);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.IsStationary, Is.True);
                 Assert.That(slider.InitialDirection, Is.Zero);
@@ -36,7 +36,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             string json = JsonConvert.SerializeObject(slider);
             SticksSlider restored = JsonConvert.DeserializeObject<SticksSlider>(json)!;
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(restored.IsStationary, Is.True);
                 Assert.That(restored.SegmentArcAngles, Is.EqualTo(slider.SegmentArcAngles));
@@ -57,7 +57,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 slider.SetCustomSegments(new[] { 90f });
 
             slider.ReplaceFinalSegment(0);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.IsStationary, Is.True);
                 Assert.That(slider.AngleAt(slider.EndTime), Is.EqualTo(37));
@@ -66,7 +66,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             slider.ReplaceFinalSegment(-0.25f);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.IsStationary, Is.False);
                 Assert.That(slider.AngleAt(slider.EndTime), Is.EqualTo(36.75));
@@ -86,13 +86,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(slider.ContinuationArcAt(3750), Is.Zero);
             Assert.That(slider.AppendTimedSegmentAtConstantSpeed(3750), Is.True);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.EndTime, Is.EqualTo(3750));
                 Assert.That(slider.AngleAt(3700), Is.EqualTo(37));
                 Assert.That(slider.SegmentCount, Is.EqualTo(count));
                 Assert.That(slider.IsStationary, Is.True);
-                Assert.That(() => slider.AppendSegmentAtConstantSpeed(45), Throws.InvalidOperationException,
+                NUnitCompatibility.That(() => slider.AppendSegmentAtConstantSpeed(45), Throws.InvalidOperationException,
                     "An angular continuation cannot infer a speed from stationary movement.");
             });
 
@@ -108,7 +108,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksSlider slider = create(path);
             Assert.That(slider.RemoveFinalSegmentAtConstantSpeed(), Is.True);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.Duration, Is.EqualTo(2000 - removedDuration).Within(0.00001));
                 Assert.That(slider.IsStationary, Is.True);
@@ -122,7 +122,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider slider = create("single");
             slider.SetCustomSegments(new[] { 0.25f });
             Assert.That(slider.AppendTimedSegmentAtConstantSpeed(3500), Is.True);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 0.25f, -0.0625f }));
                 Assert.That(slider.SegmentEndTimeAt(0), Is.EqualTo(3000));
@@ -174,7 +174,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             slider.ApplyDefaults(new ControlPointInfo(), new BeatmapDifficulty());
 
             using var drawable = new DrawableSticksSlider(slider);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(drawable.GetSamples().Single().Name, Is.EqualTo(HitSampleInfo.HIT_CLAP));
                 Assert.That(slider.NestedHitObjects.OfType<SticksSliderTail>().Single().Samples.Single().Name, Is.EqualTo(HitSampleInfo.HIT_FINISH));

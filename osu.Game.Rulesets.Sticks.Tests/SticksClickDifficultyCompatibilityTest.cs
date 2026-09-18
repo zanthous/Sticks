@@ -26,7 +26,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             windows.SetDifficulty(difficulty);
             var scoreProcessor = new SticksScoreProcessor(new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(windows.IsHitResultAllowed(HitResult.Great), Is.True);
                 Assert.That(windows.GetAllAvailableWindows().Select(window => window.result),
@@ -102,7 +102,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(full.StarRating, Is.EqualTo(expected.StarRating).Within(0.0000001));
             }
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(double.IsFinite(full.StarRating), Is.True);
                 Assert.That(full.StarRating, Is.GreaterThan(0));

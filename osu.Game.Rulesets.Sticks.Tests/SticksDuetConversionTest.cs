@@ -67,7 +67,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] baselineChord = standard.Where(note => note.StartTime == 2875).ToArray();
             SticksHitObject[] duet = convert(source);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(baselineChord, Has.Length.EqualTo(2));
                 Assert.That(baselineChord.Select(note => note.Side).Distinct().Count(), Is.EqualTo(2));
@@ -86,7 +86,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider hold = converted.OfType<SticksSlider>().Single(note => note.IsStationary);
             SticksSlider slider = converted.OfType<SticksSlider>().Single(note => !note.IsStationary);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(2));
                 Assert.That(hold.StartTime, Is.EqualTo(1000));
@@ -111,7 +111,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             foreach (SticksSlider slider in sliders)
                 slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(3));
                 Assert.That(sliders, Has.Length.EqualTo(2));
@@ -146,7 +146,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 double anchorTime = slider.StartTime + 600;
                 HitObject anchor = source.HitObjects.Single(note => note.StartTime == anchorTime);
                 SticksSliderTick checkpoint = slider.NestedHitObjects.OfType<SticksSliderTick>().Single(note => Math.Abs(note.StartTime - anchorTime) < 0.001);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(slider.HasTimedSegments, Is.True);
                     Assert.That(checkpoint.Angle, Is.EqualTo(slider.AngleAt(anchorTime)).Within(0.001));
@@ -177,7 +177,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 SticksSlider slider = voices[voice];
                 slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(slider.HasTimedSegments, Is.True);
                     Assert.That(slider.SegmentDurationWeights, Is.EqualTo(new[] { 0.5, 0.5 }));
@@ -216,7 +216,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksSlider slider = converted.OfType<SticksSlider>().Single(note => note.StartTime >= 600);
             SticksFlick[] pulses = converted.OfType<SticksFlick>().Where(note => note.StartTime >= 600).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.OfType<SticksSlider>().Where(note => note.IsStationary), Is.Empty);
                 Assert.That(slider.StartTime, Is.EqualTo(900));
@@ -277,7 +277,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider sustain = converted.OfType<SticksSlider>().Single();
             SticksFlick[] accompaniment = converted.OfType<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(count - 1));
                 Assert.That(sustain.StartTime, Is.Zero);
@@ -315,7 +315,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 SticksHitObject first = chord.First();
                 SticksHitObject second = chord.Last();
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(chord.Count(), Is.EqualTo(2));
                     Assert.That(second.Side, Is.Not.EqualTo(first.Side));
@@ -354,7 +354,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider[] sliders = converted.OfType<SticksSlider>().ToArray();
 
             Assert.That(sliders, Has.Length.EqualTo(2));
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sliders.Select(slider => slider.Duration), Has.All.EqualTo(2000));
                 Assert.That(sliders.Select(slider => slider.StartTime), Has.All.EqualTo(1000));
@@ -384,7 +384,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject[] converted = convert(source);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.OfType<SticksSlider>().Count(), Is.EqualTo(expectedSliders));
                 Assert.That(converted.OfType<SticksFlick>().Count(note => note.StartTime == 2500 + tailGap), Is.EqualTo(1));
@@ -436,7 +436,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             converter.ConversionMode = SticksConversionMode.Duet;
             string[] duetAgain = signature(converter.Convert().HitObjects.Cast<SticksHitObject>());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(first.OfType<SticksSlider>().Count(note => note.StartTime == 6000), Is.EqualTo(2));
                 Assert.That(first.Select(note => note.StartTime), Is.Ordered);

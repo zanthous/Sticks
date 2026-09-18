@@ -22,7 +22,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var source = new SourceSlider { Duration = 1500, RepeatCount = 1 };
             SliderEventDescriptor[] checkpoints = SticksCounterpointCheckpoints.Generate(source, map()).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(checkpoints.Where(point => point.Type == SliderEventType.Tick).Select(point => point.Time), Is.EqualTo(new[] { 500.0, 1000.0 }));
                 Assert.That(checkpoints.Select(point => point.Time), Is.Ordered);
@@ -37,7 +37,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var source = new SourceSlider { StartTime = 100, Duration = 2250, RepeatCount = 2, GenerateTicks = false };
             SliderEventDescriptor[] checkpoints = SticksCounterpointCheckpoints.Generate(source, map()).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(checkpoints.Select(point => point.Type), Is.EqualTo(new[] { SliderEventType.Repeat, SliderEventType.Repeat, SliderEventType.Tail }));
                 Assert.That(checkpoints.Select(point => point.Time), Is.EqualTo(new[] { 850.0, 1600.0, 2350.0 }));
@@ -75,7 +75,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var source = new SourceSlider { StartTime = 1000, Duration = 750 };
             SliderEventDescriptor[] checkpoints = SticksCounterpointCheckpoints.Generate(source, map()).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(checkpoints.Select(point => point.Type), Does.Not.Contain(SliderEventType.Head).And.Not.Contain(SliderEventType.LegacyLastTick));
                 Assert.That(checkpoints.Select(point => point.Time), Does.Not.Contain(1714));
@@ -91,7 +91,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             beatmap.Difficulty.SliderTickRate = 64;
             var source = new SourceSlider { Duration = 1500, RepeatCount = 1 };
             SliderEventDescriptor[] checkpoints = SticksCounterpointCheckpoints.Generate(source, beatmap).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(checkpoints.Select(point => point.Type), Is.EqualTo(new[] { SliderEventType.Repeat, SliderEventType.Tail }));
                 Assert.That(checkpoints.Select(point => point.Time), Is.EqualTo(new[] { 750.0, 1500.0 }));
@@ -103,7 +103,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var source = new SourceSlider { Duration = 32000, RepeatCount = 15 };
             SliderEventDescriptor[] checkpoints = SticksCounterpointCheckpoints.Generate(source, map()).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(checkpoints.Count(point => point.Type == SliderEventType.Tick), Is.Zero, "Three ticks per span exceeds the total bound despite a small per-span count.");
                 Assert.That(checkpoints.Count(point => point.Type == SliderEventType.Repeat), Is.EqualTo(15));
@@ -116,7 +116,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             var source = new SourceSlider { Duration = 20000, RepeatCount = 15 };
             SliderEventDescriptor[] checkpoints = SticksCounterpointCheckpoints.Generate(source, map()).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(checkpoints.Count(point => point.Type == SliderEventType.Tick), Is.EqualTo(32));
                 Assert.That(checkpoints.Count(point => point.Type == SliderEventType.Repeat), Is.EqualTo(15));
@@ -136,7 +136,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             using var cancellation = new CancellationTokenSource();
             cancellation.Cancel();
-            Assert.Throws<OperationCanceledException>(() => SticksCounterpointCheckpoints.Generate(
+            NUnitCompatibility.Throws<OperationCanceledException>(() => SticksCounterpointCheckpoints.Generate(
                 new SourceSlider { Duration = 1500, RepeatCount = 1 }, map(), cancellation.Token).ToArray());
         }
 
@@ -148,7 +148,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 new SourceSlider { Duration = 1500, RepeatCount = 1 }, map(), cancellation.Token).GetEnumerator();
             Assert.That(checkpoints.MoveNext(), Is.True);
             cancellation.Cancel();
-            Assert.Throws<OperationCanceledException>(() => checkpoints.MoveNext());
+            NUnitCompatibility.Throws<OperationCanceledException>(() => checkpoints.MoveNext());
         }
 
         private static Beatmap<HitObject> map()

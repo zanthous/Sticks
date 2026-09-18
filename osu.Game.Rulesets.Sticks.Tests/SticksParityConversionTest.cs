@@ -35,7 +35,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             apply(leftOnly);
             apply(rightOnly);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(objects.Where(hitObject => hitObject.Side == StickSide.Left).Select(hitObject => hitObject.Angle),
                     Is.EqualTo(leftOnly.Select(hitObject => hitObject.Angle)));
@@ -62,7 +62,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             apply(objects);
 
             float[] turns = objects.Skip(1).Select((note, index) => turn(objects[index].Angle, note.Angle)).ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(turns, Has.All.GreaterThan(90));
                 Assert.That(turns.Select(value => Math.Round(value, 1)).Distinct().Count(), Is.GreaterThan(6));
@@ -83,7 +83,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             float dense = Math.Abs(turn(objects[14].Angle, objects[15].Angle));
             float firstSparse = Math.Abs(turn(objects[15].Angle, objects[16].Angle));
             float settledSparse = Math.Abs(turn(objects[30].Angle, objects[31].Angle));
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(dense - settledSparse, Is.GreaterThan(25));
                 Assert.That(firstSparse, Is.GreaterThan(settledSparse + 1));
@@ -105,7 +105,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             float afterNarrow = Math.Abs(turn(narrowContext[^2].Angle, narrowContext[^1].Angle));
             float afterWide = Math.Abs(turn(wideContext[^2].Angle, wideContext[^1].Angle));
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(afterNarrow, Is.GreaterThan(afterWide + 10));
                 Assert.That(afterWide, Is.GreaterThan(30));
@@ -141,7 +141,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             apply(mirrored);
             SticksParityConversion.Apply(faster, source(375), CancellationToken.None);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 for (int i = 0; i < original.Length; i++)
                 {
@@ -166,7 +166,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             apply(objects);
             float convertedTurn = turn(objects[0].Angle, objects[1].Angle);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 if (Math.Abs(sourceTurn) < 179.999f)
                 {
@@ -210,7 +210,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             apply(objects);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(objects[2].Angle, Is.GreaterThan(10).And.LessThan(180));
                 Assert.That(objects[4].Angle, Is.EqualTo(35));
@@ -235,7 +235,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             apply(objects);
             apply(endpointControl);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(objects[1].Angle, Is.EqualTo(endpointControl[1].Angle).Within(0.001));
                 Assert.That(slider.RepeatCount, Is.EqualTo(repeatCount));
@@ -261,7 +261,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             apply(objects);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.Angle, Is.InRange(100, 140));
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(new[] { 60f, -30f, 90f }));
@@ -300,7 +300,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             apply(objects);
             apply(withoutOverlap);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(objects[2].Angle, Is.EqualTo(200));
                 Assert.That(objects[3].Angle, Is.EqualTo(330));
@@ -326,7 +326,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksHitObject[] objects = { flick(0, 0), flick(250, 10) };
 
-            Assert.Throws<OperationCanceledException>(() => SticksParityConversion.Apply(objects, source(), new CancellationToken(true)));
+            NUnitCompatibility.Throws<OperationCanceledException>(() => SticksParityConversion.Apply(objects, source(), new CancellationToken(true)));
             Assert.That(objects[1].Angle, Is.EqualTo(10));
         }
 
@@ -346,7 +346,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             converter.ConversionMode = SticksConversionMode.Duet;
             SticksHitObject[] standardAgain = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(standard.Select(hitObject => hitObject.Angle), Is.EqualTo(new[] { 0, 0 }));
                 Assert.That(parity[0].Angle, Is.EqualTo(0));
@@ -371,7 +371,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.IsAuthoredCarrier, Is.True);
                 Assert.That(converted.Select(hitObject => hitObject.Angle), Is.EqualTo(originals.Select(hitObject => hitObject.Angle)));
@@ -390,7 +390,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source(), new SticksRuleset());
             parity.ApplyToBeatmapConverter(converter);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(parity.Acronym, Is.EqualTo("PA"));
                 Assert.That(parity.Ranked, Is.False);

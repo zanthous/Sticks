@@ -65,7 +65,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             IList<HitSampleInfo> sliding = hold.CreatePlayableSlidingSamples();
 
             assertMarkerFree(sliding, "sliderslide", "sliderwhistle");
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sliding.Single(sample => sample.Name == "sliderslide").Volume, Is.EqualTo(63));
                 Assert.That(sliding.Single(sample => sample.Name == "sliderwhistle").Volume, Is.EqualTo(47));
@@ -118,7 +118,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             IList<HitSampleInfo> playable = flick.CreatePlayableSamples();
 
             assertMarkerFree(playable, HitSampleInfo.HIT_NORMAL);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(playable.Single().Bank, Is.EqualTo(HitSampleInfo.BANK_DRUM));
                 Assert.That(playable.Single().Volume, Is.EqualTo(82));
@@ -128,7 +128,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private static void assertMarkerFree(IEnumerable<HitSampleInfo> samples, params string[] expectedNames)
         {
             HitSampleInfo[] materialised = samples.ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(materialised.Select(sample => sample.Name), Is.EqualTo(expectedNames));
                 Assert.That(materialised.OfType<ConvertHitObjectParser.FileHitSampleInfo>(), Is.Empty);

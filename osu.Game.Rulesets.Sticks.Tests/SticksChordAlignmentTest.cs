@@ -28,7 +28,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 SticksHitObject[] chord = { flick(0, leftAngle), flick(0, rightAngle, StickSide.Right) };
                 SticksBeatmapConverter.AlignNearbyChordHeads(reverse ? chord.Reverse() : chord);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(chord.Select(note => note.Angle), Is.EqualTo(new[] { expected, expected }));
                     Assert.That(Math.Abs(SticksHitObject.DeltaAngle(leftAngle, chord[0].Angle)), Is.LessThanOrEqualTo(2.5f));
@@ -57,7 +57,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
         {
             SticksHitObject[] objects = { flick(0, 15), flick(offset, 19, StickSide.Right) };
             SticksBeatmapConverter.AlignNearbyChordHeads(objects.Reverse());
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(objects.Select(note => note.Angle), Is.EqualTo(aligned ? new[] { 17f, 17 } : new[] { 15f, 19 }));
                 Assert.That(objects.Select(note => note.StartTime), Is.EqualTo(new[] { 0d, offset }));
@@ -115,7 +115,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksBeatmapConverter.AlignNearbyChordHeads(chord);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(chord.Select(note => note.Angle), Is.EqualTo(new[] { 0f, 0 }));
                 Assert.That(slider.SegmentArcAngles, Is.EqualTo(arcs));
@@ -153,7 +153,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Assert.That(chord, Has.Length.EqualTo(2));
             SticksSlider slider = chord.OfType<SticksSlider>().Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(chord[0].Angle, Is.EqualTo(17).Within(0.001));
                 Assert.That(chord[1].Angle, Is.EqualTo(chord[0].Angle), "Shared rendering needs exactly equal final angles.");
@@ -172,7 +172,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                       .Select(SticksAuthoredBeatmapCodec.CreateLegacyProxy));
             var converter = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = mode };
             SticksHitObject[] chord = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.IsAuthoredCarrier, Is.True);
                 Assert.That(chord.Select(note => note.Angle), Is.EqualTo(new[] { 15f, 19 }));

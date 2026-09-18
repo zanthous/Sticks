@@ -46,7 +46,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var drawableSlider = new TestDrawableSticksSlider(slider);
             drawableSlider.Apply(slider);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(6));
                 Assert.That(converted.Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1000, 2000, 2500, 3000, 3500 }));
@@ -85,7 +85,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(converted, Is.Not.Empty);
             foreach (SticksHitObject note in converted)
             {
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(note.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
                     Assert.That(note.Samples.Single().Volume, Is.EqualTo(27));
@@ -111,7 +111,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(converted, Is.Not.Empty);
             foreach (SticksHitObject note in converted)
             {
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(note.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
                     Assert.That(note.Samples.Single().Volume, Is.EqualTo(100));
@@ -148,7 +148,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                       .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
                                                       .ToArray();
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_CLAP }));
                     Assert.That(converted.Samples.Single().Volume, Is.EqualTo(24));
@@ -199,7 +199,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                       .Where(hitObject => hitObject is SticksSliderTick or SticksSliderRepeat or SticksSliderTail)
                                                       .ToArray();
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(converted.Samples.Select(sample => sample.Name), Is.EqualTo(new[] { HitSampleInfo.HIT_NORMAL }));
                     Assert.That(converted.Samples.Single().Volume, Is.EqualTo(100));
@@ -229,7 +229,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject[] allObjects = recursivelyEnumerate(converted).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.OfType<SticksFlick>(), Is.Not.Empty);
                 Assert.That(converted, Has.Exactly(3).TypeOf<SticksSlider>());
@@ -303,7 +303,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                 })
                                                 .ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(decoded[0], Is.TypeOf<SticksFlick>());
                 Assert.That(decoded[0].StartTime, Is.EqualTo(1000));
@@ -339,7 +339,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(SticksAuthoredBeatmapCodec.TryDecode(proxy, out SticksHitObject decodedObject), Is.True);
             var decoded = (SticksSlider)decodedObject;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(proxy.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>().Single().Filename,
                     Is.EqualTo("sticks-v2~s~l~10~3500~90_-180_45.wav"));
@@ -372,7 +372,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                       .Convert().HitObjects.OfType<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(2));
                 Assert.That(converted[0].Angle, Is.EqualTo(0));
@@ -417,7 +417,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converted = (SticksSlider)new SticksBeatmapConverter(decodedBeatmap, new SticksRuleset())
                                            .Convert().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.StartTime, Is.EqualTo(1234));
                 Assert.That(converted.Side, Is.EqualTo(StickSide.Left));
@@ -570,7 +570,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             mod.ApplyToBeatmapConverter(converter);
             var converted = (SticksSlider)converter.Convert().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.RepeatCount, Is.Zero);
                 Assert.That(converted.ArcAngle, Is.EqualTo(-270));
@@ -604,13 +604,13 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
                 Assert.That(inspection.Version, Is.EqualTo(6));
                 Assert.That(converter.CanConvert(), Is.False);
                 Assert.That(converter.AuthoredCarrierError, Does.Contain("unsupported marker version v6"));
-                Assert.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>()
+                NUnitCompatibility.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>()
                                                           .With.Message.Contains("Update Sticks"));
             });
         }
@@ -630,7 +630,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
                 Assert.That(inspection.Version, Is.Null);
@@ -654,12 +654,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
                 Assert.That(converter.CanConvert(), Is.False);
                 Assert.That(converter.AuthoredCarrierError, Does.Contain("malformed v1 marker"));
-                Assert.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>());
+                NUnitCompatibility.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>());
             });
         }
 
@@ -684,7 +684,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var forcedConverter = new SticksBeatmapConverter(source, new SticksRuleset(), forceProceduralConversion: true);
             IBeatmap converted = forcedConverter.Convert();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(normalConverter.CanConvert(), Is.False);
                 Assert.That(normalConverter.AuthoredCarrierError, Does.Contain("malformed v1 marker"));
@@ -710,7 +710,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
                 Assert.That(inspection.Version, Is.Null);
@@ -736,7 +736,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksAuthoredBeatmapCodec.IsMarker(hitObject.Samples.Single()), Is.False);
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.None));
@@ -757,7 +757,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             bool decoded = SticksAuthoredBeatmapCodec.TryDecode(hitObject, out var result);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(decoded, Is.True);
                 Assert.That(result, Is.TypeOf<SticksFlick>());
@@ -778,7 +778,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksAuthoredBeatmapCodec.IsMarker(hitObject.Samples.Single()), Is.True);
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.UnsupportedVersion));
@@ -805,7 +805,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.MarkerCount, Is.EqualTo(2));
                 Assert.That(converter.CanConvert(), Is.False);
@@ -831,11 +831,11 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.CanConvert(), Is.False);
                 Assert.That(converter.AuthoredCarrierError, Does.Contain("object 2 at 1500ms has no Sticks marker"));
-                Assert.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>());
+                NUnitCompatibility.That(() => converter.Convert(), Throws.TypeOf<BeatmapInvalidForRulesetException>());
             });
         }
 
@@ -863,7 +863,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
             SticksHitObject[] converted = converter.Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.CanConvert(), Is.True);
                 Assert.That(converter.AuthoredCarrierError, Is.Null);
@@ -892,7 +892,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(hitObject);
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
                 Assert.That(SticksAuthoredBeatmapCodec.TryDecode(hitObject, out _), Is.False);
@@ -914,7 +914,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var converter = new SticksBeatmapConverter(source, new SticksRuleset());
             var converted = (SticksFlick)converter.Convert().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converter.CanConvert(), Is.True);
                 Assert.That(converter.AuthoredCarrierError, Is.Null);
@@ -939,12 +939,12 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             var hold = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(hold.Duration, Is.EqualTo(1500));
                 Assert.That(hold.Angle, Is.EqualTo(0).Within(0.001));
                 Assert.That(hold.IsStationary, Is.True);
-                Assert.That(() => new DrawableSticksSlider(hold), Throws.Nothing);
+                NUnitCompatibility.That(() => new DrawableSticksSlider(hold), Throws.Nothing);
             });
         }
 
@@ -958,7 +958,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted[0].Angle, Is.EqualTo(0).Within(0.001));
                 Assert.That(converted[1].Angle, Is.EqualTo(90).Within(0.001));
@@ -977,7 +977,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted[1].Side, Is.Not.EqualTo(converted[0].Side));
                 Assert.That(converted[2].Side, Is.Not.EqualTo(converted[1].Side));
@@ -1002,7 +1002,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                       .Convert().HitObjects.OfType<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD, Is.GreaterThanOrEqualTo(250));
                 Assert.That(converted.Zip(converted.Skip(1)), Has.All.Matches<(SticksFlick First, SticksFlick Second)>(pair => pair.First.Side != pair.Second.Side));
@@ -1029,7 +1029,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksBeatmapConverter.RAPID_ALTERNATION_THRESHOLD,
                     Is.EqualTo(260), "Physical alternation spacing must remain independent of broad miss windows.");
@@ -1054,7 +1054,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(2));
                 Assert.That(converted.Select(hitObject => hitObject.Side).Distinct().Count(), Is.EqualTo(2));
@@ -1081,7 +1081,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(4));
                 Assert.That(converted.Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1000, 1500, 2000 }));
@@ -1121,7 +1121,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                        .Where(flick => flick.StartTime == 2500)
                                                        .ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(approachingFlicks, Is.Not.Empty);
                 Assert.That(approachingFlicks, Has.All.Matches<SticksFlick>(flick => flick.Side == slider.Side));
@@ -1155,7 +1155,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.OfType<SticksSlider>().Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1600 }));
                 Assert.That(converted.OfType<SticksFlick>().Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 2200 }));
@@ -1189,7 +1189,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider slider = converted.OfType<SticksSlider>().Single();
             SticksFlick[] flicks = converted.OfType<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(flicks.Select(note => note.StartTime), Is.EqualTo(new[] { 1000d, 1500, 2000 }));
                 Assert.That(converted.Any(note => note.StartTime == 1750), Is.False);
@@ -1211,7 +1211,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                       .Convert().HitObjects.OfType<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted[0].Side, Is.Not.EqualTo(converted[1].Side));
                 Assert.That(System.Math.Abs(SticksHitObject.DeltaAngle(converted[0].Angle, converted[1].Angle)), Is.EqualTo(180).Within(0.001));
@@ -1241,7 +1241,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                                         .Where(group => group.Count() == 2)
                                                                         .ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(generatedChords.Length, Is.InRange(3, 15),
                     "A generated slider-accompaniment phrase intentionally reserves one stick and replaces a few otherwise eligible chords.");
@@ -1266,7 +1266,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider hold = converted.OfType<SticksSlider>().Single(note => note.IsStationary);
             SticksFlick[] accompaniment = converted.OfType<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(hold.Duration, Is.EqualTo(2000));
                 Assert.That(accompaniment, Has.Length.EqualTo(3));
@@ -1297,7 +1297,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                                    .Where(flick => flick.StartTime > hold.StartTime && flick.StartTime <= hold.EndTime)
                                                    .ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(hold.Duration, Is.InRange(1500, 2000));
                 Assert.That(accompaniment.Length, Is.GreaterThanOrEqualTo(3));
@@ -1319,7 +1319,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
             SticksSlider[] sliders = converted.OfType<SticksSlider>().OrderBy(slider => slider.StartTime).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(2), "The two tail-anchor circles should not remain duplicate flicks.");
                 Assert.That(sliders, Has.Length.EqualTo(2));
@@ -1353,7 +1353,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksSlider sustain = converted.OfType<SticksSlider>().Single();
             SticksFlick accompaniment = converted.OfType<SticksFlick>().Single();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(2));
                 Assert.That(sustain.IsStationary, Is.True, "This short burst must not become moving dual-slider tracks.");
@@ -1384,7 +1384,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksSlider slider = converted.OfType<SticksSlider>().Single();
             SticksFlick[] accompaniment = converted.OfType<SticksFlick>().OrderBy(flick => flick.StartTime).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(4), "The final source circle is the slider tail anchor, not another flick.");
                 Assert.That(slider.StartTime, Is.EqualTo(1000));
@@ -1434,7 +1434,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 && flick.StartTime > slider.StartTime
                 && flick.StartTime < slider.EndTime));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(hasInterleavedPair, Is.True);
                 Assert.That(hasSliderAccompaniment, Is.True);
@@ -1458,7 +1458,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksSliderExtension[] extensions = slider.NestedHitObjects.OfType<SticksSliderExtension>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(extensions, Has.Length.EqualTo(2));
                 Assert.That(extensions.Select(extension => extension.StartTime), Is.EqualTo(new[] { 2333.333333333333, 3666.666666666666 }).Within(0.001));
@@ -1482,7 +1482,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var slider = (SticksSlider)converted[0];
             SticksFlick[] taps = converted.OfType<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(taps, Has.Length.EqualTo(2));
                 Assert.That(taps, Has.All.Matches<SticksFlick>(tap => tap.Side != slider.Side));
@@ -1509,7 +1509,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksFlick[] converted = new SticksBeatmapConverter(source, new SticksRuleset()) { ConversionMode = SticksConversionMode.Standard, UseCounterpoint = false }
                                       .Convert().HitObjects.Cast<SticksFlick>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Has.Length.EqualTo(6));
                 Assert.That(converted.Zip(converted.Skip(1)), Has.All.Matches<(SticksFlick First, SticksFlick Second)>(pair => pair.First.Side != pair.Second.Side));
@@ -1546,7 +1546,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 SticksSliderTick[] ticks = slider.NestedHitObjects.OfType<SticksSliderTick>().ToArray();
                 SticksSliderTail tail = slider.NestedHitObjects.OfType<SticksSliderTail>().Single();
 
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(slider.RepeatCount, Is.EqualTo(2));
                     Assert.That(slider.SpanCount, Is.EqualTo(3));
@@ -1587,7 +1587,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(companion.Side, Is.Not.EqualTo(slider.Side));
             slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(SticksBeatmapConverter.MAX_REVERSAL_ANGULAR_VELOCITY, Is.EqualTo(180));
                 Assert.That(SticksBeatmapConverter.MIN_GENERATED_REVERSAL_SPAN_DURATION, Is.EqualTo(250));
@@ -1614,7 +1614,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var slider = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
             double angularVelocity = System.Math.Abs(slider.ArcAngle) / slider.Duration * 1000;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.Duration, Is.EqualTo(100), "Conversion should preserve source timing.");
                 Assert.That(SticksBeatmapConverter.MAX_GENERATED_SLIDER_ANGULAR_VELOCITY, Is.EqualTo(120));
@@ -1637,7 +1637,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksHitObject converted = (SticksHitObject)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted, Is.TypeOf<SticksFlick>());
                 Assert.That(converted.StartTime, Is.EqualTo(333030));
@@ -1659,7 +1659,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksSlider[] sliders = new SticksBeatmapConverter(source, new SticksRuleset()) { LimitBeginnerCoordination = false }.Convert().HitObjects.OfType<SticksSlider>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(sliders, Has.Length.EqualTo(2));
                 Assert.That(sliders.Select(slider => slider.Side).Distinct().Count(), Is.EqualTo(2));
@@ -1686,7 +1686,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             var converted = (SticksSlider)new SticksBeatmapConverter(source, new SticksRuleset()).Convert().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(converted.Duration, Is.EqualTo(100));
                 Assert.That(converted.ArcAngle, Is.EqualTo(270));
@@ -1718,7 +1718,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             {
                 slider.ApplyDefaults(source.ControlPointInfo, source.Difficulty);
                 SticksSlider original = normal.Single(note => note.Side == slider.Side);
-                Assert.Multiple(() =>
+                NUnitCompatibility.Multiple(() =>
                 {
                     Assert.That(slider.RepeatCount, Is.Zero);
                     Assert.That(slider.ArcAngle, Is.EqualTo(original.ArcAngle * 3).Within(0.001));

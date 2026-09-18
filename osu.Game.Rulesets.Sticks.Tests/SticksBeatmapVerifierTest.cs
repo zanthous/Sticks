@@ -60,7 +60,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             Issue[] issues = verify(beatmap);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(issues, Has.Length.EqualTo(2));
                 Assert.That(issues, Has.All.Matches<Issue>(issue => issue.Template.Type == IssueType.Problem));
@@ -125,7 +125,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             string[] messages = verify(beatmap).Select(issue => issue.ToString()).ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(messages, Does.Contain("The angle is not finite."));
                 Assert.That(messages, Does.Contain("The hold duration is invalid."));

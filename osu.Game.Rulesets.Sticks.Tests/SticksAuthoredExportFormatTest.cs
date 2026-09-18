@@ -74,7 +74,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.That(source.HitObjects, Has.All.Matches<HitObject>(hitObject =>
                 hitObject.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>().Any(sample => sample.Filename.StartsWith(SticksAuthoredBeatmapCodec.MARKER_PREFIX))));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(source.HitObjects[0], Is.Not.InstanceOf<IHasDuration>());
                 Assert.That(source.HitObjects[1], Is.Not.InstanceOf<IHasDuration>());
@@ -87,7 +87,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] converted = new SticksBeatmapConverter(source, new SticksRuleset())
                                           .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(source.BeatmapInfo.Ruleset.OnlineID, Is.Zero);
                 Assert.That(source.Metadata.AudioFile, Is.EqualTo("validation.wav"));
@@ -134,7 +134,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             byte[] expectedBytes = preamble.Concat(Encoding.UTF8.GetBytes(expectedCarrier)).ToArray();
             byte[] packagedBytes = SticksBeatmapPackageExporter.StripOnlineIds(storedBytes);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(packagedBytes, Is.EqualTo(expectedBytes));
                 Assert.That(packagedBytes.Take(preamble.Length), Is.EqualTo(preamble));

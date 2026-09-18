@@ -35,7 +35,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 RepeatCount = 2,
             };
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider, Is.InstanceOf<IHasDuration>());
                 Assert.That(slider, Is.Not.InstanceOf<IHasRepeats>(),
@@ -46,7 +46,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             ((IHasDuration)slider).Duration = 1250;
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.EndTime, Is.EqualTo(2250));
                 Assert.That(slider.RepeatCount, Is.EqualTo(2), "Changing slider timing must not alter its authored reversal path.");
@@ -67,7 +67,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             SticksAuthoredBeatmapCodec.MarkerInspection inspection = SticksAuthoredBeatmapCodec.InspectMarker(source);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(inspection.Status, Is.EqualTo(SticksAuthoredBeatmapCodec.MarkerStatus.MalformedSupported));
                 Assert.That(inspection.Decoded, Is.Null);
@@ -81,7 +81,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var slider = new SticksSlider();
             slider.SetCustomSegments(Enumerable.Range(0, 100).Select(index => index % 2 == 0 ? 90f : -90f));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.HasCustomSegments, Is.True);
                 Assert.That(slider.SegmentCount, Is.EqualTo(SticksSlider.MAX_SEGMENT_COUNT));
@@ -99,7 +99,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Type instantiationType = Type.GetType(bootstrap.RulesetInfo.InstantiationInfo, throwOnError: true)!;
             Ruleset instantiated = bootstrap.RulesetInfo.CreateInstance();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(discoverable, Is.EqualTo(new[] { typeof(SticksRuleset) }));
                 Assert.That(bootstrap, Is.Not.InstanceOf<ILegacyRuleset>());
@@ -134,7 +134,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             IBeatmap converted = ruleset.CreateBeatmapConverter(source).Convert();
             IBeatmapProcessor? processor = ruleset.CreateBeatmapProcessor(converted);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(processor, Is.Null);
                 Assert.That(source.BeatmapInfo.Ruleset.OnlineID, Is.Zero);
@@ -158,7 +158,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             var editorBeatmap = new EditorBeatmap(playable, beatmapInfo: persistedInfo);
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(persistedRuleset.OnlineID, Is.EqualTo(-1), "The Realm-facing ruleset object must not be mutated.");
                 Assert.That(playable.BeatmapInfo.Ruleset.OnlineID, Is.EqualTo(-1), "Gameplay metadata must remain custom.");
@@ -172,7 +172,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             assertSingleMarkerNormalSample(editorBeatmap.HitObjects[2]);
 
             string encoded = encode(editorBeatmap);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(encoded, Does.Contain("Mode: 0"));
                 Assert.That(encoded, Does.Contain("sticks-v1~f~l~45.wav"));
@@ -184,7 +184,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             SticksHitObject[] roundTripped = new SticksBeatmapConverter(decodedCarrier, ruleset)
                                                    .Convert().HitObjects.Cast<SticksHitObject>().ToArray();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(decodedCarrier.HitObjects[0], Is.Not.InstanceOf<IHasDuration>());
                 Assert.That(((IHasDuration)decodedCarrier.HitObjects[1]).Duration, Is.EqualTo(750));
@@ -236,7 +236,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             processor.PreProcess();
 
             assertSingleMarkerNormalSample(slider);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(slider.Samples, Has.Exactly(1).Matches<HitSampleInfo>(sample => sample.Name == HitSampleInfo.HIT_CLAP));
                 Assert.That(slider.Samples.Single(sample => sample.Name == HitSampleInfo.HIT_NORMAL).Volume, Is.EqualTo(72));
@@ -268,7 +268,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             string editedHash = changeHandler.CurrentStateHash;
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(editedHash, Is.Not.EqualTo(initialHash));
                 Assert.That(changeHandler.CanUndo.Value, Is.True);
@@ -278,7 +278,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             changeHandler.RestoreState(-1);
             var undoneSlider = (SticksSlider)editorBeatmap.HitObjects[2];
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(undoneSlider, Is.Not.SameAs(originalSlider));
                 Assert.That(undoneSlider.Side, Is.EqualTo(StickSide.Left));
@@ -291,7 +291,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             changeHandler.RestoreState(1);
             var redoneSlider = (SticksSlider)editorBeatmap.HitObjects[2];
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(redoneSlider.Side, Is.EqualTo(StickSide.Right));
                 Assert.That(redoneSlider.Angle, Is.EqualTo(137.5f));
@@ -329,14 +329,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
             editorBeatmap.SelectedHitObjects.Add(slider);
             editorBeatmap.PerformOnSelection(hitObject => ((SticksSlider)hitObject).AppendSegmentAtConstantSpeed(45));
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(((SticksSlider)editorBeatmap.HitObjects.Single()).SegmentArcAngles, Is.EqualTo(new[] { 90f, -180f, 45f }));
                 Assert.That(markerFilename((SticksSlider)editorBeatmap.HitObjects.Single()), Is.EqualTo("sticks-v2~s~l~0~3500~90_-180_45.wav"));
             });
 
             changeHandler.RestoreState(-1);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 var undone = (SticksSlider)editorBeatmap.HitObjects.Single();
                 Assert.That(undone.HasCustomSegments, Is.True);
@@ -346,7 +346,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
 
             changeHandler.RestoreState(1);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 var redone = (SticksSlider)editorBeatmap.HitObjects.Single();
                 Assert.That(redone.HasCustomSegments, Is.True);
@@ -370,7 +370,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 HitObjects = new HitObject[] { flick },
             };
             string json = clipboard.Serialize();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(json, Does.Contain("\"side\""));
                 Assert.That(json, Does.Contain("\"angle\""));
@@ -391,7 +391,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             };
             var editorBeatmap = new EditorBeatmap(playable, beatmapInfo: new BeatmapInfo(persistedRuleset));
             editorBeatmap.Add(roundTripped);
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(roundTripped.Side, Is.EqualTo(StickSide.Right));
                 Assert.That(roundTripped.Angle, Is.EqualTo(271.25f));
@@ -417,7 +417,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             }.Serialize();
             var roundTripped = (SticksSlider)json.Deserialize<ClipboardContent>().HitObjects.Single();
 
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(json, Does.Contain("\"segments\""));
                 Assert.That(roundTripped.HasCustomSegments, Is.True);
@@ -445,7 +445,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             slider.ApplyDefaults(controlPoints, new BeatmapDifficulty { SliderTickRate = 1 });
 
             SticksSliderTick[] ticks = slider.NestedHitObjects.OfType<SticksSliderTick>().ToArray();
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(ticks, Has.Length.EqualTo(2));
                 Assert.That(ticks.SelectMany(tick => tick.Samples).All(sample => sample.Name == "slidertick"), Is.True);
@@ -505,7 +505,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
         private static void assertSingleMarkerNormalSample(HitObject hitObject)
         {
-            Assert.Multiple(() =>
+            NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(hitObject.Samples.Count(sample => sample.Name == HitSampleInfo.HIT_NORMAL), Is.EqualTo(1));
                 Assert.That(hitObject.Samples.OfType<ConvertHitObjectParser.FileHitSampleInfo>().Count(SticksAuthoredBeatmapCodec.IsMarker), Is.EqualTo(1));

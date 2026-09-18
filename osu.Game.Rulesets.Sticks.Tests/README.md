@@ -40,3 +40,9 @@ dotnet test osu.Game.Rulesets.Sticks.Tests -c Release --filter FullyQualifiedNam
 Selection changes use song select's beatmap/mod bindables. This exercises the difficulty display and calculation lifecycle, not the full carousel, preview audio or background artwork.
 
 Verified on 2026-09-16 against lazer 2026.804.2 and Tachyon 2026.911.0: both passed, including all three cancellations, correct selection-specific results, warm-cache reuse and zero retained tracked resources after closing the display. Both compatibility builds completed without warnings or errors.
+
+## Tachyon compatibility
+
+Verified on 2026-09-18 against the unmodified official `2026.918.0-tachyon` source (.NET 10, ruleset API `2026.818.0`): the solution built with zero warnings or errors and all 987 ordinary tests passed. The explicit graphics resource test also passed using offscreen OpenGL/Mesa; this does not validate Windows Direct3D or hardware-driver behaviour. All 987 ordinary tests also passed with the default .NET 8 / `ppy.osu.Game` 2026.730.0 configuration.
+
+Tachyon requires NUnit 4.6.1. The test project uses that version for the newer framework target and retains NUnit 4.5.1 for .NET 8, whose default C# 12 language version cannot resolve the newer assertion overloads. No gameplay code changes were required. These checks do not cover the host's `ReplayFailIndicator` crash when replay loading is cancelled; that upstream cleanup code is still unchanged in this Tachyon release.

@@ -23,8 +23,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 
             // Cancelling the player loader can dispose its children before their
             // dependency loaders have supplied a playfield.
-            Assert.DoesNotThrow(parent.Dispose);
-            Assert.DoesNotThrow(parent.Dispose);
+            NUnitCompatibility.DoesNotThrow(parent.Dispose);
+            NUnitCompatibility.DoesNotThrow(parent.Dispose);
             NUnitCompatibility.Multiple(() =>
             {
                 Assert.That(isDisposed(note), Is.True);

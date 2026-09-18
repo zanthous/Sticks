@@ -6,6 +6,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
 {
     internal static class NUnitCompatibility
     {
+        public static void DoesNotThrow(TestDelegate action) => Assert.DoesNotThrow(action);
+
         public static void Multiple(TestDelegate action) => Assert.Multiple(action);
 
         public static void That(TestDelegate action, IResolveConstraint expression) => Assert.That(action, expression);

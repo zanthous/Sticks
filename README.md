@@ -28,7 +28,7 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 
 Gameplay and the editor both use centre-out visuals.
 
-Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. F3/F4 changes AR by 0.5, while Shift+F3/F4 changes it by 0.1. The default is AR 7.5 / 825 ms. Map AR does not affect this setting.
+Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. F3/F4 changes AR by 0.5, while Shift+F3/F4 changes it by 0.1. The default is AR 7.5 / 825 ms. Map AR does not affect this setting. Difficulty Adjust's speed setting, Double Time, and Half Time preserve the same approach duration in real time.
 
 The ruleset provides Easy, Hard Rock, No Fail, Sudden Death, Perfect, Half Time, Double Time, Autoplay, Relax, Difficulty Adjust, and Strum. Strum replaces outward flick activation with trigger or shoulder-button presses while the corresponding stick is aimed outward. Circle Size controls the primary angular grading band using the current anchor curve: `45°` at CS 0, `35°` at CS 3, `27.5°` at CS 4, `22.5°` at CS 5, `20°` at CS 5.4, and `15°` at CS 10. Near misses within half of this angle get partial credit. Difficulty Adjust can override the primary angle, playback speed, reversal conversion, and whether 80% physical stick travel reaches the playfield edge; the secondary angle remains half of the primary angle.
 

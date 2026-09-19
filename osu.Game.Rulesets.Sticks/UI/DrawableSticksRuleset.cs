@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
@@ -31,7 +32,15 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         protected new SticksRulesetConfigManager Config => (SticksRulesetConfigManager)base.Config;
 
-        internal double PlayerApproachDuration => SticksHitObject.ApproachDurationFor(Config.Get<float>(SticksRulesetSetting.ApproachRate));
+        internal double PlayerApproachDuration => SticksHitObject.ApproachDurationFor(Config.Get<float>(SticksRulesetSetting.ApproachRate)) * gameplayRate;
+
+        private readonly double gameplayRate = 1;
+
+        // Allow the complete approach even at AR 0 and increased playback speed.
+        // The host requests this before loading our player configuration.
+        public override double GameplayStartTime => Beatmap.HitObjects.Count == 0
+            ? 0
+            : Beatmap.HitObjects[0].StartTime - 2000 * Math.Max(1, gameplayRate);
 
         private readonly BindableFloat approachRate = new BindableFloat();
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
@@ -62,6 +71,11 @@ namespace osu.Game.Rulesets.Sticks.UI
         public DrawableSticksRuleset(SticksRuleset ruleset, IBeatmap beatmap, IReadOnlyList<Mod> mods = null)
             : base(ruleset, beatmap, mods)
         {
+            foreach (Mod mod in Mods)
+            {
+                if (mod is IApplicableToRate rateMod)
+                    gameplayRate = rateMod.ApplyToRate(0, gameplayRate);
+            }
         }
 
         [BackgroundDependencyLoader]
@@ -138,7 +152,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public override DrawableHitObject<SticksHitObject> CreateDrawableRepresentation(SticksHitObject hitObject)
         {
-            hitObject.ApplyPlayerApproachRate(Config.Get<float>(SticksRulesetSetting.ApproachRate));
+            hitObject.ApplyPlayerApproachRate(Config.Get<float>(SticksRulesetSetting.ApproachRate), gameplayRate);
 
             DrawableHitObject<SticksHitObject> drawable = hitObject switch
             {
@@ -160,7 +174,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         {
             // Editing reapplies map defaults and rebuilds slider checkpoints without
             // recreating the drawable. Restore the display preference on every apply.
-            ((SticksHitObject)drawable.HitObject).ApplyPlayerApproachRate(Config.Get<float>(SticksRulesetSetting.ApproachRate));
+            ((SticksHitObject)drawable.HitObject).ApplyPlayerApproachRate(Config.Get<float>(SticksRulesetSetting.ApproachRate), gameplayRate);
             refreshApproachTransforms(drawable);
         }
 
@@ -200,7 +214,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private void applyApproachRate(float value)
         {
             foreach (SticksHitObject hitObject in Beatmap.HitObjects)
-                hitObject.ApplyPlayerApproachRate(value);
+                hitObject.ApplyPlayerApproachRate(value, gameplayRate);
 
             foreach (DrawableHitObject drawable in Playfield.AllHitObjects)
                 refreshApproachTransforms(drawable);

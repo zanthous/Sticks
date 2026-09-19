@@ -271,14 +271,16 @@ namespace osu.Game.Rulesets.Sticks.Objects
             return startAngle + (endAngle - startAngle) * progress;
         }
 
-        public void ApplyPlayerApproachRate(float approachRate)
+        public void ApplyPlayerApproachRate(float approachRate, double gameplayRate = 1)
         {
-            ApproachDuration = ApproachDurationFor(approachRate);
+            // Durations use beatmap time. Compensate for playback speed so the player's
+            // display preference keeps the same approach time in real milliseconds.
+            ApproachDuration = ApproachDurationFor(approachRate) * gameplayRate;
 
             foreach (HitObject nested in NestedHitObjects)
             {
                 if (nested is SticksHitObject sticksNested)
-                    sticksNested.ApplyPlayerApproachRate(approachRate);
+                    sticksNested.ApplyPlayerApproachRate(approachRate, gameplayRate);
             }
         }
 

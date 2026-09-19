@@ -18,7 +18,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
         /// <summary>
         /// Chooses whole musical gestures before committing either stick. Candidate scores favour
-        /// recognizable source geometry over added density; no parity rule is used in this mode.
+        /// recognizable source geometry over added density. Parity angle changes run after this planning stage.
         /// </summary>
         private void applyDuetPatterns(HitObject[] objects, IBeatmap beatmap, CancellationToken cancellationToken)
         {
@@ -108,7 +108,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             }
 
             // The standard passes already handled streams and rapid alternation. Running
-            // them again could move or delete untouched baseline notes after a Duet commit.
+            // them again could move or delete untouched baseline notes after committing a two-stick phrase.
             planDuetDurationPartners(objects, beatmap, cancellationToken);
             planDuetAccompaniment(objects, beatmap, cancellationToken);
         }

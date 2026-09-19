@@ -13,7 +13,8 @@ using osuTK.Graphics;
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     /// <summary>
-    /// A full-width white arc impact and outward coloured release, reserved for perfect heads.
+    /// A full-width white arc impact and outward coloured release for successful directional heads.
+    /// The playfield triggers it according to the configured hit-effect mode.
     /// All geometry stays outside the timing ring. A single pooled drawable uses the
     /// ordinary white-pixel shader, without per-hit textures, drawables, or transforms.
     /// </summary>

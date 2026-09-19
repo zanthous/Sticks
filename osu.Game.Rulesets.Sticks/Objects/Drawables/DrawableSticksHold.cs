@@ -304,7 +304,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             updateHoldingSample(false);
 
-            // Short converted holds can end while their head is still inside its late miss
+            // Short legacy holds can end while their head is still inside its late miss
             // window. Resolve that head before the parent so its two accuracy components cannot
             // remain invisibly outstanding after the hold has disappeared.
             MarkHeadMiss();

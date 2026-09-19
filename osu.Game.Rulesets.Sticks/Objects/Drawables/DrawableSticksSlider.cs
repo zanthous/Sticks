@@ -120,7 +120,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             RemoveInternal(radialPath, false);
 
             // The editor rewinds nested results independently of this parent's
-            // custom head and tracking state, just as it does for holds.
+            // custom head and tracking state.
             OnRevertResult += (drawable, _) =>
             {
                 if (drawable is DrawableSticksSliderHead)

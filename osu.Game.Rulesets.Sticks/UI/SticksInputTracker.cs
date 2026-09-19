@@ -35,7 +35,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private float activationThreshold = DEFAULT_ACTIVATION_THRESHOLD;
 
         /// <summary>
-        /// Whether moving outwards creates gestures. Strum mode disables this and creates the
+        /// Whether moving outwards creates gestures. The Strum mod disables this and creates the
         /// same gesture records from trigger or shoulder-button presses instead.
         /// </summary>
         public bool FlickGesturesEnabled { get; set; } = true;

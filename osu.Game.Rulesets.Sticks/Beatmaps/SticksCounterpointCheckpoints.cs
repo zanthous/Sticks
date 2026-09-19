@@ -9,7 +9,7 @@ using osu.Game.Rulesets.Objects.Types;
 namespace osu.Game.Rulesets.Sticks.Beatmaps
 {
     /// <summary>
-    /// Source slider checkpoints for experimental accompaniment. Uses the shared osu! event
+    /// Source slider checkpoints for the default arrangement and conversion diagnostics. Uses the shared osu! event
     /// generator so repeat spans mirror tick positions rather than restarting their rhythm.
     /// </summary>
     internal static class SticksCounterpointCheckpoints

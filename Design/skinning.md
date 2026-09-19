@@ -25,8 +25,8 @@ element; omitting the image restores the default.
 | `sticks-playfield-background` | Same 640 × 640 canvas | Optional interior/background art behind all notes, paths and the guide ring. |
 | `sticks-cursor-left`, `sticks-cursor-right` | Native image size; image centre follows the stick. Around 24 × 24 is a useful starting point. | Full-colour artwork for each stick, replacing its built-in disc, border and shadow. |
 | `sticks-cursortrail-left`, `sticks-cursortrail-right` | Native stamp size; try 12–24 px square | Full-colour trail stamp for each stick. Repeated along cursor movement with the existing short fade. |
-| `sticks-note-centre` | 22 × 22 box, centred on the hit point | Replaces the central tick on flicks and stationary slider heads in Center Out. Tinted with the note colour. |
-| `sticks-slider-head` | 22 × 22; draw pointing right | Replaces the centre of a moving slider head in Center Out. Rotates to show its travel direction and takes the note colour. |
+| `sticks-note-centre` | 22 × 22 box, centred on the hit point | Replaces the central tick on flicks and stationary slider heads. Tinted with the note colour. |
+| `sticks-slider-head` | 22 × 22; draw pointing right | Replaces the centre of a moving slider head. Rotates to show its travel direction and takes the note colour. |
 | `sticks-slider-reversal` | 22 × 22; draw pointing right | Same layout for reversal markers; points in the required outgoing direction. |
 | `sticks-double-note` | 36 × 40, centred | Replaces the exact-stack diamond collar. Tinted with the overlap colour; disappears when the first head is judged. |
 | `sticks-click` | 465 × 465; centre (232.5, 232.5), ring stroke midpoint radius 230 | Full click halo, tinted with its stick colour or the overlap colour. Expands to the timing ring. |
@@ -71,7 +71,7 @@ removed when the new skin does not supply them. Cursor trail history clears on a
 change. Trails keep their bounded stamp buffer and existing fade rather than allocating
 a drawable for each sample.
 
-This pass supports image assets and the three gameplay colours. Angular hit-band arcs,
+Sticks skinning supports image assets and the three gameplay colours. Angular hit-band arcs,
 slider bodies, particle effects and editor handles keep their procedural geometry;
 slider paths take the skin palette. It does not add movable components to lazer's skin
 layout editor or custom gameplay shaders. Existing hitsound skinning remains available.

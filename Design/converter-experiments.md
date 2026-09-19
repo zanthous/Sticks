@@ -1,12 +1,14 @@
 # Converter experiments
 
-Counterpoint is now the default conversion, building on the earlier Duet base.
+The default converter includes the two-stick arrangement formerly called Counterpoint,
+building on the earlier Duet planning stage.
 Parity (`PA`) applies its angle changes to the complete arrangement, including
 slider partners, accompaniment and deliberate stacked doubles. The separate
 Duet (`DU`), Parity + Duet (`PD`) and Counterpoint (`CP`) selections are retired;
-CP remains hidden for compatibility with older scores. The Conversion category
+all three remain hidden for saved-mod compatibility. The Conversion category
 contains Difficulty Adjust, Parity, Encore and Solo. Encore remains opt-in for
-additional note types. Authored Sticks maps retain their authored objects.
+click accents; Slice generation is disabled. Authored Sticks maps retain their authored patterns,
+with legacy holds migrated to stationary sliders.
 
 Solo (`SO`) converts source notes and sliders without added two-stick arrangements.
 Both sticks can still take turns, but only one gesture is active at a time.

@@ -382,7 +382,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 },
                 // Note markers deliberately live outside the max-blended ribbon buffer. They
                 // therefore replace slider colour normally and remain fully opaque when the two
-                // overlap, while ribbon/ribbon intersections can still mix to purple below.
+                // overlap, while ribbon intersections use the configured overlap colour below.
                 HitObjectContainer,
                 noteOverlapLayer = new SticksCenterOutNoteOverlapLayer(this),
                 contactBurstLayer = new SticksContactBurstLayer(),
@@ -506,7 +506,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private void onHeadJudged(SticksHitObject source, HitResult result)
         {
-            // Clicks have no contact angle. This first pass accents aimed heads only.
+            // Clicks have no contact angle. Hit effects accent directional heads only.
             if (HitEffects == SticksHitEffectMode.Never || source is not SticksAngleComponent || IsPausedEditorPreview)
                 return;
 

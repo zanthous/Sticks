@@ -26,8 +26,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         public const double MIN_GENERATED_REVERSAL_SPAN_DURATION = 250;
 
         /// <summary>
-        /// Maximum angular velocity of sliders produced by procedural conversion, in degrees per second.
-        /// Authored Sticks sliders are intentionally not affected.
+        /// Angular velocity limit for initial procedural paths and added accompaniment, in degrees per second.
+        /// Source sliders are rescaled later using <see cref="MAX_SOURCE_SLIDER_ANGULAR_VELOCITY"/>.
+        /// Authored Sticks sliders are unaffected by either conversion limit.
         /// </summary>
         public const double MAX_GENERATED_SLIDER_ANGULAR_VELOCITY = 120;
 
@@ -55,9 +56,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         public bool DisableReversals { get; set; }
 
         /// <summary>
-        /// Procedural strategy. The coordinated two-stick conversion is the default;
-        /// the older strategies remain available for comparison tooling.
-        /// Authored Sticks carriers bypass these strategies.
+        /// Base planning strategy for procedural conversion, before the default arrangement pass.
+        /// The Duet-named strategies underpin current conversion; Standard and Parity are historical audit baselines.
+        /// These internal names do not represent separate selectable mods. Authored Sticks maps bypass these strategies.
         /// </summary>
         public SticksConversionMode ConversionMode { get; set; } = SticksConversionMode.Duet;
 
@@ -74,13 +75,14 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
         public bool SoloConversion { get; set; }
 
         /// <summary>
-        /// Applies the default Counterpoint arrangement before Parity and Encore.
-        /// Disabled only for historical conversion comparisons and retired DU/PD mods.
+        /// Enables the default two-stick arrangement before Parity and Encore. Solo bypasses this pass.
+        /// The name is retained from the former Counterpoint mod; this is part of normal conversion.
+        /// Historical comparisons and saved DU/PD mods disable it to reproduce the earlier base.
         /// </summary>
         public bool UseCounterpoint { get; set; } = true;
 
         /// <summary>
-        /// DA's visual angle override, used before hit-object defaults are applied.
+        /// Difficulty Adjust's primary angular hit-window override, used for arrangement and chord readability before defaults are applied.
         /// </summary>
         public float? CounterpointPrimaryHitAngle { get; set; }
 
@@ -151,7 +153,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             bool procedural = !isAuthoredCarrier && original.HitObjects.Any(hitObject => hitObject is not SticksHitObject);
 
             // Conversion mods are applied after construction. Build fresh plans here so both
-            // the selected experiment and repeated conversion on the same instance work.
+            // the selected conversion settings and repeated conversion on the same instance work.
             if (procedural)
             {
                 plans.Clear();
@@ -370,11 +372,10 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
 
                 copySliderNodeSamples(original, slider, removeReversals, sourceRepeatCount);
 
-                // Speed limiting can collapse pathological osu! sliders to a sub-degree path
-                // (for example, a 6 ms aspire slider becomes 0.72 degrees). Sticks' authored
-                // slider model intentionally requires at least one degree per segment. Such an
-                // object has no meaningful trackable duration, so preserve its hit timing as a
-                // flick instead of generating a carrier marker the editor cannot reopen.
+                // Initial speed limiting can collapse very short source sliders to a sub-degree path
+                // (for example, a 6 ms slider becomes 0.72 degrees). Preserve these source onsets as
+                // flicks. This cutoff is specific to procedural conversion; authored timed paths
+                // support sub-degree movement and stationary spans.
                 if (Math.Abs(slider.ArcAngle) < 1)
                 {
                     yield return new SticksFlick
@@ -614,8 +615,8 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             enforceRapidAlternation(objects);
             applyGeneratedSyncedChords(objects, beatmap);
 
-            // Duet extends the completed standard conversion. Existing generated chords,
-            // holds and slider phrases remain reserved while it considers new patterns.
+            // Two-stick phrase planning extends the initial conversion. Existing generated
+            // chords, stationary sustains and moving sliders remain reserved while it considers new patterns.
             if (ConversionMode is SticksConversionMode.Duet or SticksConversionMode.ParityDuet)
                 applyDuetPatterns(objects, beatmap, cancellationToken);
         }

@@ -21,7 +21,7 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             => new CounterpointPlanner(this, converted, source, cancellationToken).Apply();
 
         /// <summary>
-        /// Arranges complete, source-supported responses around the existing playable map.
+        /// Builds the default two-stick arrangement by assigning hand roles and adding source-supported responses.
         /// It never consumes an existing head or changes an existing slider's trajectory.
         /// </summary>
         private sealed partial class CounterpointPlanner

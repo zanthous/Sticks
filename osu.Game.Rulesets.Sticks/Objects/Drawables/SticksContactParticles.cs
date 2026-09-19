@@ -19,12 +19,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     /// </summary>
     public partial class SticksContactParticleEmitter : Drawable
     {
-        // At the current emission rate and maximum lifetime, fewer than 24 particles from one
-        // contact can coexist. Keep ample burst/catch-up headroom without copying 128 mostly
-        // expired records for every simultaneously tracked duration object on every frame.
+        // Continuous emission at these rates and lifetimes uses fewer than 24 particles.
+        // The remaining capacity provides headroom for bursts and catch-up after hitches.
         private const int max_particles = 48;
-        // Short, fast particles keep the effect responsive during dense play. The increased
-        // cadence offsets their shorter lifetime without increasing the number alive at once.
+        // Frequent emission and short lifetimes keep the effect responsive during dense play
+        // while limiting the number of particles alive at once.
         private const double mote_interval = 1000.0 / 63;
         private const double shard_interval = 1000.0 / 22.5;
         private const double maximum_lifetime = 220;
@@ -67,7 +66,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool wasEmitting = emitting;
 
             // Inactive duration objects report their state every gameplay frame. Keep their
-            // timelines current without copying an empty 128-particle buffer to the draw thread.
+            // timelines current without copying an empty particle buffer to the draw thread.
             if (!active && !wasEmitting)
             {
                 currentTime = previousTime = now;
@@ -365,8 +364,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 float alpha,
                 ParticleKind kind)
             {
-                // Layered rotated diamonds approximate a tiny feathered mote/teardrop while keeping
-                // this first pass self-contained. They are soft compact bodies, not trajectory lines.
+                // Layered rotated diamonds form a feathered mote or teardrop from the white-pixel texture.
                 Vector2 glowSize = size * (kind == ParticleKind.Shard ? new Vector2(1.8f, 1.45f) : new Vector2(1.8f));
                 drawDiamond(renderer, texture, centre, glowSize, rotation, colour, alpha * 0.1f);
                 drawDiamond(renderer, texture, centre, size, rotation, colour, alpha * 0.5f);

@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Sticks
 
         /// <summary>
         /// Returns raw angular precision demand from the grading bands actually applied to an object.
-        /// This keeps Difficulty Adjust overrides and any future per-object widths visible to difficulty calculation.
+        /// This includes Difficulty Adjust overrides and authored per-object widths in difficulty calculation.
         /// </summary>
         public static double AngularPrecisionMultiplier(float primaryHitAngle, float secondaryHitAngle)
         {

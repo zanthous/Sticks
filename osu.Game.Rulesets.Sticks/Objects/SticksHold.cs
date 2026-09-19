@@ -11,6 +11,10 @@ using osu.Game.Rulesets.Sticks.Scoring;
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {
+    /// <summary>
+    /// Legacy stationary sustain. Carrier decoding and native beatmap conversion migrate it to a stationary <see cref="SticksSlider"/>.
+    /// Retained for compatibility with older object data and tests.
+    /// </summary>
     public class SticksHold : SticksHitObject, IHasDuration
     {
         private double duration;

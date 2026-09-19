@@ -8,7 +8,10 @@ using osu.Game.Rulesets.Sticks.UI;
 
 namespace osu.Game.Rulesets.Sticks.Objects
 {
-    /// <summary>A small, fixed-size target played by moving the stick through it, without recharging.</summary>
+    /// <summary>
+    /// A small, fixed-size target played by moving the stick through it, without recharging.
+    /// Existing authored Slices remain playable; Encore generation and editor placement are currently disabled.
+    /// </summary>
     public class SticksSlice : SticksHitObject, ISticksAccuracyComponent
     {
         public const float RADIUS = 13;

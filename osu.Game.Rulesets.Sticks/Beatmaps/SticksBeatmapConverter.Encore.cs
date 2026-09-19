@@ -25,6 +25,9 @@ namespace osu.Game.Rulesets.Sticks.Beatmaps
             converted.HitObjects.AddRange(result.OrderBy(hitObject => hitObject.StartTime).ThenBy(hitObject => hitObject.Side));
         }
 
+        /// <summary>
+        /// Retained Slice-generation routine, currently excluded from Encore conversion.
+        /// </summary>
         internal static void AddEncoreSlices(List<SticksHitObject> notes, IBeatmap source, CancellationToken cancellationToken)
         {
             var ordered = notes.Select((note, index) => (Note: note, Index: index)).OrderBy(entry => entry.Note.StartTime).ToArray();

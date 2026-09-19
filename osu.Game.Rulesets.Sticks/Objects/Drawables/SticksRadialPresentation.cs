@@ -17,8 +17,8 @@ using osuTK.Graphics;
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     /// <summary>
-    /// A smooth, time-sampled ribbon used by center-out sliders and holds. Sampling by timestamp
-    /// keeps this renderer compatible with future freeform timed slider paths.
+    /// A smooth, time-sampled ribbon for sliders and legacy holds in the centre-out playfield.
+    /// Timestamp sampling follows timed slider paths, including speed changes, pauses and reversals.
     /// </summary>
     public partial class SticksRadialTimelinePath : CompositeDrawable
     {
@@ -331,9 +331,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
     }
 
     /// <summary>
-    /// A compact contact flare which follows a tracked center-out slider along the judgment line.
-    /// It uses layered arcs rather than a blurred framebuffer, keeping the effect inexpensive and
-    /// shaped to the circular playfield rather than looking like a rectangular particle emitter.
+    /// A compact contact flare which follows a tracked slider along the judgement line.
+    /// Layered arcs and a bounded particle emitter provide feedback shaped to the circular playfield.
     /// </summary>
     public partial class SticksSliderContactEffect : CompositeDrawable
     {

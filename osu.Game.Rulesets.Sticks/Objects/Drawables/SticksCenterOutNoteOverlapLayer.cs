@@ -15,9 +15,9 @@ using osuTK.Graphics;
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
     /// <summary>
-    /// Draws the geometric intersection of simultaneous opposite-stick Center Out note heads.
-    /// Flicks, slider heads, and hold heads all begin with the same gesture and therefore share
-    /// the same overlap treatment.
+    /// Highlights simultaneous opposite-stick note heads: partial overlaps share the overlap colour,
+    /// while identical heads receive a diamond collar. Flicks, slider heads and legacy hold heads
+    /// use the same overlap treatment in gameplay and editor previews.
     /// This stays separate from the ribbon compositor so duration paths can never alter a note's
     /// base colour, and uses a bounded set of reusable drawables for dense converted maps.
     /// </summary>

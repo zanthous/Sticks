@@ -169,7 +169,7 @@ namespace osu.Game.Rulesets.Sticks
 
             return new[]
             {
-                new StatisticItem("Performance Breakdown", () => createPerformanceBreakdownChart(score, playableBeatmap)),
+                new StatisticItem("Performance Breakdown", () => createPerformanceBreakdownChart(score)),
                 new StatisticItem("Timing Distribution", () => new HitEventTimingDistributionGraph(summary.TimingEvents)
                 {
                     RelativeSizeAxes = Axes.X,
@@ -246,24 +246,14 @@ namespace osu.Game.Rulesets.Sticks
 
         private static string formatCompletion(int hits, int total) => total > 0 ? $"{(double)hits / total:P1}" : "N/A";
 
-        private static PerformanceBreakdownChart createPerformanceBreakdownChart(ScoreInfo score, IBeatmap playableBeatmap)
+        private static PerformanceBreakdownChart createPerformanceBreakdownChart(ScoreInfo score) => new PerformanceBreakdownChart(score)
         {
-            PerformanceBreakdownChart chart;
-
-#if STICKS_RULESET_API_2026_818
-            chart = new PerformanceBreakdownChart(score);
-#else
-            chart = new PerformanceBreakdownChart(score, playableBeatmap);
-#endif
-
-            chart.RelativeSizeAxes = Axes.X;
-            chart.AutoSizeAxes = Axes.Y;
-            return chart;
-        }
+            RelativeSizeAxes = Axes.X,
+            AutoSizeAxes = Axes.Y,
+        };
 
         public override IEnumerable<KeyBinding> GetDefaultKeyBindings(int variant = 0)
         {
-#if STICKS_RULESET_API_2026_818
             if (variant == EDITOR_VARIANT)
             {
                 return new[]
@@ -273,7 +263,6 @@ namespace osu.Game.Rulesets.Sticks
                     new KeyBinding(InputKey.Number4, SticksAction.EditorClickTool),
                 };
             }
-#endif
 
             return new[] { new KeyBinding(InputKey.Space, SticksAction.Focus) };
         }

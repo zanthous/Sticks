@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Graphics;
-using osu.Framework.Localisation;
 using osu.Framework.Platform;
 using osu.Framework.Screens;
 using osu.Game.Beatmaps;
@@ -42,10 +41,6 @@ namespace osu.Game.Rulesets.Sticks
 
         [Resolved(CanBeNull = true)]
         private INotificationOverlay notifications { get; set; }
-
-#if !STICKS_RULESET_API_2026_818
-        protected override LocalisableString Header => "Sticks";
-#endif
 
         public SticksSettingsSubsection(SticksRuleset ruleset)
             : base(ruleset)

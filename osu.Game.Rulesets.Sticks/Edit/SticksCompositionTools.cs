@@ -2,24 +2,17 @@ using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Game.Graphics;
 using osu.Game.Rulesets.Edit;
+using osu.Game.Rulesets.Edit.Tools;
 using osu.Game.Rulesets.Sticks.Edit.Blueprints;
-
-#if STICKS_RULESET_API_2026_818
-using SticksCompositionTool = osu.Game.Rulesets.Edit.Tools.CompositionTool<osu.Game.Rulesets.Sticks.SticksAction>;
-#else
-using SticksCompositionTool = osu.Game.Rulesets.Edit.Tools.CompositionTool;
-#endif
 
 namespace osu.Game.Rulesets.Sticks.Edit
 {
-    public class SticksFlickCompositionTool : SticksCompositionTool
+    public class SticksFlickCompositionTool : CompositionTool<SticksAction>
     {
         public SticksFlickCompositionTool()
             : base("Flick")
         {
-#if STICKS_RULESET_API_2026_818
             Action = SticksAction.EditorFlickTool;
-#endif
             TooltipText = "Place a flick near the ring: outside selects the left stick, inside selects the right stick, farther outside selects both";
         }
 
@@ -28,27 +21,23 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksFlickPlacementBlueprint();
     }
 
-    public class SticksSliceCompositionTool : SticksCompositionTool
+    public class SticksSliceCompositionTool : CompositionTool<SticksAction>
     {
         public SticksSliceCompositionTool() : base("Slice")
         {
-#if STICKS_RULESET_API_2026_818
             Action = SticksAction.EditorSliceTool;
-#endif
             TooltipText = "Move through a Slice without flicking. Set its direction in the inspector.";
         }
         public override Drawable CreateIcon() => new SpriteIcon { Icon = OsuIcon.EditorHitCircle };
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksSlicePlacementBlueprint();
     }
 
-    public class SticksClickCompositionTool : SticksCompositionTool
+    public class SticksClickCompositionTool : CompositionTool<SticksAction>
     {
         public SticksClickCompositionTool()
             : base("Click")
         {
-#if STICKS_RULESET_API_2026_818
             Action = SticksAction.EditorClickTool;
-#endif
             TooltipText = "Place a button note near the ring: outside selects the left stick, inside selects the right stick, farther outside selects both. No aim required.";
         }
 
@@ -57,14 +46,12 @@ namespace osu.Game.Rulesets.Sticks.Edit
         public override HitObjectPlacementBlueprint CreatePlacementBlueprint() => new SticksClickPlacementBlueprint();
     }
 
-    public class SticksSliderCompositionTool : SticksCompositionTool
+    public class SticksSliderCompositionTool : CompositionTool<SticksAction>
     {
         public SticksSliderCompositionTool()
             : base("Slider")
         {
-#if STICKS_RULESET_API_2026_818
             Action = SticksAction.EditorSliderTool;
-#endif
             TooltipText = "Click near the ring (farther outside selects both sticks), trace the path, and scroll to its end time. Left-click finishes; right-click places the point and continues. Keep the same angle for a stationary slider; Escape cancels the pending point";
         }
 

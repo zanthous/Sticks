@@ -3,7 +3,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
-using osu.Framework.Graphics;
 using osu.Framework.Input.Events;
 using osu.Game.Rulesets.Edit;
 using osu.Game.Rulesets.Objects;
@@ -53,15 +52,6 @@ namespace osu.Game.Rulesets.Sticks.Edit
             : base(composer)
         {
         }
-
-#if !STICKS_RULESET_API_2026_818
-        protected override Drawable? CreateNewComboButton() => null;
-
-        protected override IEnumerable<Drawable> CreateTernaryButtons()
-        {
-            yield break;
-        }
-#endif
 
         protected override SelectionHandler<HitObject> CreateSelectionHandler() => new SticksSelectionHandler();
 

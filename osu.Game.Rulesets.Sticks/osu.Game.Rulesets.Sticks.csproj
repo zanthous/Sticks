@@ -9,10 +9,7 @@
     <Company>Zankai LLC</Company>
     <Copyright>Copyright (c) 2026 Zankai LLC</Copyright>
     <Version>0.1.0-dev</Version>
-    <OsuGameVersion Condition="'$(OsuGameVersion)' == ''">2026.730.0</OsuGameVersion>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(SticksRulesetApi2026818)' == 'true'">
-    <DefineConstants>$(DefineConstants);STICKS_RULESET_API_2026_818</DefineConstants>
+    <OsuGameVersion Condition="'$(OsuGameVersion)' == ''">2026.916.0</OsuGameVersion>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="License" Value="PolyForm Noncommercial 1.0.0 with additional permissions" />

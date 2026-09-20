@@ -17,7 +17,6 @@ namespace osu.Game.Rulesets.Sticks
         [Description("Focus playfield")]
         Focus,
 
-#if STICKS_RULESET_API_2026_818
         [Description("Flick tool")]
         EditorFlickTool = 10000,
 
@@ -29,6 +28,5 @@ namespace osu.Game.Rulesets.Sticks
 
         [Description("Slice tool")]
         EditorSliceTool,
-#endif
     }
 }

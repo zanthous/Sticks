@@ -27,10 +27,10 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v6
 
-      - name: Set up .NET 8
+      - name: Set up .NET 10
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: "10.0.x"
 
       - name: Restore dependencies
         run: dotnet restore .\osu.Game.Rulesets.Sticks.sln

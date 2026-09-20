@@ -67,7 +67,7 @@ See the [asset guide and importable example skin](Design/skinning.md).
 
 ## Build and install
 
-Requirements for the default local build are the .NET 8 SDK and ruleset API 2026.730.0. Published releases provide separately named DLLs for the supported stable lazer and Tachyon versions; install the DLL matching the osu! version you use.
+The default local build requires the .NET 10 SDK and uses osu! NuGet packages 2026.916.0 (ruleset API 2026.818.0). Published releases provide separately named DLLs for the supported stable lazer and Tachyon versions; install the DLL matching the osu! version you use.
 
 ```powershell
 dotnet restore .\osu.Game.Rulesets.Sticks.sln
@@ -77,7 +77,7 @@ dotnet test .\osu.Game.Rulesets.Sticks.sln -c Release
 Copy the resulting DLL into the `rulesets` directory inside lazer's data folder, then restart lazer:
 
 ```text
-osu.Game.Rulesets.Sticks\bin\Release\net8.0\osu.Game.Rulesets.Sticks.dll
+osu.Game.Rulesets.Sticks\bin\Release\net10.0\osu.Game.Rulesets.Sticks.dll
 ```
 
 Use **Settings → Open osu! folder** if you do not know where lazer's data folder is.

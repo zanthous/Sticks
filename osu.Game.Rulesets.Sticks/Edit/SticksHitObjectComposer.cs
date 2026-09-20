@@ -8,27 +8,17 @@ using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Rulesets.Edit;
+using osu.Game.Rulesets.Edit.Tools;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Edit.Compose.Components;
 using osuTK;
 
-#if STICKS_RULESET_API_2026_818
-using SticksCompositionTool = osu.Game.Rulesets.Edit.Tools.CompositionTool<osu.Game.Rulesets.Sticks.SticksAction>;
-#else
-using SticksCompositionTool = osu.Game.Rulesets.Edit.Tools.CompositionTool;
-#endif
-
 namespace osu.Game.Rulesets.Sticks.Edit
 {
     [Cached]
-    public partial class SticksHitObjectComposer :
-#if STICKS_RULESET_API_2026_818
-        HitObjectComposer<SticksHitObject, SticksAction>
-#else
-        HitObjectComposer<SticksHitObject>
-#endif
+    public partial class SticksHitObjectComposer : HitObjectComposer<SticksHitObject, SticksAction>
     {
         internal double PlayerApproachDuration => ((DrawableSticksRuleset)DrawableRuleset).PlayerApproachDuration;
 
@@ -44,11 +34,9 @@ namespace osu.Game.Rulesets.Sticks.Edit
         {
         }
 
-#if STICKS_RULESET_API_2026_818
         public override Bindable<TernaryState>? SelectionNewComboState => null;
-#endif
 
-        protected override IReadOnlyList<SticksCompositionTool> CompositionTools => new SticksCompositionTool[]
+        protected override IReadOnlyList<CompositionTool<SticksAction>> CompositionTools => new CompositionTool<SticksAction>[]
         {
             new SticksFlickCompositionTool(),
             new SticksSliderCompositionTool(),

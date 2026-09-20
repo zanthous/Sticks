@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <SticksTargetFramework Condition="'$(SticksTargetFramework)' == ''">net8.0</SticksTargetFramework>
+    <SticksTargetFramework Condition="'$(SticksTargetFramework)' == ''">net10.0</SticksTargetFramework>
   </PropertyGroup>
   <PropertyGroup Label="Documentation">
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

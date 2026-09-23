@@ -1,14 +1,17 @@
 using System;
+using osu.Framework.Allocation;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Input;
 using osu.Framework.Input.Events;
+using osu.Framework.Platform;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterfaceV2;
+using osu.Game.Overlays;
 using osu.Game.Screens;
 using osuTK;
 
@@ -108,6 +111,12 @@ namespace osu.Game.Rulesets.Sticks.UI
                     Action = resetMeasurements,
                 },
             };
+        }
+
+        [BackgroundDependencyLoader(true)]
+        private void load(GameHost host, INotificationOverlay notifications)
+        {
+            SticksControllerInput.EnsureEnabled(host, notifications);
         }
 
         protected override bool OnJoystickAxisMove(JoystickAxisMoveEvent e)

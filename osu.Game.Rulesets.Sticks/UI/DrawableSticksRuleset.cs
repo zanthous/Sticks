@@ -11,6 +11,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Database;
 using osu.Game.Input.Bindings;
 using osu.Game.Input.Handlers;
+using osu.Game.Overlays;
 using osu.Game.Replays;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Objects.Drawables;
@@ -68,6 +69,9 @@ namespace osu.Game.Rulesets.Sticks.UI
         [Resolved]
         private GameHost host { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private INotificationOverlay notifications { get; set; }
+
         public DrawableSticksRuleset(SticksRuleset ruleset, IBeatmap beatmap, IReadOnlyList<Mod> mods = null)
             : base(ruleset, beatmap, mods)
         {
@@ -81,6 +85,10 @@ namespace osu.Game.Rulesets.Sticks.UI
         [BackgroundDependencyLoader]
         private void load(Storage storage)
         {
+            // Replays don't need a controller.
+            if (player is not ReplayPlayer)
+                SticksControllerInput.EnsureEnabled(host, notifications);
+
             replayStore = new SticksReplayStore(storage);
             if (realm != null)
                 replayPersistence = new SticksReplayPersistence(replayStore, realm);

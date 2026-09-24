@@ -56,7 +56,7 @@ namespace osu.Game.Rulesets.Sticks
         private static string editorCompatibleInstantiationInfo =>
             $"{typeof(EditorCompatibleSticksRuleset).FullName}, {typeof(SticksRuleset).Assembly.GetName().Name}";
 
-        public override string Description => "Sticks";
+        public override string Description => "osu!sticks";
 
         public override string PlayingVerb => "Flicking sticks";
 

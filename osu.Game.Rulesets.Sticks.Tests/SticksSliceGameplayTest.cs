@@ -121,6 +121,100 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddAssert("each owns a different stick", () => drawable.ChildrenOfType<DrawableSticksSlider>().Select(d => d.TrackingSide).Distinct().Count() == 2);
         }
 
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MissedSliderHeadCanRecoverTicksWithoutAnotherFlick(bool eitherStick)
+        {
+            create(eitherStick, new SticksSlider
+            {
+                StartTime = 1000,
+                Duration = 3000,
+                Side = eitherStick ? StickSide.Right : StickSide.Left,
+                ArcAngle = 90,
+            });
+            move(1000, at(180), Vector2.Zero);
+            move(1250, at(180), Vector2.Zero);
+            AddAssert("head missed", () => slider.HeadJudged && !slider.HeadHit && !slider.TrackingAuthorised);
+            move(1500, at(180), Vector2.Zero);
+            AddAssert("off-path tick missed", () => tickAt(1500).Result.Type == HitResult.LargeTickMiss);
+            move(1900, at(30), Vector2.Zero);
+            AddAssert("tracking feedback resumes", () => slider.ChildrenOfType<osu.Game.Skinning.PausableSkinnableSound>()
+                .Single(sound => sound.Looping).RequestedPlaying);
+            move(2000, at(30), Vector2.Zero);
+            AddAssert("tick recovered by rotating the held stick", () => tickAt(2000).Result.Type == HitResult.LargeTickHit);
+            move(2500, at(180), Vector2.Zero);
+            AddAssert("leaving again loses the next tick", () => tickAt(2500).Result.Type == HitResult.LargeTickMiss);
+            move(3000, at(60), Vector2.Zero);
+            AddAssert("another tick recovered", () => tickAt(3000).Result.Type == HitResult.LargeTickHit);
+            AddAssert("no new flick or head credit", () => playfield.FlickSequence(StickSide.Left) == 1
+                && !slider.HeadHit && !slider.TrackingAuthorised);
+            move(4000, at(90), Vector2.Zero);
+            AddAssert("tick recovery does not grant the tail", () => drawable.ChildrenOfType<DrawableSticksSliderTail>()
+                .Single().Result.Type == HitResult.IgnoreMiss);
+        }
+
+        [Test]
+        public void TickRecoveryStillRequiresTheCorrectStickAndEnoughDistance()
+        {
+            create(false, new SticksSlider { StartTime = 1000, Duration = 2500, Side = StickSide.Left });
+            move(1000, at(180), at(180));
+            move(1500, at(180), at(0));
+            AddAssert("wrong hand cannot recover", () => tickAt(1500).Result.Type == HitResult.LargeTickMiss);
+            move(2000, at(0) * 0.2f, at(0));
+            AddAssert("centered stick cannot recover", () => tickAt(2000).Result.Type == HitResult.LargeTickMiss);
+            move(2500, at(0) * 0.7f, at(0));
+            AddAssert("outside recharge is enough without a flick", () => tickAt(2500).Result.Type == HitResult.LargeTickHit);
+        }
+
+        [Test]
+        public void PairedMissedSlidersNeedTwoSticksForTicksWithAmbidextrous()
+        {
+            create(true,
+                new SticksSlider { StartTime = 1000, Duration = 2000, Side = StickSide.Left },
+                new SticksSlider { StartTime = 1000, Duration = 2000, Side = StickSide.Right });
+            move(1000, at(180), at(180));
+            move(1500, at(0), at(180));
+            AddAssert("one held stick hits one tick", () => drawable.ChildrenOfType<DrawableSticksSliderTick>()
+                .Count(t => t.HitObject.StartTime == 1500 && t.Result.Type == HitResult.LargeTickHit) == 1);
+            move(2000, at(0), at(0));
+            AddAssert("two held sticks hit both ticks", () => drawable.ChildrenOfType<DrawableSticksSliderTick>()
+                .Count(t => t.HitObject.StartTime == 2000 && t.Result.Type == HitResult.LargeTickHit) == 2);
+            move(1250, at(180), at(180));
+            move(1500, at(0), at(0));
+            AddAssert("rewinding permits the ticks again", () => drawable.ChildrenOfType<DrawableSticksSliderTick>()
+                .Count(t => t.HitObject.StartTime == 1500 && t.Result.Type == HitResult.LargeTickHit) == 2);
+        }
+
+        [Test]
+        public void HideCenteredCursorsStaysStableWhileHeldAndAroundTheCenterBoundary()
+        {
+            create(false, new SticksFlick { StartTime = 1000 });
+            AddStep("enable hiding and trails", () =>
+            {
+                playfield.HideCenteredCursors = true;
+                playfield.ShowCursorTrails = true;
+            });
+            move(1000, Vector2.Zero, Vector2.Zero);
+            AddAssert("centered cursors hidden", () => playfield.LeftStickCursor.Alpha == 0 && playfield.RightStickCursor.Alpha == 0);
+            move(1100, at(0) * 0.21f, Vector2.Zero);
+            move(1300, at(0) * 0.21f, Vector2.Zero);
+            AddAssert("held cursor remains visible beyond old grace period", () => playfield.LeftStickCursor.Alpha == 1);
+            move(1400, at(0) * 0.19f, Vector2.Zero);
+            move(1500, at(0) * 0.18f, Vector2.Zero);
+            AddAssert("small inward jitter does not hide", () => playfield.LeftStickCursor.Alpha == 1);
+            move(1600, at(0) * 0.14f, Vector2.Zero);
+            AddAssert("returning to center hides cursor and trails", () => playfield.LeftStickCursor.Alpha == 0
+                && drawable.ChildrenOfType<SticksCursorTrail>().All(trail => trail.Alpha == 0));
+            move(1700, at(0) * 0.19f, Vector2.Zero);
+            AddAssert("small outward jitter does not show", () => playfield.LeftStickCursor.Alpha == 0);
+            AddStep("disable hiding", () => playfield.HideCenteredCursors = false);
+            move(1800, Vector2.Zero, Vector2.Zero);
+            AddAssert("normal centered cursors return", () => playfield.LeftStickCursor.Alpha > 0 && playfield.RightStickCursor.Alpha > 0);
+        }
+
+        private DrawableSticksSliderTick tickAt(double time) => drawable.ChildrenOfType<DrawableSticksSliderTick>()
+            .Single(t => t.HitObject.StartTime == time);
+
         [Test]
         public void SimultaneousClicksDoNotConsumeTheSamePendingTarget()
         {

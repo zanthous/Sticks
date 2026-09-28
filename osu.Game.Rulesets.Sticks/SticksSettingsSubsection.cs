@@ -66,10 +66,10 @@ namespace osu.Game.Rulesets.Sticks
                 HintText = "Show the ring accent for perfect hits, every successful hit, or never.",
                 Current = config.GetBindable<SticksHitEffectMode>(SticksRulesetSetting.HitEffects),
             });
-            var hideInactiveCursors = new SettingsItemV2(new FormCheckBox
+            var hideCenteredCursors = new SettingsItemV2(new FormCheckBox
             {
-                Caption = "Hide inactive cursors",
-                HintText = "Only show a cursor while held at least 90% outward or moving outward beyond 20%.",
+                Caption = "Hide centered cursors",
+                HintText = "Hide cursors near the center. Cursors remain visible while held away from the center.",
                 Current = config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors),
             });
             Children = new Drawable[]
@@ -90,7 +90,15 @@ namespace osu.Game.Rulesets.Sticks
                     LabelFormat = value =>
                         $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
                 }),
-                hideInactiveCursors,
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = "Playfield dim",
+                    HintText = "Darken the area inside the hit circle behind the notes.",
+                    Current = config.GetBindable<float>(SticksRulesetSetting.PlayfieldDim),
+                    KeyboardStep = 0.01f,
+                    DisplayAsPercentage = true,
+                }),
+                hideCenteredCursors,
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = "Show cursor trails",

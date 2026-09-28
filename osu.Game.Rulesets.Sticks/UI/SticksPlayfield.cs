@@ -40,14 +40,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float OUTER_RADIUS = GUIDE_RADIUS + LANE_OFFSET;
         public const float INNER_RADIUS = GUIDE_RADIUS - LANE_OFFSET;
         public const float RELAX_DIRECTION_LENGTH_FRACTION = 0.25f;
-        public const float CENTER_OUT_CURSOR_HELD_THRESHOLD = 0.9f;
-        public const float CENTER_OUT_CURSOR_MOVING_THRESHOLD = 0.2f;
-        private const double center_out_cursor_motion_grace = 40;
+        private const float centered_cursor_hide_threshold = 0.15f;
+        private const float centered_cursor_show_threshold = 0.2f;
         private const float guide_ring_thickness = 2;
         public static readonly Color4 LEFT_COLOUR = SticksHitObject.LEFT_DISPLAY_COLOUR;
         public static readonly Color4 RIGHT_COLOUR = SticksHitObject.RIGHT_DISPLAY_COLOUR;
         public static readonly Color4 OVERLAP_COLOUR = Color4Extensions.FromHex("C05CFF");
 
+        private readonly Circle playfieldDim;
         private readonly SticksStickCursor leftCursor;
         private readonly SticksStickCursor rightCursor;
         private readonly SticksCursorTrail leftTrail;
@@ -91,10 +91,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         private bool lastReportedRightShoulder;
         private Vector2 relaxedLeftDirection;
         private Vector2 relaxedRightDirection;
-        private float previousDisplayedLeftMagnitude;
-        private float previousDisplayedRightMagnitude;
-        private double leftCursorOutwardUntil = double.NegativeInfinity;
-        private double rightCursorOutwardUntil = double.NegativeInfinity;
+        private bool leftCursorAwayFromCenter;
+        private bool rightCursorAwayFromCenter;
         private Color4 leftColour = LEFT_COLOUR;
         private Color4 rightColour = RIGHT_COLOUR;
         private Color4 overlapColour = OVERLAP_COLOUR;
@@ -135,10 +133,15 @@ namespace osu.Game.Rulesets.Sticks.UI
         public bool ShowCursorTrails { get; set; }
 
         /// <summary>
-        /// Hides cursors except while held near the judgement ring
-        /// or actively moving outward beyond the inner dead zone.
+        /// Hides centered cursors, with separate show and hide thresholds to avoid jitter.
         /// </summary>
-        public bool HideInactiveCursors { get; set; }
+        public bool HideCenteredCursors { get; set; }
+
+        public float PlayfieldDim
+        {
+            get => playfieldDim.Alpha;
+            set => playfieldDim.Alpha = Math.Clamp(value, 0, 1);
+        }
 
         /// <summary>
         /// Shows restrained contact feedback while objects are successfully played.
@@ -170,6 +173,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public bool EitherStick { get; set; }
         private readonly WeakReference<ISticksTrackingSource>[] trackingOwners = new WeakReference<ISticksTrackingSource>[2];
+        private readonly double[] lastSliderTickContact = { double.NegativeInfinity, double.NegativeInfinity };
         private readonly double[] lastAimContact = { double.NegativeInfinity, double.NegativeInfinity };
         private double previousContactFrame = double.NaN;
         public static StickSide OppositeSide(StickSide side) => side == StickSide.Left ? StickSide.Right : StickSide.Left;
@@ -184,6 +188,23 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
         internal bool IsTrackingOwner(ISticksTrackingSource source, StickSide side) =>
             trackingOwners[handIndex(side)]?.TryGetTarget(out var owner) == true && ReferenceEquals(owner, source);
+        internal bool CanTrackSliderTicks(ISticksTrackingSource source, StickSide side) =>
+            !EitherStick || trackingOwners[handIndex(side)]?.TryGetTarget(out var owner) != true
+            || ReferenceEquals(owner, source) || !owner.TrackingAuthorised;
+
+        internal bool TryClaimSliderTick(StickSide side, double time)
+        {
+            if (!EitherStick)
+                return true;
+
+            int hand = handIndex(side);
+            if (Math.Abs(lastSliderTickContact[hand] - time) < 0.01)
+                return false;
+
+            lastSliderTickContact[hand] = time;
+            return true;
+        }
+
         internal void ReleaseTracking(ISticksTrackingSource source)
         {
             for (int i = 0; i < trackingOwners.Length; i++)
@@ -359,6 +380,16 @@ namespace osu.Game.Rulesets.Sticks.UI
                 {
                     Size = new Vector2(SIZE),
                     Depth = 30,
+                },
+                playfieldDim = new Circle
+                {
+                    Name = "Playfield dim",
+                    Position = new Vector2(SIZE / 2),
+                    Origin = Anchor.Centre,
+                    Size = new Vector2(GUIDE_RADIUS * 2),
+                    Colour = Color4.Black,
+                    Alpha = 0.7f,
+                    Depth = 25,
                 },
                 new SticksSkinnedSprite("sticks-playfield", ring(GUIDE_RADIUS, Color4.White.Opacity(0.55f)))
                 {
@@ -742,9 +773,8 @@ namespace osu.Game.Rulesets.Sticks.UI
         internal static float CenterOutProgressAt(double time, double hitTime, double approachDuration) =>
             (float)Math.Clamp((time - (hitTime - approachDuration)) / Math.Max(1, approachDuration), 0, 1);
 
-        internal static bool CenterOutCursorVisible(float mappedMagnitude, bool movingOutward) =>
-            mappedMagnitude >= CENTER_OUT_CURSOR_HELD_THRESHOLD
-            || mappedMagnitude > CENTER_OUT_CURSOR_MOVING_THRESHOLD && movingOutward;
+        internal static bool CenterOutCursorVisible(float mappedMagnitude, bool wasVisible) =>
+            mappedMagnitude > (wasVisible ? centered_cursor_hide_threshold : centered_cursor_show_threshold);
 
         public static float RadiusFor(StickSide side) => side == StickSide.Left ? OUTER_RADIUS : INNER_RADIUS;
 
@@ -852,6 +882,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (Time.Current < previousContactFrame || IsPausedEditorPreview)
             {
                 lastAimContact[0] = lastAimContact[1] = double.NegativeInfinity;
+                lastSliderTickContact[0] = lastSliderTickContact[1] = double.NegativeInfinity;
                 Array.Clear(trackingOwners);
             }
             previousContactFrame = Time.Current;
@@ -871,8 +902,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 rightShoulderButton.Update(false);
                 leftCursor.Alpha = rightCursor.Alpha = 0;
                 leftRelaxDirectionLine.Alpha = rightRelaxDirectionLine.Alpha = 0;
-                previousDisplayedLeftMagnitude = previousDisplayedRightMagnitude = 0;
-                leftCursorOutwardUntil = rightCursorOutwardUntil = double.NegativeInfinity;
+                leftCursorAwayFromCenter = rightCursorAwayFromCenter = false;
                 updateTrails(false, false);
                 return;
             }
@@ -928,15 +958,11 @@ namespace osu.Game.Rulesets.Sticks.UI
             bool leftCursorVisible = updateCursor(
                 leftCursor,
                 displayedLeft,
-                StickSide.Left,
-                ref previousDisplayedLeftMagnitude,
-                ref leftCursorOutwardUntil);
+                ref leftCursorAwayFromCenter);
             bool rightCursorVisible = updateCursor(
                 rightCursor,
                 displayedRight,
-                StickSide.Right,
-                ref previousDisplayedRightMagnitude,
-                ref rightCursorOutwardUntil);
+                ref rightCursorAwayFromCenter);
             updateTrails(leftCursorVisible, rightCursorVisible);
         }
 
@@ -1132,37 +1158,13 @@ namespace osu.Game.Rulesets.Sticks.UI
             return returnedToNeutral || crossedFlickThreshold;
         }
 
-        private bool updateCursor(
-            CircularContainer drawable,
-            Vector2 value,
-            StickSide side,
-            ref float previousMagnitude,
-            ref double outwardUntil)
+        private bool updateCursor(CircularContainer drawable, Vector2 value, ref bool awayFromCenter)
         {
             float magnitude = Math.Clamp(value.Length, 0, 1);
-
-            if (!HideInactiveCursors)
-            {
-                float radius = GUIDE_RADIUS;
-                drawable.Position = new Vector2(SIZE / 2) + value * radius;
-                drawable.Alpha = 0.35f + magnitude * 0.65f;
-                previousMagnitude = magnitude;
-                outwardUntil = double.NegativeInfinity;
-                return true;
-            }
-
-            const float movement_epsilon = 0.0001f;
-            float movement = magnitude - previousMagnitude;
-
-            if (movement > movement_epsilon)
-                outwardUntil = Time.Current + center_out_cursor_motion_grace;
-            else if (movement < -movement_epsilon)
-                outwardUntil = double.NegativeInfinity;
-
-            previousMagnitude = magnitude;
-            bool visible = CenterOutCursorVisible(magnitude, Time.Current <= outwardUntil);
+            awayFromCenter = CenterOutCursorVisible(magnitude, awayFromCenter);
+            bool visible = !HideCenteredCursors || awayFromCenter;
             drawable.Position = new Vector2(SIZE / 2) + value * GUIDE_RADIUS;
-            drawable.Alpha = visible ? 1 : 0;
+            drawable.Alpha = HideCenteredCursors ? (visible ? 1 : 0) : 0.35f + magnitude * 0.65f;
             return visible;
         }
 

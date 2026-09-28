@@ -44,7 +44,8 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private readonly BindableFloat approachRate = new BindableFloat();
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
-        private readonly BindableBool hideInactiveCursors = new BindableBool();
+        private readonly BindableBool hideCenteredCursors = new BindableBool();
+        private readonly BindableFloat playfieldDim = new BindableFloat();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly BindableBool sliderHeadFollowsPath = new BindableBool();
         private readonly Bindable<SticksHitEffectMode> hitEffects = new Bindable<SticksHitEffectMode>(SticksHitEffectMode.Perfect);
@@ -90,9 +91,12 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.FlickActivationThreshold, flickActivationThreshold);
             flickActivationThreshold.BindValueChanged(threshold =>
                 ((SticksPlayfield)Playfield).FlickActivationThreshold = threshold.NewValue, true);
-            Config.BindWith(SticksRulesetSetting.HideInactiveCursors, hideInactiveCursors);
-            hideInactiveCursors.BindValueChanged(hidden =>
-                ((SticksPlayfield)Playfield).HideInactiveCursors = hidden.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.HideInactiveCursors, hideCenteredCursors);
+            hideCenteredCursors.BindValueChanged(hidden =>
+                ((SticksPlayfield)Playfield).HideCenteredCursors = hidden.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.PlayfieldDim, playfieldDim);
+            playfieldDim.BindValueChanged(dim =>
+                ((SticksPlayfield)Playfield).PlayfieldDim = dim.NewValue, true);
             Config.BindWith(SticksRulesetSetting.SliderTrackingSparks, sliderTrackingSparks);
             sliderTrackingSparks.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).SliderTrackingSparks = enabled.NewValue, true);

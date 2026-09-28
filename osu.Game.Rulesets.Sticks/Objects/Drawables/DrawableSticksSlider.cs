@@ -165,7 +165,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 
             updateHeadJudgement(now);
 
-            bool tracking = active && TrackingAuthorised && isStickInRange(now);
+            bool tracking = active && TryGetTickTrackingSide(HitObject.AngleAt(now), HitObject.LenientHalfAngleAt(now), out _);
             updateHoldingSample(tracking && !Judged);
 
             radialPath.SetTrackingState(tracking, tracking ? HitObject.BeatPulseAt(now) : 0);
@@ -209,16 +209,30 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             radialPath.LifetimeEnd = HitObject.EndTime;
         }
 
-        private bool isStickInRange(double now)
+        // Tick recovery and its feedback depend on current aim. This does not authorise
+        // heads, turns or tails, which retain their existing flick requirement.
+        internal bool TryGetTickTrackingSide(float angle, float halfAngle, out StickSide side)
         {
-            Vector2 stick = playfield.StickVector(TrackingSide);
+            side = TrackingSide;
+            if (isStickInRange(side, angle, halfAngle))
+                return true;
 
-            if (stick.LengthSquared <= 0 || !playfield.IsStickBeyondRechargeBoundary(TrackingSide))
+            if (!playfield.EitherStick || TrackingAuthorised)
+                return false;
+
+            side = SticksPlayfield.OppositeSide(side);
+            return isStickInRange(side, angle, halfAngle);
+        }
+
+        private bool isStickInRange(StickSide side, float angle, float halfAngle)
+        {
+            Vector2 stick = playfield.StickVector(side);
+            if (!playfield.CanTrackSliderTicks(this, side) || stick.LengthSquared <= 0
+                || !playfield.IsStickBeyondRechargeBoundary(side))
                 return false;
 
             float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
-            float targetAngle = HitObject.AngleAt(Math.Clamp(now, HitObject.StartTime, HitObject.EndTime));
-            return Math.Abs(SticksHitObject.DeltaAngle(actualAngle, targetAngle)) <= HitObject.LenientHalfAngleAt(now);
+            return Math.Abs(SticksHitObject.DeltaAngle(actualAngle, angle)) <= halfAngle;
         }
 
         private void refreshEditorGeometry(double now)

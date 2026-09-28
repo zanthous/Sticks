@@ -1,8 +1,6 @@
-using System;
 using osu.Framework.Allocation;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.UI;
-using osuTK;
 
 namespace osu.Game.Rulesets.Sticks.Objects.Drawables
 {
@@ -45,19 +43,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             if (Judged || Time.Current < HitObject.StartTime)
                 return;
 
-            if (ParentHitObject is not ISticksTrackingSource { TrackingAuthorised: true })
-            {
-                ApplyMinResult();
-                return;
-            }
-
-            StickSide inputSide = ((ISticksTrackingSource)ParentHitObject).TrackingSide;
-            Vector2 stick = playfield.StickVector(inputSide);
-            float actualAngle = SticksHitObject.NormaliseAngle(MathF.Atan2(stick.Y, stick.X) * 180 / MathF.PI);
-            float angleError = Math.Abs(SticksHitObject.DeltaAngle(actualAngle, HitObject.Angle));
-
-            if (playfield.IsStickBeyondRechargeBoundary(inputSide)
-                && angleError <= HitObject.LenientHalfAngle)
+            if (ParentHitObject is DrawableSticksSlider slider
+                && slider.TryGetTickTrackingSide(HitObject.Angle, HitObject.LenientHalfAngle, out StickSide inputSide)
+                && playfield.TryClaimSliderTick(inputSide, HitObject.StartTime))
                 ApplyMaxResult();
             else
                 ApplyMinResult();

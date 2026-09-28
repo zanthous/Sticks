@@ -24,6 +24,36 @@ namespace osu.Game.Rulesets.Sticks.Tests
         private ManualClock manual = null!;
         private FramedClock clock = null!;
 
+        [Test]
+        public void TestPlayfieldDimUpdatesLiveWithoutDimmingNotes()
+        {
+            AddStep("load with default visual settings", () =>
+            {
+                Clear();
+                var ruleset = new SticksRuleset();
+                config = (SticksRulesetConfigManager)RulesetConfigs.GetConfigFor(ruleset)!;
+                config.GetBindable<float>(SticksRulesetSetting.PlayfieldDim).SetDefault();
+                config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors).SetDefault();
+                var beatmap = new Beatmap<SticksHitObject>
+                {
+                    BeatmapInfo = new BeatmapInfo(ruleset.RulesetInfo, new BeatmapDifficulty()),
+                };
+                drawable = new DrawableSticksRuleset(ruleset, beatmap);
+                Add(drawable);
+            });
+            AddUntilStep("loaded", () => drawable.IsLoaded);
+            AddAssert("default dim and visible cursors", () =>
+                ((SticksPlayfield)drawable.Playfield).PlayfieldDim == 0.7f
+                && !((SticksPlayfield)drawable.Playfield).HideCenteredCursors);
+            AddStep("increase dim", () => config.SetValue(SticksRulesetSetting.PlayfieldDim, 0.8f));
+            AddAssert("dim applied independently of note layer", () =>
+                ((SticksPlayfield)drawable.Playfield).PlayfieldDim == 0.8f
+                && drawable.Playfield.HitObjectContainer.Alpha == 1);
+            AddStep("disable dim", () => config.SetValue(SticksRulesetSetting.PlayfieldDim, 0f));
+            AddAssert("dim removed", () => ((SticksPlayfield)drawable.Playfield).PlayfieldDim == 0);
+            AddStep("restore default", () => config.GetBindable<float>(SticksRulesetSetting.PlayfieldDim).SetDefault());
+        }
+
         [TestCase("none", 1)]
         [TestCase("DA", 0.5)]
         [TestCase("DA", 1)]

@@ -830,8 +830,10 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksPlayfield.CenterOutProgressAt(-200, 1000, 1200), Is.Zero);
                 Assert.That(SticksPlayfield.CenterOutProgressAt(400, 1000, 1200), Is.EqualTo(0.5f).Within(0.0001));
                 Assert.That(SticksPlayfield.CenterOutProgressAt(1000, 1000, 1200), Is.EqualTo(1));
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, true), Is.False);
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, false), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.14f, true), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, false), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, true), Is.True);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, false), Is.True);
                 Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, true), Is.True);
                 Assert.That(SticksPlayfield.CenterOutCursorVisible(0.9f, false), Is.True);
             });

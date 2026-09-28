@@ -75,6 +75,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 SticksInputTracker.MAX_ACTIVATION_THRESHOLD,
                 0.01f);
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
+            SetDefault(SticksRulesetSetting.PlayfieldDim, 0.7f, 0f, 1f, 0.01f);
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
             SetDefault(SticksRulesetSetting.SliderHeadFollowsPath, false);
             SetDefault(SticksRulesetSetting.HitEffects, SticksHitEffectMode.Perfect);
@@ -101,8 +102,13 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             )),
             new TrackedSetting<bool>(SticksRulesetSetting.HideInactiveCursors, hidden => new SettingDescription(
                 rawValue: hidden,
-                name: "Sticks hide inactive cursors",
+                name: "Sticks hide centered cursors",
                 value: hidden ? "enabled" : "disabled"
+            )),
+            new TrackedSetting<float>(SticksRulesetSetting.PlayfieldDim, dim => new SettingDescription(
+                rawValue: dim,
+                name: "Sticks playfield dim",
+                value: $"{dim * 100:0}%"
             )),
             new TrackedSetting<bool>(SticksRulesetSetting.SliderTrackingSparks, enabled => new SettingDescription(
                 rawValue: enabled,
@@ -151,7 +157,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
     {
         ApproachRate,
         FlickActivationThreshold,
-        HideInactiveCursors,
+        HideInactiveCursors, // Keep the persisted key for the renamed "Hide centered cursors" setting.
         SliderTrackingSparks,
         ShowCursorTrails,
         DisableBeatmapHitsounds,
@@ -162,6 +168,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         UseSkinColours,
         HitEffects,
         SliderHeadFollowsPath,
+        PlayfieldDim,
     }
 
     public enum SticksHitEffectMode

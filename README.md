@@ -18,7 +18,7 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 - Notes and sliders travel from the center toward the circular judgment line.
 - Flick notes require entering the recharge zone, then crossing outward at the target angle near the hit time.
 - Click notes are unfilled coloured halos approaching the ring. Press L1/L2/L3 for left or R1/R2/R3 for right; Strum restricts clicks to L3/R3. Stick angle and position do not matter. Clicks can be placed alongside sliders and use timing-only 300/100/50 scoring.
-- Sliders require hitting the head and continuously following the displayed angular path with the assigned stick.
+- Sliders require hitting the head and continuously following the displayed angular path with the assigned stick. After missing a head or leaving the path, returning to the path can hit subsequent ticks without another flick.
 - Sliders can stay at one angle: hit the head and keep the stick held there until they finish. Older maps with holds load as stationary sliders.
 - Flick and slider heads grade timing and angle equally. Non-perfect hits show a colored dot just outside the ring at the note's angle: green for `200`, lime for `175`, yellow for `100`, and orange for `75`. Each dot starts fading immediately and disappears after 600 ms; left-stick dots sit slightly farther out so stacked doubles remain distinct. Perfect `300` hits show no dot. Failing either required component is a miss, with audio feedback.
 - Each complete head has 300 accuracy weight (150 timing + 150 aim), tracking ticks and reversals have 30, and slider tails have 150. Timing carries the head's full 300-point combo contribution with one combo increment; aim adds no extra combo. These weights are normalized to a 1,000,000 maximum before mod multipliers. Previously saved scores retain their stored values; replay recalculation uses the current weights.
@@ -26,7 +26,9 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 - Standard circles convert to flicks. Standard sliders and other duration objects convert to generated circular slider patterns.
 - Source hold notes and spinners convert to stationary sliders.
 
-Gameplay and the editor both use centre-out visuals.
+Gameplay and the editor both use centre-out visuals. **Playfield dim** in **Settings → Rulesets → Sticks** darkens the area inside the hit circle (70% by default, adjustable from 0–100%). **Hide centered cursors** hides sticks near the center and keeps them visible when held outward; it is off by default.
+
+Sticks automatically enables **Device: Joystick/Gamepad** as soon as you switch to Sticks, including when starting osu! with Sticks already selected. Gameplay, the editor, and the controller speed test also enable it when opened.
 
 Approach Rate can be set in **Settings → Rulesets → Sticks**, or use lazer's standard decrease/increase scroll-speed bindings (F3/F4 by default) during gameplay. F3/F4 changes AR by 0.5, while Shift+F3/F4 changes it by 0.1. The default is AR 7.5 / 825 ms. Map AR does not affect this setting. Difficulty Adjust's speed setting, Double Time, and Half Time preserve the same approach duration in real time.
 

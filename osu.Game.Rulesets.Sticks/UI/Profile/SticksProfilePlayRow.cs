@@ -12,6 +12,7 @@ using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Localisation;
 using osu.Game.Graphics;
+using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Online.Leaderboards;
@@ -57,6 +58,9 @@ namespace osu.Game.Rulesets.Sticks.UI.Profile
         private readonly Action? watch;
         private Drawable statistics = null!;
         private Drawable inlineMisses = null!;
+
+        [Resolved(CanBeNull = true)]
+        private OsuGame? game { get; set; }
 
         public SticksProfilePlayRow(SticksProfilePlay play, Action? watch)
         {
@@ -137,7 +141,7 @@ namespace osu.Game.Rulesets.Sticks.UI.Profile
                                         {
                                             Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, RelativeSizeAxes = Axes.X, AutoSizeAxes = Axes.Y,
                                             Direction = FillDirection.Vertical, Spacing = new Vector2(0, 2), Masking = true,
-                                            Children = new Drawable[] { new TitleLine(play.Title, play.Artist), details },
+                                            Children = new Drawable[] { new TitleLine(play.Title, play.Artist, openBeatmap(score.BeatmapId)), details },
                                         },
                                         columns(
                                             statistics,
@@ -176,6 +180,9 @@ namespace osu.Game.Rulesets.Sticks.UI.Profile
                 },
             };
         }
+
+        // Like lazer's profile: the beatmap's info page, from which it can also be downloaded.
+        private Action? openBeatmap(int beatmapId) => beatmapId > 0 ? () => game?.ShowBeatmap(beatmapId) : null;
 
         protected override void Update()
         {
@@ -304,7 +311,7 @@ namespace osu.Game.Rulesets.Sticks.UI.Profile
             private readonly TruncatingSpriteText title;
             private readonly TruncatingSpriteText? artist;
 
-            public TitleLine(RomanisableString titleText, RomanisableString? artistText)
+            public TitleLine(RomanisableString titleText, RomanisableString? artistText, Action? open)
             {
                 RelativeSizeAxes = Axes.X;
                 AutoSizeAxes = Axes.Y;
@@ -323,7 +330,11 @@ namespace osu.Game.Rulesets.Sticks.UI.Profile
                         Font = OsuFont.GetFont(size: 12, italics: true),
                     });
                 }
-                InternalChild = flow;
+                // Only the text is clickable, so the empty space beside a short title doesn't open the beatmap.
+                InternalChild = open == null ? flow : new OsuHoverContainer
+                {
+                    AutoSizeAxes = Axes.Both, Action = open, TooltipText = "View beatmap", Child = flow,
+                };
             }
 
             protected override void Update()

@@ -18,6 +18,7 @@ using osu.Framework.Platform;
 using osu.Framework.Screens;
 using osu.Framework.Testing;
 using osu.Game.Beatmaps;
+using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Graphics.UserInterfaceV2;
@@ -140,6 +141,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddUntilStep("their top plays load", () => stack.CurrentScreen is SticksPlayerScreen player && player.ChildrenOfType<SticksProfilePlayRow>().Count() == 2);
             AddAssert("titles come from the service", () => player().ChildrenOfType<TruncatingSpriteText>().Any(t => t.Text.ToString() == "Uploaded Song"));
             AddAssert("only the uploaded replay can be watched", () => player().ChildrenOfType<SticksProfilePlayRow.WatchReplayButton>().Count() == 1);
+            AddAssert("each beatmap title opens the beatmap", () => player().ChildrenOfType<OsuHoverContainer>().Count(h => h.TooltipText == "View beatmap") == 2);
             AddAssert("misses count heads and clicks once", () => player().ChildrenOfType<OsuSpriteText>().Count(t => t.Text.ToString() == "3 misses") == 2);
 
             SticksPlayerScreen player() => (SticksPlayerScreen)stack.CurrentScreen;

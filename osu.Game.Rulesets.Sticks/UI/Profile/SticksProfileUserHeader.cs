@@ -85,7 +85,7 @@ namespace osu.Game.Rulesets.Sticks.UI.Profile
             InternalChildren = new Drawable[]
             {
                 new Box { RelativeSizeAxes = Axes.Both, Colour = colourProvider.Background3 },
-                new UserCoverBackground { RelativeSizeAxes = Axes.Both, User = user },
+                SticksUserCover.Create(user),
                 new Box
                 {
                     RelativeSizeAxes = Axes.Both,

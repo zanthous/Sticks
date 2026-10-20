@@ -201,6 +201,15 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestProfileCoverWorksOnThisClient()
+        {
+            // Stable lazer and Tachyon name the cover type differently; a future rename would silently drop the cover.
+            var cover = SticksUserCover.Create(new APIUser { Id = 2, Username = "peppy" });
+            Assert.That(cover.GetType().Name, Is.EqualTo("CoverBackground").Or.EqualTo("UserCoverBackground"));
+            Assert.That(cover.RelativeSizeAxes, Is.EqualTo(osu.Framework.Graphics.Axes.Both));
+        }
+
+        [Test]
         public void TestPlayRowColumnsCountEachNoteOnce()
         {
             // Timing 200/5/0/2, angle 190/15/0/2, clicks 10/0/0/1, tracking 20 hit 3 missed, ends 30 hit 1 missed.

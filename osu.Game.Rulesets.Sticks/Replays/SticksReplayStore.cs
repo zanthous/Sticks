@@ -1,6 +1,7 @@
 #nullable enable
 
 using System;
+using System.Buffers.Binary;
 using System.IO;
 using System.Linq;
 using osu.Framework.Platform;
@@ -29,8 +30,86 @@ namespace osu.Game.Rulesets.Sticks.Replays
         private readonly Storage storage;
 
         public SticksReplayStore(Storage storage)
+            : this(storage, "ruleset-data/sticks/replays")
         {
-            this.storage = storage.GetStorageForDirectory("ruleset-data/sticks/replays");
+        }
+
+        private SticksReplayStore(Storage storage, string directory)
+        {
+            this.storage = storage.GetStorageForDirectory(directory);
+        }
+
+        /// <summary>
+        /// Other players' downloaded recordings. Kept apart from local replays, whose orphan cleanup
+        /// deletes any recording without a matching local score.
+        /// </summary>
+        public static SticksReplayStore Downloads(Storage storage) => new SticksReplayStore(storage, "ruleset-data/sticks/downloads");
+
+        public bool Contains(Guid scoreId) => storage.Exists(filenameFor(scoreId));
+
+        /// <summary>
+        /// The raw current-version recording for upload, or null if it is missing, an older version, or longer than allowed.
+        /// </summary>
+        public byte[]? ReadForUpload(Guid scoreId, double maxDurationMilliseconds)
+        {
+            try
+            {
+                string filename = filenameFor(scoreId);
+                if (!storage.Exists(filename)) return null;
+                using Stream stream = storage.GetStream(filename, FileAccess.Read, FileMode.Open);
+                if (stream.Length > maximum_frame_count * (long)bytes_per_frame_v4) return null;
+                byte[] raw = new byte[stream.Length];
+                stream.ReadExactly(raw);
+                return TryGetDuration(raw, out double duration) && duration <= maxDurationMilliseconds ? raw : null;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Checks the header and frame layout of a raw current-version recording and measures it from first to last frame.
+        /// </summary>
+        public static bool TryGetDuration(ReadOnlySpan<byte> raw, out double milliseconds)
+        {
+            milliseconds = 0;
+            const int header = sizeof(int) * 2 + sizeof(float);
+            if (raw.Length < header + bytes_per_frame_v4 || (raw.Length - header) % bytes_per_frame_v4 != 0
+                || BinaryPrimitives.ReadInt32LittleEndian(raw) != magic || BinaryPrimitives.ReadInt32LittleEndian(raw[4..]) != version)
+                return false;
+
+            double first = BinaryPrimitives.ReadDoubleLittleEndian(raw[header..]);
+            double last = BinaryPrimitives.ReadDoubleLittleEndian(raw[^bytes_per_frame_v4..]);
+            if (!double.IsFinite(first) || !double.IsFinite(last) || last < first) return false;
+            milliseconds = last - first;
+            return true;
+        }
+
+        /// <summary>
+        /// Stores a raw recording that has already been checked, so playback can restore it by score.
+        /// </summary>
+        public bool SaveRaw(Guid scoreId, ReadOnlySpan<byte> raw)
+        {
+            if (!TryGetDuration(raw, out _)) return false;
+            try
+            {
+                using Stream stream = storage.GetStream(filenameFor(scoreId), FileAccess.Write, FileMode.Create);
+                stream.Write(raw);
+                return true;
+            }
+            catch (IOException)
+            {
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
         }
 
         public static void EnsureLocalIdentity(Score score)

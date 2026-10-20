@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using osu.Framework.Logging;
 using osu.Game.Database;
 using osu.Game.Rulesets.Sticks.UI;
 using osu.Game.Scoring;
@@ -19,10 +20,11 @@ namespace osu.Game.Rulesets.Sticks.Replays
         private readonly Func<Guid, Action, IDisposable> subscribeToSavedScore;
         private readonly Dictionary<Guid, PendingReplay> pendingReplays = new Dictionary<Guid, PendingReplay>();
         private readonly object sync = new object();
+        private readonly Action<Score, float>? scoreSaved;
 
         private bool disposed;
 
-        public SticksReplayPersistence(SticksReplayStore store, RealmAccess realm)
+        public SticksReplayPersistence(SticksReplayStore store, RealmAccess realm, Action<Score, float>? scoreSaved = null)
             : this(
                 store,
                 id => realm.Run(r => r.All<ScoreInfo>().Any(s => s.ID == id && !s.DeletePending)),
@@ -32,27 +34,30 @@ namespace osu.Game.Rulesets.Sticks.Replays
                     {
                         if (scores.Any())
                             onSaved();
-                    }))
+                    }), scoreSaved)
         {
         }
 
         internal SticksReplayPersistence(
             SticksReplayStore store,
             Func<Guid, bool> isScoreSaved,
-            Func<Guid, Action, IDisposable> subscribeToSavedScore)
+            Func<Guid, Action, IDisposable> subscribeToSavedScore,
+            Action<Score, float>? scoreSaved = null)
         {
             this.store = store;
             this.isScoreSaved = isScoreSaved;
             this.subscribeToSavedScore = subscribeToSavedScore;
+            this.scoreSaved = scoreSaved;
 
             store.DeleteOrphans(isScoreSaved);
         }
 
-        public void Track(Score score, float flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD)
+        public void Track(Score score, float flickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD, bool saveReplay = true)
         {
-            SticksReplayStore.EnsureLocalIdentity(score);
+            if (saveReplay)
+                SticksReplayStore.EnsureLocalIdentity(score);
 
-            var pending = new PendingReplay(score, flickActivationThreshold);
+            var pending = new PendingReplay(score, flickActivationThreshold, saveReplay);
 
             lock (sync)
             {
@@ -84,8 +89,16 @@ namespace osu.Game.Rulesets.Sticks.Replays
             if (pending == null)
                 return;
 
-            store.Save(pending.Score, pending.FlickActivationThreshold);
+            save(pending);
             pending.Dispose();
+        }
+
+        private void save(PendingReplay pending)
+        {
+            if (pending.SaveReplay)
+                store.Save(pending.Score, pending.FlickActivationThreshold);
+            try { scoreSaved?.Invoke(pending.Score, pending.FlickActivationThreshold); }
+            catch (Exception e) { Logger.Error(e, "Sticks could not record the local profile result."); }
         }
 
         private PendingReplay? removePending(Guid scoreId)
@@ -130,7 +143,7 @@ namespace osu.Game.Rulesets.Sticks.Replays
                 // A notification can be one update behind the database write while the player is
                 // exiting. Confirm synchronously before discarding the recording.
                 if (checkScoreSaved(replay.Score.ScoreInfo.ID))
-                    store.Save(replay.Score, replay.FlickActivationThreshold);
+                    save(replay);
 
                 replay.Dispose();
             }
@@ -140,15 +153,17 @@ namespace osu.Game.Rulesets.Sticks.Replays
         {
             public readonly Score Score;
             public readonly float FlickActivationThreshold;
+            public readonly bool SaveReplay;
 
             private readonly object sync = new object();
             private IDisposable? subscription;
             private bool disposed;
 
-            public PendingReplay(Score score, float flickActivationThreshold)
+            public PendingReplay(Score score, float flickActivationThreshold, bool saveReplay)
             {
                 Score = score;
                 FlickActivationThreshold = flickActivationThreshold;
+                SaveReplay = saveReplay;
             }
 
             public void SetSubscription(IDisposable newSubscription)

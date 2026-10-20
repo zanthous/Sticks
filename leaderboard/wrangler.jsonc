@@ -1,0 +1,83 @@
+{
+	"name": "zankai-osu",
+	"main": "src/worker.mjs",
+	"compatibility_date": "2026-10-19",
+	"workers_dev": true,
+	"preview_urls": false,
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"enabled": true
+		}
+	},
+	"vars": {
+		// Set to your HTTPS workers.dev URL. Register /auth/callback as the osu! OAuth callback.
+		"PUBLIC_ORIGIN": "https://zankai-osu.zanthous.workers.dev",
+		"OSU_CLIENT_ID": "71860",
+		// Free-plan starting budgets. Raising these is an owner decision.
+		"REPLAY_POLICY": {
+			"retainedPerPlayer": 100,
+			"maxStoredBytes": 8589934592,
+			"globalUploadsPerDay": 2000
+		},
+		// Only listed rulesets can submit. Versions, score counts and leaderboards are independent.
+		"RULESETS": {
+			"sticks": {
+				"generation": 1,
+				"difficultyVersion": 202609163,
+				"judgementCount": 16
+			}
+		}
+	},
+	// OSU_CLIENT_SECRET is a Wrangler secret, never a committed variable or a client DLL setting.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "zankai-osu",
+			"database_id": "df9d8e8d-caf0-4f85-bf81-bd110ac37bfe",
+			"migrations_dir": "migrations"
+		}
+	],
+	// Private bucket: do not enable public r2.dev access.
+	"r2_buckets": [
+		{
+			"binding": "REPLAYS",
+			"bucket_name": "zankai-osu-replays"
+		},
+		{
+			"bucket_name": "zankai-osu-replays",
+			"binding": "zankai_osu_replays"
+		}
+	],
+	"ratelimits": [
+		{
+			"name": "API_RATE_LIMITER",
+			"namespace_id": "7186001",
+			"simple": {
+				"limit": 240,
+				"period": 60
+			}
+		},
+		{
+			"name": "READ_RATE_LIMITER",
+			"namespace_id": "7186002",
+			"simple": {
+				"limit": 120,
+				"period": 60
+			}
+		},
+		{
+			"name": "DOWNLOAD_RATE_LIMITER",
+			"namespace_id": "7186003",
+			"simple": {
+				"limit": 120,
+				"period": 60
+			}
+		}
+	],
+	"triggers": {
+		"crons": [
+			"*/5 * * * *"
+		]
+	}
+}

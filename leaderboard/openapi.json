@@ -1,0 +1,211 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Zankai community profiles and replays",
+    "version": "1.0.0",
+    "description": "Server contract for the profile/replay UI. No UI or automatic client uploads are implemented by this backend change. Submit score summaries using the existing /scores endpoint, then fetch your top plays and PUT gzip-compressed local .stkr v5 files only for entries with replay.eligible=true and replay.available=false. Preserve local files on any error. Do not resubmit all scores on every profile view. Profile/download reads never contact osu!. These are self-reported scores, not server-verified replay results."
+  },
+  "servers": [{ "url": "https://zankai-osu.zanthous.workers.dev" }],
+  "paths": {
+    "/v1/rulesets/{ruleset}/policy": {
+      "parameters": [{ "$ref": "#/components/parameters/ruleset" }],
+      "get": {
+        "summary": "Read current generation, whitelist and replay limits",
+        "responses": {
+          "200": {
+            "description": "Existing policy fields plus replays.enabled and the numeric limits from REPLAY_POLICY. Clients must read these rather than hardcoding the retention cap.",
+            "content": { "application/json": { "example": {
+              "ruleset": "sticks", "generation": 1, "difficultyVersion": 202609163, "whitelistedSets": [],
+              "replays": {
+                "enabled": true, "retainedPerPlayer": 100, "maxDurationSeconds": 1800, "maxCompressedBytes": 4194304,
+                "maxRawBytes": 8388608, "maxStoredBytes": 8589934592,
+                "uploadsPerHour": 120, "uploadsPerDay": 240, "uploadBytesPerDay": 134217728,
+                "globalUploadsPerDay": 2000
+              }
+            } } }
+          },
+          "429": { "$ref": "#/components/responses/limited" }
+        }
+      }
+    },
+    "/v1/rulesets/{ruleset}/users/{userId}/top": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ruleset" },
+        { "$ref": "#/components/parameters/userId" }
+      ],
+      "get": {
+        "summary": "Open a community leaderboard player's top plays",
+        "description": "Public read. Current-generation eligible NM PBs only; sorted by pp descending, playedAt ascending, then beatmapId ascending. At most the top 100 scores are exposed. Banned/unknown players return 404. Map names may be null or empty until refreshed during a submission; fall back to beatmap ID/link, not extra osu! API requests.",
+        "parameters": [
+          { "in": "query", "name": "offset", "schema": { "type": "integer", "minimum": 0, "maximum": 99, "default": 0 } },
+          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "Player and ranked play summaries", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TopPlays" } } } },
+          "400": { "$ref": "#/components/responses/error" },
+          "404": { "$ref": "#/components/responses/error" },
+          "429": { "$ref": "#/components/responses/limited" }
+        }
+      }
+    },
+    "/v1/rulesets/{ruleset}/users/{userId}/scores/{beatmapId}/{scoreId}/replay": {
+      "parameters": [
+        { "$ref": "#/components/parameters/ruleset" },
+        { "$ref": "#/components/parameters/userId" },
+        { "in": "path", "name": "beatmapId", "required": true, "schema": { "type": "integer", "minimum": 1, "maximum": 2147483647 } },
+        { "in": "path", "name": "scoreId", "required": true, "schema": { "type": "string", "pattern": "^[a-f0-9]{32}$" } }
+      ],
+      "put": {
+        "summary": "Attach a recording to your own accepted top play",
+        "security": [{ "session": [] }],
+        "description": "Currently Sticks only. Binary gzip(.stkr v5), not .osr, JSON or base64. Do NOT set Content-Encoding:gzip; set Content-Type:application/gzip. The server validates size, decompression, frame structure, timestamps, finite stick values, buttons and activation threshold, but does not re-simulate gameplay or verify pp. Recordings spanning more than replays.maxDurationSeconds from first to last frame get 413; check the duration before uploading, because rejected attempts still count toward upload allowances. An already-stored recording is immutable; repeat PUT returns 200 without another upload charge. 201 means newly stored.",
+        "requestBody": { "required": true, "content": { "application/gzip": { "schema": { "type": "string", "format": "binary" } } } },
+        "responses": {
+          "200": { "description": "Already stored", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UploadResult" } } } },
+          "201": { "description": "Stored", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UploadResult" } } } },
+          "400": { "$ref": "#/components/responses/error" },
+          "401": { "$ref": "#/components/responses/error" },
+          "403": { "$ref": "#/components/responses/error" },
+          "408": { "$ref": "#/components/responses/error" },
+          "409": { "description": "Score changed, left retention, or another upload/cleanup is in progress. Refresh top plays; retry only if still eligible. Honor Retry-After when present.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "413": { "$ref": "#/components/responses/error" },
+          "415": { "$ref": "#/components/responses/error" },
+          "429": { "$ref": "#/components/responses/limited" },
+          "503": { "$ref": "#/components/responses/error" },
+          "507": { "description": "Global replay storage budget full. Keep score/local replay; do not loop retries. Requires owner action or storage cleanup.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "get": {
+        "summary": "Download another player's replay for local preservation/playback",
+        "description": "Public download; no account login required. Available only while the source score is eligible, retained and unbanned. A saved .zkr is self-contained and does not expire when its remote copy is removed. This is a Zankai replay container, NOT an osu! .osr; the client must implement the decoder below and local playback/import. Never overwrite the downloader's score history with another player's score.",
+        "responses": {
+          "200": {
+            "description": "Portable ZKR1 container",
+            "headers": {
+              "X-Replay-SHA256": { "description": "Lowercase SHA-256 of the complete downloaded container", "schema": { "type": "string" } },
+              "Content-Disposition": { "schema": { "type": "string" } }
+            },
+            "content": { "application/vnd.zankai.replay": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "404": { "$ref": "#/components/responses/error" },
+          "429": { "$ref": "#/components/responses/limited" },
+          "503": { "$ref": "#/components/responses/error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "session": { "type": "http", "scheme": "bearer", "description": "Existing Zankai session token from /auth/complete. Never send the osu! access token." } },
+    "parameters": {
+      "ruleset": { "in": "path", "name": "ruleset", "required": true, "schema": { "type": "string", "example": "sticks" } },
+      "userId": { "in": "path", "name": "userId", "required": true, "schema": { "type": "integer", "minimum": 1, "maximum": 2147483647 } }
+    },
+    "responses": {
+      "error": { "description": "Safe user-facing error; local scores/replays remain valid", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "limited": {
+        "description": "Defer until Retry-After, then retry with backoff/jitter. Do not mark a score/replay permanently failed or discard it.",
+        "headers": { "Retry-After": { "schema": { "type": "integer", "minimum": 1 }, "description": "Seconds" } },
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+      }
+    },
+    "schemas": {
+      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "string" } } },
+      "Grades": { "type": "object", "required": ["great", "ok", "meh", "miss"], "properties": {
+        "great": { "type": "integer" }, "ok": { "type": "integer" }, "meh": { "type": "integer" }, "miss": { "type": "integer" }
+      } },
+      "Hits": { "type": "object", "required": ["hit", "miss"], "properties": { "hit": { "type": "integer" }, "miss": { "type": "integer" } } },
+      "Play": {
+        "type": "object",
+        "properties": {
+          "rank": { "type": ["integer", "null"] },
+          "scoreId": { "type": "string" }, "userId": { "type": "integer" },
+          "beatmapId": { "type": "integer" }, "beatmapSetId": { "type": "integer" },
+          "sourceMd5": { "type": "string" },
+          "playedAt": { "type": "integer", "description": "Unix milliseconds UTC" },
+          "generation": { "type": "integer" }, "difficultyVersion": { "type": "integer" },
+          "mods": { "const": 0 }, "rate": { "const": 1 },
+          "pp": { "type": "number" }, "weightedPp": { "type": ["number", "null"] },
+          "accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+          "maxCombo": { "type": "integer" }, "totalScore": { "type": "integer" },
+          "activationThreshold": { "type": "number" },
+          "title": { "type": ["string", "null"] }, "artist": { "type": ["string", "null"] }, "difficulty": { "type": ["string", "null"] },
+          "judgements": { "type": "array", "items": { "type": "integer" }, "description": "Sticks: timing Great/Ok/Meh/Miss, angle Great/Ok/Meh/Miss, click/slice Great/Ok/Meh/Miss, tracking hit/miss, tail hit/miss. Counts do not retain the per-note pairing needed to reconstruct 300/200/175/100/75." },
+          "missCount": { "type": ["integer", "null"], "description": "Sticks note/head + click/slice misses. Timing and angle misses on a head are counted once, not twice. Excludes tracking and tail misses, which are returned separately. Other rulesets without a declared layout return null." },
+          "statistics": {
+            "type": ["object", "null"],
+            "properties": {
+              "timing": { "$ref": "#/components/schemas/Grades" },
+              "angle": { "$ref": "#/components/schemas/Grades" },
+              "click": { "$ref": "#/components/schemas/Grades" },
+              "tracking": { "$ref": "#/components/schemas/Hits" },
+              "tail": { "$ref": "#/components/schemas/Hits" }
+            }
+          },
+          "replay": {
+            "type": "object",
+            "properties": {
+              "eligible": { "type": "boolean" }, "available": { "type": "boolean" },
+              "bytes": { "type": ["integer", "null"] }, "sha256": { "type": ["string", "null"] },
+              "downloadPath": { "type": ["string", "null"], "description": "Relative to this service origin. Validate origin before sending credentials; public download needs none." }
+            }
+          }
+        }
+      },
+      "TopPlays": { "type": "object", "properties": {
+        "ruleset": { "type": "string" }, "generation": { "type": "integer" },
+        "player": { "type": "object", "properties": { "userId": { "type": "integer" }, "username": { "type": "string" }, "pp": { "type": "number" } } },
+        "total": { "type": "integer", "maximum": 100 }, "offset": { "type": "integer" },
+        "nextOffset": { "type": ["integer", "null"] },
+        "entries": { "type": "array", "items": { "$ref": "#/components/schemas/Play" } }
+      } },
+      "UploadResult": { "type": "object", "properties": {
+        "stored": { "const": true }, "alreadyStored": { "type": "boolean" },
+        "bytes": { "type": "integer" }, "sha256": { "type": "string" },
+        "downloadPath": { "type": "string", "description": "Present on newly created uploads; idempotent responses may omit it." }
+      } }
+    }
+  },
+  "x-replay-container": {
+    "extension": ".zkr",
+    "layout": [
+      { "offset": 0, "length": 4, "value": "ASCII ZKR1" },
+      { "offset": 4, "length": 4, "value": "unsigned 32-bit little-endian metadata JSON length" },
+      { "offset": 8, "length": "metadata length", "value": "UTF-8 JSON" },
+      { "offset": "8 + metadata length", "length": "remaining file bytes", "value": "gzip-compressed .stkr v5" }
+    ],
+    "metadata": {
+      "formatVersion": 1,
+      "ruleset": "sticks",
+      "player": { "userId": 42, "username": "Player" },
+      "score": "Play schema, without replay; rank and weightedPp are null",
+      "recording": { "format": "stkr", "version": 5, "encoding": "gzip", "compressedBytes": 123, "rawBytes": 456, "sha256": "SHA-256 of gzip bytes only" }
+    },
+    "decoderRequirements": [
+      "Bound the complete download to the advertised compressed limit plus 16 KiB of metadata; enforce a local hard maximum even if the service advertises more.",
+      "Validate magic, metadata length (at most 16 KiB), version, ruleset, map checksum and score identity.",
+      "Verify whole-file SHA-256 when supplied, then the embedded recording SHA-256.",
+      "Limit inflation to maxRawBytes while streaming; do not trust gzip ISIZE or metadata.rawBytes as allocation limits.",
+      "Load the original standard beatmap matching sourceMd5, convert with the supported Sticks generation, and restore the recorded activation threshold.",
+      "Import the recording into a separate downloaded-replay location; preserve its original player ID and do not add it to the downloader's submitted scores.",
+      "A saved file can be played without the community server, provided the client supports its format/conversion and has the matching beatmap."
+    ]
+  },
+  "x-limits": {
+    "perIpPerCloudflareLocationApproximate": { "allRequestsPerMinute": 240, "profileAndLeaderboardReadsPerMinute": 120, "replayDownloadsPerMinute": 120 },
+    "globalExactFixedWindows": {
+      "scoreSubmissionsPerUserPerHour": 220,
+      "newReplayAttemptsPerUserPerHour": 120, "newReplayAttemptsPerUserPerDay": 240,
+      "compressedReplayBytesPerUserPerDay": 134217728, "replayAttemptsAcrossServicePerDay": 2000
+    },
+    "notes": [
+      "Fixed hour/day windows start with the first counted request, not midnight. Honor Retry-After.",
+      "Upload attempts consume count/byte allowances even if later validation or storage fails. Already-stored idempotent uploads bypass upload counters but not edge limits.",
+      "The global replay-attempt counter runs after bounded body reading and before decompression. Invalid auth/ownership/headers and over-limit bodies do not consume that counter.",
+      "IP shields can affect users sharing a network. They are approximate, not globally exact accounting or protection against every distributed attack.",
+      "Retention is top N eligible scores, not the N highest scores that happen to have replays; lower scores do not fill missing recording slots.",
+      "Budget-full errors block new replay storage, not score submissions or downloads.",
+      "R2 cleanup is retried every five minutes; retention changes deny reads immediately, with queued physical deletion. Local downloads are unaffected.",
+      "These budgets do not guarantee the account cannot exceed all free CPU/database/request/log quotas."
+    ]
+  }
+}

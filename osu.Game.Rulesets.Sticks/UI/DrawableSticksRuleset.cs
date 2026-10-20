@@ -18,6 +18,7 @@ using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
 using osu.Game.Rulesets.Sticks.Replays;
+using osu.Game.Rulesets.Sticks.Profiles;
 using osu.Game.Rulesets.UI;
 using osu.Game.Scoring;
 using osu.Game.Screens.Play;
@@ -57,8 +58,12 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly Bindable<Colour4> overlapColour = new Bindable<Colour4>((Colour4)SticksPlayfield.OVERLAP_COLOUR);
         private readonly SticksReplayInputProvider replayInputProvider = new SticksReplayInputProvider();
         private SticksReplayStore replayStore;
+        private SticksReplayStore downloadedReplayStore;
         private float replayFlickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
         private SticksReplayPersistence replayPersistence;
+
+        [Resolved(CanBeNull = true)]
+        private BeatmapManager beatmapManager { get; set; }
 
         [Resolved(CanBeNull = true)]
         private RealmAccess realm { get; set; }
@@ -83,8 +88,12 @@ namespace osu.Game.Rulesets.Sticks.UI
         private void load(Storage storage)
         {
             replayStore = new SticksReplayStore(storage);
+            downloadedReplayStore = SticksReplayStore.Downloads(storage);
             if (realm != null)
-                replayPersistence = new SticksReplayPersistence(replayStore, realm);
+            {
+                var profile = player is SoloPlayer && beatmapManager != null ? new SticksProfileTracker(storage, beatmapManager) : null;
+                replayPersistence = new SticksReplayPersistence(replayStore, realm, profile == null ? null : profile.Record);
+            }
 
             Config.BindWith(SticksRulesetSetting.ApproachRate, approachRate);
             approachRate.BindValueChanged(rate => applyApproachRate(rate.NewValue), true);
@@ -133,8 +142,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         protected override ReplayRecorder CreateReplayRecorder(Score score)
         {
-            if (saveReplays.Value)
-                replayPersistence?.Track(score, flickActivationThreshold.Value);
+            replayPersistence?.Track(score, flickActivationThreshold.Value, saveReplay: saveReplays.Value);
 
             // The host scheduler survives the departing gameplay drawable and recorder.
             return new SticksReplayRecorder(score, (SticksPlayfield)Playfield, Config.LockFlickActivationThreshold(host.UpdateThread.Scheduler));
@@ -148,8 +156,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             replayInputProvider.Deactivate();
 
             replayFlickActivationThreshold = SticksInputTracker.DEFAULT_ACTIVATION_THRESHOLD;
-            if (replayScore != null)
-                replayStore?.TryRestore(replayScore, out replayFlickActivationThreshold);
+            // Another player's downloaded replay is not in the local store; it must still play with its recorded threshold.
+            if (replayScore != null && replayStore != null && !replayStore.TryRestore(replayScore, out replayFlickActivationThreshold))
+                downloadedReplayStore.TryRestore(replayScore, out replayFlickActivationThreshold);
 
             base.SetReplayScore(replayScore);
         }

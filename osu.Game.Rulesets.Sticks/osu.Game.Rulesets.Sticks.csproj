@@ -10,8 +10,11 @@
     <Copyright>Copyright (c) 2026 Zankai LLC</Copyright>
     <Version>0.1.0-dev</Version>
     <OsuGameVersion Condition="'$(OsuGameVersion)' == ''">2026.916.0</OsuGameVersion>
+    <SticksLeaderboardUrl Condition="'$(SticksLeaderboardUrl)' == ''">$(STICKS_LEADERBOARD_URL)</SticksLeaderboardUrl>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Set after deploying the opt-in leaderboard. Empty builds make no leaderboard requests. -->
+    <AssemblyMetadata Include="SticksLeaderboardUrl" Value="$(SticksLeaderboardUrl)" />
     <AssemblyMetadata Include="License" Value="PolyForm Noncommercial 1.0.0 with additional permissions" />
     <AssemblyMetadata Include="LicenseUrl" Value="https://polyformproject.org/licenses/noncommercial/1.0.0/" />
     <AssemblyMetadata Include="RequiredNotice" Value="Copyright (c) 2026 Zankai LLC." />

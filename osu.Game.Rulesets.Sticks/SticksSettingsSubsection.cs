@@ -15,6 +15,7 @@ using osu.Game.Rulesets.Sticks.Beatmaps;
 using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.UI;
+using osu.Game.Rulesets.Sticks.UI.Profile;
 using osu.Game.Screens;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Menu;
@@ -74,6 +75,15 @@ namespace osu.Game.Rulesets.Sticks
             });
             Children = new Drawable[]
             {
+                new SticksProfileSettingsButton(leftStickColour, rightStickColour)
+                {
+                    Text = "Sticks profile & leaderboard",
+                    Description = "Your pp, top plays, replays and global rank",
+                    TooltipText = "Your Sticks pp, top plays with saved replays, and the opt-in community leaderboard.",
+                    Keywords = new[] { "profile", "pp", "leaderboard", "rankings", "scores", "top plays", "replays" },
+                    Action = () => screenRunner?.PerformFromScreen(screen => screen.Push(new SticksProfileScreen()),
+                        new[] { typeof(SongSelect), typeof(MainMenu) }),
+                },
                 new SettingsItemV2(new FormSliderBar<float>
                 {
                     Caption = "Approach rate",

@@ -27,6 +27,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  STICKS_LEADERBOARD_URL: ${{ vars.STICKS_LEADERBOARD_URL }}
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
   DOTNET_NOLOGO: "true"
 

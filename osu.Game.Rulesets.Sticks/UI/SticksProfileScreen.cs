@@ -43,6 +43,7 @@ namespace osu.Game.Rulesets.Sticks.UI
     internal partial class SticksProfileScreen : OsuScreen
     {
         private const int page_size = 50;
+        private static readonly IReadOnlyDictionary<Guid, SticksLeaderboardClient.RemotePlay> no_shared_plays = new Dictionary<Guid, SticksLeaderboardClient.RemotePlay>();
 
         public override string Title => "Sticks profile";
         public override bool HideOverlaysOnEnter => true;
@@ -69,9 +70,12 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksProfileStatistics statistics;
         private readonly SticksProfileSection topPlaysSection;
         private readonly SticksProfileSection leaderboardSection;
+        private readonly SticksSharedReplayPlayer sharedReplays;
         private SticksScoreSharingPanel sharing = null!;
 
         private SticksProfileScore[] topPlays = Array.Empty<SticksProfileScore>();
+        // Your plays as the leaderboard has them, including ones set on your other computers.
+        private IReadOnlyDictionary<Guid, SticksLeaderboardClient.RemotePlay> sharedPlays = no_shared_plays;
         private int? shownUserId;
         private int profileVersion;
         private int leaderboardVersion;
@@ -93,6 +97,7 @@ namespace osu.Game.Rulesets.Sticks.UI
 
             InternalChildren = new Drawable[]
             {
+                sharedReplays = new SticksSharedReplayPlayer(createClient, startReplay),
                 new Box { RelativeSizeAxes = Axes.Both, Colour = colourProvider.Background5 },
                 new OsuScrollContainer
                 {
@@ -183,57 +188,115 @@ namespace osu.Game.Rulesets.Sticks.UI
             if (disposed) return;
             int version = ++profileVersion;
             int user = userId;
+            // Plays from your other computers come from the leaderboard, which is only contacted once you've opted in here.
+            bool includeShared = user > 0 && sharingEnabled;
             if (topPlays.Length == 0) topPlaysSection.ShowLoading();
 
+            SticksProfileScore[] local;
             try
             {
-                var (top, plays) = await Task.Run(async () =>
+                local = await Task.Run(async () =>
                 {
                     await SticksProfileTracker.WaitForPending().ConfigureAwait(false);
                     var all = new SticksProfileStore(storage).Read();
-                    var eligible = SticksProfilePolicy.TopPlays(all, user, createClient(storage).WhitelistedSets);
-                    return (eligible, describe(eligible, 0));
+                    return SticksProfilePolicy.TopPlays(all, user, createClient(storage).WhitelistedSets);
                 }).ConfigureAwait(false);
-                var summary = SticksProfileSummary.From(top, rankFor);
-
-                Schedule(() =>
-                {
-                    if (disposed || version != profileVersion) return;
-                    topPlays = top;
-                    statistics.SetSummary(summary);
-                    topPlaysSection.Count = top.Length;
-                    topPlaysSection.ClearItems();
-                    addPlays(plays);
-                    if (top.Length == 0)
-                    {
-                        topPlaysSection.ShowNotice(new SticksProfileNotice(FontAwesome.Solid.Trophy, "No top plays yet",
-                            "New No Mod passes on ranked osu! beatmaps and approved sets are tracked here. Plays from before tracking began aren't included."));
-                    }
-                    else
-                        topPlaysSection.ClearNotice();
-                    topPlaysSection.SetMoreAvailable(top.Length > topPlaysSection.ItemCount);
-                });
+                await show(version, local, no_shared_plays, includeShared).ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                Logger.Error(e, "Could not open the Sticks profile.");
-                Schedule(() =>
-                {
-                    if (disposed || version != profileVersion) return;
-                    topPlaysSection.ShowNotice(new SticksProfileNotice(FontAwesome.Solid.ExclamationTriangle, "Couldn't load your top plays",
-                        e is InvalidOperationException ? e.Message : "See the runtime log for details. Your saved scores are unaffected.", "Retry", refresh));
-                });
+                showError(version, e);
+                return;
             }
+
+            if (!includeShared) return;
+
+            var merged = local;
+            var shared = no_shared_plays;
+            try
+            {
+                var page = await createClient(storage).FindTopPlays(user).ConfigureAwait(false);
+                if (page != null && page.Player.UserId == user)
+                {
+                    var plays = page.Entries.Where(p => p.Generation == SticksProfileScore.CurrentGeneration)
+                                    .Select(p => (Play: p, Score: p.ToScore(user))).Where(p => p.Score.ScoreId != Guid.Empty).ToArray();
+                    merged = SticksProfilePolicy.Merge(local, plays.Select(p => p.Score));
+                    shared = plays.GroupBy(p => p.Score.ScoreId).ToDictionary(g => g.Key, g => g.First().Play);
+                }
+            }
+            catch (Exception e)
+            {
+                // This computer's plays are shown either way.
+                Logger.Log($"Could not load Sticks plays shared from your other computers: {e}");
+            }
+
+            try
+            {
+                if (local.Length > 0 && merged.Select(s => s.ScoreId).SequenceEqual(local.Select(s => s.ScoreId)))
+                {
+                    Schedule(() =>
+                    {
+                        if (!disposed && version == profileVersion) sharedPlays = shared;
+                    });
+                }
+                else
+                    await show(version, merged, shared, false).ConfigureAwait(false);
+            }
+            catch (Exception e)
+            {
+                showError(version, e);
+            }
+        }
+
+        private async Task show(int version, SticksProfileScore[] top, IReadOnlyDictionary<Guid, SticksLeaderboardClient.RemotePlay> shared, bool sharedPending)
+        {
+            var plays = await Task.Run(() => describe(top, shared, 0)).ConfigureAwait(false);
+            var summary = SticksProfileSummary.From(top, rankFor);
+
+            Schedule(() =>
+            {
+                if (disposed || version != profileVersion) return;
+                topPlays = top;
+                sharedPlays = shared;
+                statistics.SetSummary(summary);
+                topPlaysSection.Count = top.Length;
+                topPlaysSection.ClearItems();
+                addPlays(plays);
+                if (top.Length > 0)
+                    topPlaysSection.ClearNotice();
+                // Plays from your other computers may still arrive.
+                else if (sharedPending)
+                    topPlaysSection.ShowLoading();
+                else
+                {
+                    topPlaysSection.ShowNotice(new SticksProfileNotice(FontAwesome.Solid.Trophy, "No top plays yet",
+                        "New No Mod passes on ranked osu! beatmaps and approved sets are tracked here. Plays from before tracking began aren't included."
+                        + (sharing.State == SticksSharingState.Off ? " Turn on score sharing to include plays from your other computers." : "")));
+                }
+                topPlaysSection.SetMoreAvailable(top.Length > topPlaysSection.ItemCount);
+            });
+        }
+
+        private void showError(int version, Exception e)
+        {
+            Logger.Error(e, "Could not open the Sticks profile.");
+            Schedule(() =>
+            {
+                if (disposed || version != profileVersion) return;
+                topPlaysSection.ShowNotice(new SticksProfileNotice(FontAwesome.Solid.ExclamationTriangle, "Couldn't load your top plays",
+                    e is InvalidOperationException ? e.Message : "See the runtime log for details. Your saved scores are unaffected.", "Retry", refresh));
+            });
         }
 
         private async void showMorePlays()
         {
             int version = profileVersion;
             var top = topPlays;
+            var shared = sharedPlays;
             int start = topPlaysSection.ItemCount;
             try
             {
-                var plays = await Task.Run(() => describe(top, start)).ConfigureAwait(false);
+                var plays = await Task.Run(() => describe(top, shared, start)).ConfigureAwait(false);
                 Schedule(() =>
                 {
                     if (disposed || version != profileVersion) return;
@@ -248,22 +311,29 @@ namespace osu.Game.Rulesets.Sticks.UI
             }
         }
 
-        private SticksProfilePlay[] describe(IReadOnlyList<SticksProfileScore> top, int start) =>
-            top.Skip(start).Take(page_size).Select((entry, i) =>
+        private SticksProfilePlay[] describe(IReadOnlyList<SticksProfileScore> top, IReadOnlyDictionary<Guid, SticksLeaderboardClient.RemotePlay> shared, int start)
+        {
+            var downloads = SticksReplayStore.Downloads(storage);
+            return top.Skip(start).Take(page_size).Select((entry, i) =>
             {
                 Guid scoreId = entry.ScoreId;
                 int beatmapId = entry.BeatmapId;
+                shared.TryGetValue(scoreId, out var remote);
                 ScoreInfo? info = scores.Query(s => s.ID == scoreId && !s.DeletePending);
                 // A deleted score still has a known beatmap; show it rather than a bare ID.
                 BeatmapInfo? map = info?.BeatmapInfo ?? beatmaps.QueryBeatmap(b => b.OnlineID == beatmapId);
                 if (map?.BeatmapSet?.DeletePending == true) map = null;
                 string fallback = $"Beatmap {beatmapId}";
-                return new SticksProfilePlay(entry, start + i,
-                    map == null ? new RomanisableString(fallback, fallback) : new RomanisableString(map.Metadata.TitleUnicode, map.Metadata.Title),
-                    map == null ? null : new RomanisableString(map.Metadata.ArtistUnicode, map.Metadata.Artist),
-                    map?.DifficultyName, rankFor(entry.Accuracy),
-                    info?.BeatmapInfo != null && storage.Exists($"ruleset-data/sticks/replays/{scoreId:N}.stkr"));
+                // Plays from your other computers may be on maps that aren't installed here; the leaderboard knows most titles.
+                var title = map != null ? new RomanisableString(map.Metadata.TitleUnicode, map.Metadata.Title)
+                    : remote?.Title != null ? new RomanisableString(remote.Title, remote.Title) : new RomanisableString(fallback, fallback);
+                RomanisableString? artist = map != null ? new RomanisableString(map.Metadata.ArtistUnicode, map.Metadata.Artist)
+                    : remote?.Artist != null ? new RomanisableString(remote.Artist, remote.Artist) : null;
+                bool hasReplay = (info?.BeatmapInfo != null && storage.Exists($"ruleset-data/sticks/replays/{scoreId:N}.stkr"))
+                                 || (remote != null && (remote.Replay?.Available == true || downloads.Contains(scoreId)));
+                return new SticksProfilePlay(entry, start + i, title, artist, map?.DifficultyName ?? remote?.Difficulty, rankFor(entry.Accuracy), hasReplay);
             }).ToArray();
+        }
 
         private void addPlays(IEnumerable<SticksProfilePlay> plays)
         {
@@ -276,11 +346,17 @@ namespace osu.Game.Rulesets.Sticks.UI
             try
             {
                 var info = scores.Query(s => s.ID == id && !s.DeletePending);
+                // A play from another computer, or one whose local copy is gone: watch it as the leaderboard has it.
+                if ((info?.BeatmapInfo == null || !new SticksReplayStore(storage).Contains(id)) && sharedPlays.TryGetValue(id, out var shared))
+                {
+                    sharedReplays.Watch(shared, api.LocalUser.Value);
+                    return;
+                }
+
                 if (info?.BeatmapInfo == null) throw new InvalidOperationException("This play's beatmap is no longer installed");
                 var score = new Score { ScoreInfo = info };
                 if (!new SticksReplayStore(storage).TryRestore(score)) throw new InvalidOperationException("This play has no readable local replay");
-                Beatmap.Value = beatmaps.GetWorkingBeatmap(info.BeatmapInfo);
-                this.Push(new ReplayPlayerLoader(score));
+                startReplay(score, info.BeatmapInfo);
             }
             catch (Exception e)
             {
@@ -290,6 +366,13 @@ namespace osu.Game.Rulesets.Sticks.UI
                     Text = e is InvalidOperationException ? e.Message : "Could not open this replay; check that the beatmap and replay are still installed",
                 });
             }
+        }
+
+        private void startReplay(Score score, BeatmapInfo map)
+        {
+            if (disposed || !this.IsCurrentScreen()) return;
+            Beatmap.Value = beatmaps.GetWorkingBeatmap(map);
+            this.Push(new ReplayPlayerLoader(score));
         }
 
         #endregion
@@ -475,6 +558,7 @@ namespace osu.Game.Rulesets.Sticks.UI
                 updateSharingState("Could not save the disconnect; check storage permissions", true);
             }
             resetLeaderboard();
+            refresh();
         }
 
         private void finishAccountOperation(CancellationTokenSource operation, LocalisableString message, bool isError = false) => Schedule(() =>
@@ -484,6 +568,8 @@ namespace osu.Game.Rulesets.Sticks.UI
             operation.Dispose();
             updateSharingState(message, isError);
             resetLeaderboard();
+            // Connecting or syncing can bring in plays from your other computers.
+            refresh();
         });
 
         private void cancelAccountOperation() => accountOperation?.Cancel();

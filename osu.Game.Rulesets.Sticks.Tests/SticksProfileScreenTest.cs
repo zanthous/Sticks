@@ -41,6 +41,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
         [Resolved]
         private BeatmapManager beatmaps { get; set; } = null!;
 
+        // Local storage outlives each test in this fixture; one test's plays must not change another's totals.
+        [SetUpSteps]
+        public void ResetSticksData() => AddStep("reset Sticks data", () =>
+        {
+            if (LocalStorage.ExistsDirectory("ruleset-data/sticks"))
+                LocalStorage.DeleteDirectory("ruleset-data/sticks");
+        });
+
         [Test]
         public void TestRecordedPlayWithMissingScoreAndReplayDisplaysSafely()
         {
@@ -154,12 +162,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             var service = new LeaderboardService();
             AddStep("connect and open profile", () =>
             {
-                using (Stream stream = LocalStorage.GetStorageForDirectory("ruleset-data/sticks/profile").GetStream("online.json", FileAccess.Write, FileMode.Create))
-                {
-                    stream.Write(Encoding.UTF8.GetBytes($"{{\"origin\":\"https://sticks.example\",\"userId\":{API.LocalUser.Value.Id},"
-                                                        + $"\"token\":\"{new string('a', 64)}\",\"expires\":9999999999}}"));
-                }
-
+                connect();
                 var http = new HttpClient(service);
                 Child = new ProfileContainer(LocalStorage)
                 {
@@ -176,29 +179,86 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddUntilStep("rank is fetched after syncing", () => service.Paths.Contains("/v1/rulesets/sticks/leaderboard"));
         }
 
+        [Test]
+        public void TestProfileIncludesPlaysSharedFromOtherComputers()
+        {
+            SticksProfileScreen screen = null!;
+            AddStep("connect with one play here and two shared from elsewhere", () =>
+            {
+                connect();
+                new SticksProfileStore(LocalStorage).Append(SticksProfileTest.Entry(1, 100) with { UserId = API.LocalUser.Value.Id });
+                var http = new HttpClient(new LeaderboardService());
+                Child = new ProfileContainer(LocalStorage)
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Child = new ScreenStack(screen = new SticksProfileScreen(s => new SticksLeaderboardClient(s, "https://sticks.example", http)))
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                    },
+                };
+            });
+            AddUntilStep("plays from elsewhere are listed", () => screen.ChildrenOfType<SticksProfilePlayRow>().Count() == 2
+                                                                  && titles(screen).Contains("Local Only Song"));
+            AddAssert("a better play from elsewhere replaces this computer's", () => titles(screen).Contains("Uploaded Song"));
+            AddAssert("total pp counts both", () => screen.ChildrenOfType<SticksProfileStatistics>().Single().ChildrenOfType<OsuSpriteText>()
+                                                          .Any(t => t.Text.ToString() == (300 + 150 * 0.95).ToString("#,##0")));
+            AddAssert("its uploaded replay can be watched", () => screen.ChildrenOfType<SticksProfilePlayRow.WatchReplayButton>().Count() == 1);
+        }
+
+        [Test]
+        public void TestProfileDoesNotContactTheLeaderboardWithoutSharing()
+        {
+            SticksProfileScreen screen = null!;
+            var service = new LeaderboardService();
+            AddStep("open profile with one play and sharing off", () =>
+            {
+                new SticksProfileStore(LocalStorage).Append(SticksProfileTest.Entry(1, 100) with { UserId = API.LocalUser.Value.Id });
+                var http = new HttpClient(service);
+                Child = new ProfileContainer(LocalStorage)
+                {
+                    RelativeSizeAxes = Axes.Both,
+                    Child = new ScreenStack(screen = new SticksProfileScreen(s => new SticksLeaderboardClient(s, "https://sticks.example", http)))
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                    },
+                };
+            });
+            AddUntilStep("this computer's play is listed", () => screen.ChildrenOfType<SticksProfilePlayRow>().Count() == 1);
+            AddAssert("the leaderboard was not contacted", () => service.Paths.IsEmpty);
+        }
+
+        private static string[] titles(SticksProfileScreen screen) => screen.ChildrenOfType<TruncatingSpriteText>().Select(t => t.Text.ToString()).ToArray();
+
+        private void connect()
+        {
+            using Stream stream = LocalStorage.GetStorageForDirectory("ruleset-data/sticks/profile").GetStream("online.json", FileAccess.Write, FileMode.Create);
+            stream.Write(Encoding.UTF8.GetBytes($"{{\"origin\":\"https://sticks.example\",\"userId\":{API.LocalUser.Value.Id},"
+                                                + $"\"token\":\"{new string('a', 64)}\",\"expires\":9999999999}}"));
+        }
+
         private class LeaderboardService : HttpMessageHandler
         {
             public readonly ConcurrentQueue<string> Paths = new ConcurrentQueue<string>();
 
             // Two misses on note heads and one click miss; angle, tracking and tail misses don't add to the count.
-            private static readonly string topPlays = JsonSerializer.Serialize(new
+            private static string topPlays(int userId) => JsonSerializer.Serialize(new
             {
-                ruleset = "sticks", player = new { userId = 2, username = "first", pp = 1234.5 }, total = 2,
+                ruleset = "sticks", player = new { userId, username = "first", pp = 1234.5 }, total = 2,
                 entries = new[]
                 {
-                    play(1, "1", "Uploaded Song", true),
-                    play(2, "2", "Local Only Song", false),
+                    play(userId, 1, "1", "Uploaded Song", true),
+                    play(userId, 2, "2", "Local Only Song", false),
                 },
             });
 
-            private static object play(int rank, string id, string title, bool uploaded) => new
+            private static object play(int userId, int rank, string id, string title, bool uploaded) => new
             {
-                rank, scoreId = id.PadLeft(32, '0'), userId = 2, beatmapId = rank, beatmapSetId = 10,
+                rank, scoreId = id.PadLeft(32, '0'), userId, beatmapId = rank, beatmapSetId = 10,
                 sourceMd5 = "0123456789abcdef0123456789abcdef", playedAt = 1792417969000, generation = 1,
                 pp = 300.0 / rank, accuracy = 0.97, maxCombo = 400, totalScore = 900000, activationThreshold = 0.97,
                 title, artist = "Artist", difficulty = "Hard",
                 judgements = new[] { 200, 5, 0, 2, 190, 15, 0, 2, 10, 0, 0, 1, 20, 3, 30, 1 },
-                replay = new { eligible = true, available = uploaded, downloadPath = uploaded ? $"/v1/rulesets/sticks/users/2/scores/{rank}/{id.PadLeft(32, '0')}/replay" : null },
+                replay = new { eligible = true, available = uploaded, downloadPath = uploaded ? $"/v1/rulesets/sticks/users/{userId}/scores/{rank}/{id.PadLeft(32, '0')}/replay" : null },
             };
 
             protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -207,8 +267,8 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Paths.Enqueue(path);
                 string body = path.EndsWith("/policy", StringComparison.Ordinal)
                     ? "{\"ruleset\":\"sticks\",\"generation\":1,\"whitelistedSets\":[]}"
-                    : path.EndsWith("/users/2/top", StringComparison.Ordinal)
-                        ? topPlays
+                    : path.StartsWith("/v1/rulesets/sticks/users/", StringComparison.Ordinal) && path.EndsWith("/top", StringComparison.Ordinal)
+                        ? topPlays(int.Parse(path.Split('/')[^2]))
                         : "{\"ruleset\":\"sticks\",\"entries\":[{\"rank\":1,\"userId\":2,\"username\":\"first\",\"pp\":1234.5},"
                           + "{\"rank\":2,\"userId\":3,\"username\":\"second\",\"pp\":987.6}]}";
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });

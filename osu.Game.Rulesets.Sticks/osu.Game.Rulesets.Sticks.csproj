@@ -9,7 +9,8 @@
     <Company>Zankai LLC</Company>
     <Copyright>Copyright (c) 2026 Zankai LLC</Copyright>
     <Version>0.1.0-dev</Version>
-    <OsuGameVersion Condition="'$(OsuGameVersion)' == ''">2026.916.0</OsuGameVersion>
+    <!-- The newest published osu! packages. Releases build against each official release's source instead. -->
+    <OsuGameVersion Condition="'$(OsuGameVersion)' == ''">*</OsuGameVersion>
     <SticksLeaderboardUrl Condition="'$(SticksLeaderboardUrl)' == ''">$(STICKS_LEADERBOARD_URL)</SticksLeaderboardUrl>
   </PropertyGroup>
   <ItemGroup>

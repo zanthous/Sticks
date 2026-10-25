@@ -82,7 +82,18 @@ namespace osu.Game.Rulesets.Sticks.Profiles
                 if (result.Pending) continue;
                 if (result.UserId != userId || result.Token.Length != 64) throw new InvalidDataException("Sign-in returned a different account.");
                 cancellationToken.ThrowIfCancellationRequested();
-                update(state => { state.UserId = userId; state.Token = result.Token; state.Expires = result.Expires; state.Uploaded.Clear(); state.Replays.Clear(); });
+                update(state =>
+                {
+                    // Renewing an expired session must not re-send every top play; disconnecting clears this record.
+                    if (state.UserId != userId)
+                    {
+                        state.Uploaded.Clear();
+                        state.Replays.Clear();
+                    }
+                    state.UserId = userId;
+                    state.Token = result.Token;
+                    state.Expires = result.Expires;
+                });
                 return;
             }
             throw new InvalidOperationException("Sign-in timed out; try connecting again");
@@ -192,6 +203,13 @@ namespace osu.Game.Rulesets.Sticks.Profiles
             return page;
         }
 
+        // Null when the service has no shared plays for this player.
+        public async Task<TopPlays?> FindTopPlays(int userId)
+        {
+            try { return await GetTopPlays(userId).ConfigureAwait(false); }
+            catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound) { return null; }
+        }
+
         // The service caps compressed recordings at 8 MiB; metadata is at most 16 KiB.
         private const int max_download_bytes = 8 * 1024 * 1024 + SticksReplayPackage.MaxMetadataBytes + 8;
 
@@ -297,7 +315,18 @@ namespace osu.Game.Rulesets.Sticks.Profiles
         internal sealed record TopPlayer(int UserId, string Username, double? PP);
         internal sealed record RemotePlay(int? Rank, string ScoreId, int BeatmapId, int BeatmapSetId, string SourceMd5, long PlayedAt,
                                           int Generation, double PP, double Accuracy, int MaxCombo, long TotalScore, float ActivationThreshold,
-                                          string? Title, string? Artist, string? Difficulty, int[] Judgements, RemoteReplay? Replay);
+                                          string? Title, string? Artist, string? Difficulty, int[] Judgements, RemoteReplay? Replay)
+        {
+            // Shared plays have already passed the service's ranked, revision and generation checks.
+            public SticksProfileScore ToScore(int userId) => new SticksProfileScore
+            {
+                ScoreId = Guid.TryParseExact(ScoreId, "N", out Guid id) ? id : Guid.Empty, UserId = userId, BeatmapId = BeatmapId,
+                BeatmapSetId = BeatmapSetId, SourceMd5 = SourceMd5, PlayedAt = PlayedAt, Generation = Generation, PP = PP,
+                Accuracy = Accuracy, MaxCombo = MaxCombo, TotalScore = TotalScore, ActivationThreshold = ActivationThreshold,
+                Ranked = true, MatchesPublishedMap = true, Judgements = Judgements,
+            };
+        }
+
         internal sealed record RemoteReplay(bool Eligible, bool Available, string? DownloadPath);
     }
 }

@@ -144,6 +144,27 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public void TestProfileMergesPlaysFromOtherComputersBestPerMap()
+        {
+            var here = Entry(1, 100);
+            var elsewhere = new[] { Entry(1, 150), Entry(2, 90), here with { } };
+            var merged = SticksProfilePolicy.Merge(new[] { here, Entry(3, 50) }, elsewhere);
+            Assert.That(merged.Select(s => (s.BeatmapId, s.PP)), Is.EqualTo(new[] { (1, 150d), (2, 90d), (3, 50d) }));
+            Assert.That(SticksProfilePolicy.TotalPP(merged), Is.EqualTo(150 + 90 * 0.95 + 50 * 0.95 * 0.95).Within(1e-8));
+        }
+
+        [Test]
+        public void TestProfileMergeKeepsThisComputersCopyAndTheNewestRevision()
+        {
+            var here = Entry(1, 100);
+            Assert.That(SticksProfilePolicy.Merge(new[] { here }, new[] { here with { } }).Single(), Is.SameAs(here));
+
+            var updated = Entry(1, 80) with { SourceMd5 = new string('f', 32), PlayedAt = here.PlayedAt + 1000 };
+            Assert.That(SticksProfilePolicy.Merge(new[] { here }, new[] { updated }).Single().ScoreId, Is.EqualTo(updated.ScoreId));
+            Assert.That(SticksProfilePolicy.Merge(new[] { updated }, new[] { here }).Single().ScoreId, Is.EqualTo(updated.ScoreId));
+        }
+
+        [Test]
         public void TestAutomationAndConversionOverridesCannotCount()
         {
             Assert.Multiple(() =>

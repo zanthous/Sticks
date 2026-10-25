@@ -33,6 +33,20 @@ namespace osu.Game.Rulesets.Sticks.Profiles
                   .OrderByDescending(s => s.PP).ThenBy(s => s.PlayedAt).ThenBy(s => s.ScoreId).ToArray();
         }
 
+        // Your profile across computers: this computer's top plays with the ones the leaderboard has from your others.
+        // As in TopPlays, the most recently played revision of a map supersedes older ones, then the best pp counts.
+        public static SticksProfileScore[] Merge(IEnumerable<SticksProfileScore> local, IEnumerable<SticksProfileScore> shared) =>
+            local.Concat(shared)
+                 .GroupBy(s => s.BeatmapId)
+                 .Select(group =>
+                 {
+                     string current = group.OrderByDescending(s => s.PlayedAt).First().SourceMd5;
+                     // The sort is stable, so a play the service also has keeps this computer's copy.
+                     return group.Where(s => string.Equals(s.SourceMd5, current, StringComparison.OrdinalIgnoreCase))
+                                 .OrderByDescending(s => s.PP).ThenBy(s => s.PlayedAt).ThenBy(s => s.ScoreId).First();
+                 })
+                 .OrderByDescending(s => s.PP).ThenBy(s => s.PlayedAt).ThenBy(s => s.ScoreId).ToArray();
+
         // The complete local list is retained; only the best 100 contribute to the shared total.
         public static double TotalPP(IEnumerable<SticksProfileScore> topPlays) =>
             topPlays.Take(100).Select((score, index) => score.PP * Math.Pow(0.95, index)).Sum();

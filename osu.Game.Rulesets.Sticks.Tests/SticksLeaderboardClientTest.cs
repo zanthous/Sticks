@@ -59,6 +59,30 @@ namespace osu.Game.Rulesets.Sticks.Tests
         }
 
         [Test]
+        public async Task TestRenewingTheSessionDoesNotResendTopPlays()
+        {
+            using var storage = new TemporaryNativeStorage("sticks-renew-test");
+            var handler = new FakeService();
+            using var http = new HttpClient(handler);
+            var client = new SticksLeaderboardClient(storage, "https://sticks.example", http);
+            new SticksProfileStore(storage).Append(SticksProfileTest.Entry());
+            await client.Connect(42, _ => { });
+            await client.Sync(42);
+            Assert.That(handler.Summaries, Has.Count.EqualTo(1));
+
+            // Sessions expire; signing in again with the same account keeps the record of what was sent.
+            await client.Connect(42, _ => { });
+            await client.Sync(42);
+            Assert.That(handler.Summaries, Has.Count.EqualTo(1));
+
+            // Disconnecting forgets it, so connecting afterwards sends everything again.
+            client.Disconnect();
+            await client.Connect(42, _ => { });
+            await client.Sync(42);
+            Assert.That(handler.Summaries, Has.Count.EqualTo(2));
+        }
+
+        [Test]
         public async Task TestNoServiceMeansNoNetworkAndNoUpload()
         {
             using var storage = new TemporaryNativeStorage("sticks-offline-test");

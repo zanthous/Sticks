@@ -66,10 +66,7 @@ jobs:
 
       - name: Reject obsolete compatibility branches
         shell: pwsh
-        env:
-          LAZER_API: ${{ steps.release_check.outputs.lazer_api }}
-          TACHYON_API: ${{ steps.release_check.outputs.tachyon_api }}
-        run: .\.github\scripts\Test-ObsoleteCompatibilityBranches.ps1 -LazerApi $env:LAZER_API -TachyonApi $env:TACHYON_API
+        run: .\.github\scripts\Test-ObsoleteCompatibilityBranches.ps1
 
   compatibility:
     name: ${{ matrix.name }}

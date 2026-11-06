@@ -43,6 +43,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private const float centered_cursor_hide_threshold = 0.15f;
         private const float centered_cursor_show_threshold = 0.2f;
         private const float guide_ring_thickness = 2;
+        private const float max_perspective_depth = 4;
         public static readonly Color4 LEFT_COLOUR = SticksHitObject.LEFT_DISPLAY_COLOUR;
         public static readonly Color4 RIGHT_COLOUR = SticksHitObject.RIGHT_DISPLAY_COLOUR;
         public static readonly Color4 OVERLAP_COLOUR = Color4Extensions.FromHex("C05CFF");
@@ -142,6 +143,24 @@ namespace osu.Game.Rulesets.Sticks.UI
             get => playfieldDim.Alpha;
             set => playfieldDim.Alpha = Math.Clamp(value, 0, 1);
         }
+
+        /// <summary>
+        /// Shows the playfield as a tunnel during gameplay, from 0 (flat) to 1 (deepest).
+        /// Display only: objects still reach the hit ring at their hit time.
+        /// </summary>
+        public float Perspective { get; set; }
+
+        /// <summary>
+        /// How many times farther away than the hit ring objects appear from. The editor stays flat,
+        /// because its placement tools convert playfield positions back into times.
+        /// </summary>
+        internal float PerspectiveDepth => player == null ? 1 : 1 + Math.Clamp(Perspective, 0, 1) * (max_perspective_depth - 1);
+
+        /// <summary>
+        /// The radius an object is drawn at during its approach.
+        /// </summary>
+        internal float ApproachRadiusAt(double time, double hitTime, double approachDuration) =>
+            GUIDE_RADIUS * PerspectiveProgress(CenterOutProgressAt(time, hitTime, approachDuration), PerspectiveDepth);
 
         /// <summary>
         /// Shows restrained contact feedback while objects are successfully played.
@@ -772,6 +791,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         /// </summary>
         internal static float CenterOutProgressAt(double time, double hitTime, double approachDuration) =>
             (float)Math.Clamp((time - (hitTime - approachDuration)) / Math.Max(1, approachDuration), 0, 1);
+
+        /// <summary>
+        /// Projects linear approach progress through a tunnel whose far end is <paramref name="depth"/> times farther
+        /// away than the hit ring. Objects travel straight from the far end to the ring, so they creep out of the
+        /// centre and rush in at the end, as in WACCA. Progress 0 and 1 are unchanged.
+        /// </summary>
+        internal static float PerspectiveProgress(float progress, float depth) =>
+            depth <= 1 ? progress : progress / (depth - (depth - 1) * progress);
 
         internal static bool CenterOutCursorVisible(float mappedMagnitude, bool wasVisible) =>
             mappedMagnitude > (wasVisible ? centered_cursor_hide_threshold : centered_cursor_show_threshold);

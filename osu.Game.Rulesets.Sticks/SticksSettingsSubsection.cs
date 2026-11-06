@@ -108,6 +108,15 @@ namespace osu.Game.Rulesets.Sticks
                     KeyboardStep = 0.01f,
                     DisplayAsPercentage = true,
                 }),
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = "3D perspective",
+                    HintText = "Show the playfield as a tunnel during gameplay: notes start small in the distance and rush toward the ring. "
+                               + "Timing is unchanged. The editor stays flat.",
+                    Current = config.GetBindable<float>(SticksRulesetSetting.Perspective),
+                    KeyboardStep = 0.05f,
+                    LabelFormat = value => value > 0 ? $"{value * 100:0}%" : "Off",
+                }),
                 hideCenteredCursors,
                 new SettingsItemV2(new FormCheckBox
                 {

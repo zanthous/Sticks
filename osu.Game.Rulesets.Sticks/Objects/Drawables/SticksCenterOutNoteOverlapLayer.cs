@@ -150,8 +150,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                             out float startAngle, out float overlapSpan, out bool firstTickOverlaps, out bool secondTickOverlaps))
                         continue;
 
-                    float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
-                        time, first.StartTime, first.ApproachDuration);
+                    float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.PerspectiveProgress(
+                        SticksPlayfield.CenterOutProgressAt(time, first.StartTime, first.ApproachDuration), playfield?.PerspectiveDepth ?? 1);
                     bool identicalShape = Math.Abs(SticksHitObject.DeltaAngle(firstAngle, secondAngle)) < 0.01f
                                           && Math.Abs(firstSpan - secondSpan) < 0.01f;
 

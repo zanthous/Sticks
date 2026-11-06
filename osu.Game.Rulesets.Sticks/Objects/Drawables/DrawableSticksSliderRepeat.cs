@@ -54,7 +54,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             // a reversal image while this pooled marker is alive cannot make it visible.
             marker.AlwaysPresent = true;
 
-            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
+            float radius = playfield.ApproachRadiusAt(
                 Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
             marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
             bool sliderEnded = ParentHitObject is DrawableSticksSlider slider && Time.Current > slider.HitObject.EndTime;

@@ -66,7 +66,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             marker.SetLane(HitObject.Side, playfield.ColourFor(HitObject.Side));
             marker.Angle = HitObject.Angle;
 
-            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
+            float radius = playfield.ApproachRadiusAt(Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
             marker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
             marker.Span = HitObject.PrimaryHitAngle;
 

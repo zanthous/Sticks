@@ -839,6 +839,29 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [Test]
+        public void TestPerspectiveKeepsHitTimingAndRushesIn()
+        {
+            Assert.Multiple(() =>
+            {
+                Assert.That(SticksPlayfield.PerspectiveProgress(0, 4), Is.Zero, "Objects emerge from the centre.");
+                Assert.That(SticksPlayfield.PerspectiveProgress(1, 4), Is.EqualTo(1), "Objects still reach the ring at their hit time.");
+                Assert.That(SticksPlayfield.PerspectiveProgress(0.5f, 1), Is.EqualTo(0.5f), "No depth is the flat approach.");
+                // Halfway through the approach, a note at full depth is only a fifth of the way out.
+                Assert.That(SticksPlayfield.PerspectiveProgress(0.5f, 4), Is.EqualTo(0.2f).Within(0.0001));
+            });
+
+            float previous = 0, previousStep = 0;
+            for (int i = 1; i <= 100; i++)
+            {
+                float progress = SticksPlayfield.PerspectiveProgress(i / 100f, 2.5f);
+                Assert.That(progress, Is.GreaterThan(previous), "Objects never move backwards.");
+                Assert.That(progress - previous, Is.GreaterThan(previousStep), "Objects speed up as they approach.");
+                previousStep = progress - previous;
+                previous = progress;
+            }
+        }
+
         [TestCase(0, 20, 0, 20, 350, 20)]
         [TestCase(355, 20, 5, 20, 355, 10)]
         [TestCase(20, 30, 30, 10, 25, 10)]

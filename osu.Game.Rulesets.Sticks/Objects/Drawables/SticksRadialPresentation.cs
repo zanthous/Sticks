@@ -58,9 +58,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             applySide(side);
         }
 
-        public void SetSliderGeometry(SticksSlider slider, double now, double? approachDuration = null)
+        public void SetSliderGeometry(SticksSlider slider, double now, double? approachDuration = null, float perspectiveDepth = 1)
         {
-            setGeometry(slider.StartTime, slider.EndTime, approachDuration ?? slider.ApproachDuration, slider.PrimaryHitAngle, now, slider, slider.Angle);
+            setGeometry(slider.StartTime, slider.EndTime, approachDuration ?? slider.ApproachDuration, slider.PrimaryHitAngle, now, slider, slider.Angle, perspectiveDepth);
 
             if (displayedSide != slider.Side)
                 applySide(slider.Side);
@@ -84,9 +84,9 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             shape.SetStyle(displayedSide, displayedFillAlpha);
         }
 
-        public void SetHoldGeometry(SticksHold hold, double now, double? approachDuration = null)
+        public void SetHoldGeometry(SticksHold hold, double now, double? approachDuration = null, float perspectiveDepth = 1)
         {
-            setGeometry(hold.StartTime, hold.EndTime, approachDuration ?? hold.ApproachDuration, hold.PrimaryHitAngle, now, null, hold.Angle);
+            setGeometry(hold.StartTime, hold.EndTime, approachDuration ?? hold.ApproachDuration, hold.PrimaryHitAngle, now, null, hold.Angle, perspectiveDepth);
 
             if (displayedSide != hold.Side)
                 applySide(hold.Side);
@@ -99,7 +99,8 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             float angularSpan,
             double now,
             SticksSlider slider,
-            float constantAngle)
+            float constantAngle,
+            float perspectiveDepth)
         {
             double visibleStart = Math.Max(now, objectStartTime);
             double visibleEnd = Math.Min(objectEndTime, now + Math.Max(1, approachDuration));
@@ -146,7 +147,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             for (int i = 0; i < pointCount; i++)
             {
                 double time = sampledTimes[i];
-                float radialProgress = SticksPlayfield.CenterOutProgressAt(now, time, approachDuration);
+                float radialProgress = SticksPlayfield.PerspectiveProgress(SticksPlayfield.CenterOutProgressAt(now, time, approachDuration), perspectiveDepth);
                 float radius = SticksPlayfield.GUIDE_RADIUS * radialProgress;
                 float angle = sampledAngles[i];
 

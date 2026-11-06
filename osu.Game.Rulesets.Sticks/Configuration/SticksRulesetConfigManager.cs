@@ -76,6 +76,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 0.01f);
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
             SetDefault(SticksRulesetSetting.PlayfieldDim, 0.7f, 0f, 1f, 0.01f);
+            SetDefault(SticksRulesetSetting.Perspective, 0f, 0f, 1f, 0.01f);
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
             SetDefault(SticksRulesetSetting.SliderHeadFollowsPath, false);
             SetDefault(SticksRulesetSetting.HitEffects, SticksHitEffectMode.Perfect);
@@ -109,6 +110,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 rawValue: dim,
                 name: "Sticks playfield dim",
                 value: $"{dim * 100:0}%"
+            )),
+            new TrackedSetting<float>(SticksRulesetSetting.Perspective, perspective => new SettingDescription(
+                rawValue: perspective,
+                name: "Sticks 3D perspective",
+                value: perspective > 0 ? $"{perspective * 100:0}%" : "off"
             )),
             new TrackedSetting<bool>(SticksRulesetSetting.SliderTrackingSparks, enabled => new SettingDescription(
                 rawValue: enabled,
@@ -169,6 +175,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         HitEffects,
         SliderHeadFollowsPath,
         PlayfieldDim,
+        Perspective,
     }
 
     public enum SticksHitEffectMode

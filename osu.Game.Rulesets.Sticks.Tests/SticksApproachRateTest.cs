@@ -54,6 +54,29 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddStep("restore default", () => config.GetBindable<float>(SticksRulesetSetting.PlayfieldDim).SetDefault());
         }
 
+        [Test]
+        public void TestPerspectiveStaysFlatOutsideGameplay()
+        {
+            AddStep("load without a player, as the editor does", () =>
+            {
+                Clear();
+                var ruleset = new SticksRuleset();
+                config = (SticksRulesetConfigManager)RulesetConfigs.GetConfigFor(ruleset)!;
+                config.GetBindable<float>(SticksRulesetSetting.Perspective).SetDefault();
+                drawable = new DrawableSticksRuleset(ruleset, new Beatmap<SticksHitObject>
+                {
+                    BeatmapInfo = new BeatmapInfo(ruleset.RulesetInfo, new BeatmapDifficulty()),
+                });
+                Add(drawable);
+            });
+            AddUntilStep("loaded", () => drawable.IsLoaded);
+            AddAssert("off by default", () => ((SticksPlayfield)drawable.Playfield).Perspective == 0);
+            AddStep("turn on", () => config.SetValue(SticksRulesetSetting.Perspective, 1f));
+            AddAssert("setting reaches the playfield", () => ((SticksPlayfield)drawable.Playfield).Perspective == 1);
+            AddAssert("approach stays flat", () => ((SticksPlayfield)drawable.Playfield).PerspectiveDepth == 1);
+            AddStep("restore default", () => config.GetBindable<float>(SticksRulesetSetting.Perspective).SetDefault());
+        }
+
         [TestCase("none", 1)]
         [TestCase("DA", 0.5)]
         [TestCase("DA", 1)]

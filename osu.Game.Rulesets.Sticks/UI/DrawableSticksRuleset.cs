@@ -47,6 +47,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly BindableFloat flickActivationThreshold = new BindableFloat();
         private readonly BindableBool hideCenteredCursors = new BindableBool();
         private readonly BindableFloat playfieldDim = new BindableFloat();
+        private readonly BindableFloat perspective = new BindableFloat();
         private readonly BindableBool sliderTrackingSparks = new BindableBool();
         private readonly BindableBool sliderHeadFollowsPath = new BindableBool();
         private readonly Bindable<SticksHitEffectMode> hitEffects = new Bindable<SticksHitEffectMode>(SticksHitEffectMode.Perfect);
@@ -106,6 +107,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             Config.BindWith(SticksRulesetSetting.PlayfieldDim, playfieldDim);
             playfieldDim.BindValueChanged(dim =>
                 ((SticksPlayfield)Playfield).PlayfieldDim = dim.NewValue, true);
+            Config.BindWith(SticksRulesetSetting.Perspective, perspective);
+            perspective.BindValueChanged(value =>
+                ((SticksPlayfield)Playfield).Perspective = value.NewValue, true);
             Config.BindWith(SticksRulesetSetting.SliderTrackingSparks, sliderTrackingSparks);
             sliderTrackingSparks.BindValueChanged(enabled =>
                 ((SticksPlayfield)Playfield).SliderTrackingSparks = enabled.NewValue, true);

@@ -41,7 +41,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
         {
             base.Update();
             double now = Time.Current;
-            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
+            float radius = playfield.ApproachRadiusAt(now, HitObject.StartTime, HitObject.ApproachDuration);
             marker.SetState(radius, HitObject.Angle, HitObject.Direction, playfield.SliceColourFor(HitObject));
             Vector2 left = playfield.StickVector(StickSide.Left);
             Vector2 right = playfield.StickVector(StickSide.Right);

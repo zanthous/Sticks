@@ -143,12 +143,12 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             updateEditorState(now);
             bool active = now >= HitObject.StartTime && now <= HitObject.EndTime;
             headMarker.Span = HitObject.PrimaryHitAngle;
-            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
+            float radius = playfield.ApproachRadiusAt(now, HitObject.StartTime, HitObject.ApproachDuration);
             headMarker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
 
             setRadialPathRegistered(now < HitObject.EndTime);
             if (now < HitObject.EndTime)
-                radialPath.SetHoldGeometry(HitObject, now);
+                radialPath.SetHoldGeometry(HitObject, now, perspectiveDepth: playfield.PerspectiveDepth);
 
             updateHeadJudgement(now);
             headMarker.Alpha = HeadMarkerAlphaAt(now, HitObject.EndTime);

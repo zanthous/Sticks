@@ -155,11 +155,11 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
             bool cueActive = now >= HitObject.StartTime - cueDuration && now < HitObject.StartTime;
             headMarker.Span = HitObject.PrimaryHitAngleAt(
                 HitObject.IsStationary || playfield.SliderHeadFollowsPath ? now : HitObject.StartTime);
-            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(now, HitObject.StartTime, HitObject.ApproachDuration);
+            float radius = playfield.ApproachRadiusAt(now, HitObject.StartTime, HitObject.ApproachDuration);
             headMarker.SetRadialOffset(radius - SticksPlayfield.RadiusFor(HitObject.Side), true);
             setRadialPathRegistered(now < HitObject.EndTime);
             if (now < HitObject.EndTime)
-                radialPath.SetSliderGeometry(HitObject, now);
+                radialPath.SetSliderGeometry(HitObject, now, perspectiveDepth: playfield.PerspectiveDepth);
 
             updateHeadCue(now, cueActive);
 

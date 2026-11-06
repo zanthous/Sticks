@@ -52,7 +52,7 @@ namespace osu.Game.Rulesets.Sticks.Objects.Drawables
                 if (!Judged)
                     applyClickResult(pending);
             }
-            float radius = SticksPlayfield.GUIDE_RADIUS * SticksPlayfield.CenterOutProgressAt(
+            float radius = playfield.ApproachRadiusAt(
                 Time.Current, HitObject.StartTime, HitObject.ApproachDuration);
             halo.SetGeometry(radius, playfield.ClickColourFor(HitObject));
             if (!Judged && playfield.RelaxMode && Time.Current >= HitObject.StartTime)

@@ -12,10 +12,29 @@ namespace osu.Game.Rulesets.Sticks
         [Resolved]
         private GameHost host { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private IRulesetConfigCache rulesetConfigs { get; set; }
+
+        private SticksRawStickInput rawStickInput;
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
             EnableJoystickInput(host);
+            rawStickInput = SticksRawStickInput.Acquire(host, rulesetConfigs);
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+            rawStickInput?.Enforce();
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            rawStickInput?.Dispose();
+            rawStickInput = null;
+            base.Dispose(isDisposing);
         }
 
         internal static void EnableJoystickInput(GameHost host)

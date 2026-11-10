@@ -87,6 +87,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             SetDefault(SticksRulesetSetting.LeftStickColour, (Colour4)SticksPlayfield.LEFT_COLOUR);
             SetDefault(SticksRulesetSetting.RightStickColour, (Colour4)SticksPlayfield.RIGHT_COLOUR);
             SetDefault(SticksRulesetSetting.OverlapColour, (Colour4)SticksPlayfield.OVERLAP_COLOUR);
+            SetDefault(SticksRulesetSetting.OsuJoystickDeadzone, SticksRawStickInput.NOTHING_REMEMBERED);
         }
 
         public override TrackedSettings CreateTrackedSettings() => new TrackedSettings
@@ -176,6 +177,12 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         SliderHeadFollowsPath,
         PlayfieldDim,
         Perspective,
+
+        /// <summary>
+        /// Not a Sticks preference: the player's osu! joystick deadzone, kept here while
+        /// <see cref="SticksRawStickInput"/> has it switched off so that it can be put back.
+        /// </summary>
+        OsuJoystickDeadzone,
     }
 
     public enum SticksHitEffectMode

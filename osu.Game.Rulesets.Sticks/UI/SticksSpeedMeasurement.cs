@@ -13,7 +13,14 @@ namespace osu.Game.Rulesets.Sticks.UI
     {
         public const float NEAR_NEUTRAL_THRESHOLD = 0.05f;
 
-        private readonly float activationThreshold;
+        /// <summary>
+        /// A stick pinned at its gate reports exactly 100%, which lies on a 100% boundary rather
+        /// than beyond it, and movement to or from a point on a boundary is not a crossing. The
+        /// edge is never measured further out than this, so full deflection is always past it.
+        /// </summary>
+        private const float max_edge_radius = 0.9999f;
+
+        private readonly float edgeRadius;
 
         private bool initialised;
         private Vector2 previousValue;
@@ -47,9 +54,9 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         public SticksSpeedMeasurement(float activationThreshold)
         {
-            this.activationThreshold = Math.Clamp(activationThreshold,
-                SticksInputTracker.MIN_ACTIVATION_THRESHOLD,
-                SticksInputTracker.MAX_ACTIVATION_THRESHOLD);
+            edgeRadius = Math.Min(
+                Math.Clamp(activationThreshold, SticksInputTracker.MIN_ACTIVATION_THRESHOLD, SticksInputTracker.MAX_ACTIVATION_THRESHOLD),
+                max_edge_radius);
         }
 
         public void Update(float magnitude, double time)
@@ -70,7 +77,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             Span<RadialCrossing> crossings = stackalloc RadialCrossing[4];
             int crossingCount = 0;
             collectCrossings(value, NEAR_NEUTRAL_THRESHOLD, CrossingBoundary.Neutral, crossings, ref crossingCount);
-            collectCrossings(value, activationThreshold, CrossingBoundary.Edge, crossings, ref crossingCount);
+            collectCrossings(value, edgeRadius, CrossingBoundary.Edge, crossings, ref crossingCount);
             sortCrossings(crossings[..crossingCount]);
 
             foreach (RadialCrossing crossing in crossings[..crossingCount])
@@ -126,7 +133,7 @@ namespace osu.Game.Rulesets.Sticks.UI
             previousValue = value;
             previousTime = double.IsFinite(time) ? time : 0;
             neutralObserved = value.Length <= NEAR_NEUTRAL_THRESHOLD;
-            edgeReached = value.Length >= activationThreshold;
+            edgeReached = value.Length >= edgeRadius;
             pressStartTime = null;
             returnStartTime = null;
         }

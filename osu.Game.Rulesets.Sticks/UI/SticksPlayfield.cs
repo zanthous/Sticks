@@ -66,6 +66,7 @@ namespace osu.Game.Rulesets.Sticks.UI
         private readonly SticksReplayInputProvider replayInputProvider;
         private bool leftTrailWasVisible;
         private bool rightTrailWasVisible;
+        // Exactly as the controller reports them. See SticksRawStickInput.
         private float leftX;
         private float leftY;
         private float rightX;
@@ -363,12 +364,13 @@ namespace osu.Game.Rulesets.Sticks.UI
         }
 
         /// <summary>
-        /// Returns the unmodified physical controller position. Replays must store this rather than
-        /// <see cref="StickVector"/>, because gameplay distance mapping is reapplied during playback.
+        /// Returns the controller position in stick units, before any gameplay distance mapping.
+        /// Replays must store this rather than <see cref="StickVector"/>, because that mapping is
+        /// reapplied during playback.
         /// </summary>
-        public Vector2 PhysicalStickVector(StickSide side) => side == StickSide.Left
+        public Vector2 PhysicalStickVector(StickSide side) => SticksStickResponse.FromRaw(side == StickSide.Left
             ? new Vector2(leftX, leftY)
-            : new Vector2(rightX, rightY);
+            : new Vector2(rightX, rightY));
 
         public bool TriggerPressed(StickSide side) => side == StickSide.Left
             ? isTriggerPressed(leftTrigger)
@@ -934,8 +936,9 @@ namespace osu.Game.Rulesets.Sticks.UI
                 return;
             }
 
-            var left = new Vector2(leftX, leftY);
-            var right = new Vector2(rightX, rightY);
+            // Only the controller is converted. A replay already holds stick units.
+            Vector2 left = PhysicalStickVector(StickSide.Left);
+            Vector2 right = PhysicalStickVector(StickSide.Right);
             bool leftTriggerPressed = TriggerPressed(StickSide.Left);
             bool rightTriggerPressed = TriggerPressed(StickSide.Right);
             bool leftShoulder = ShoulderPressed(StickSide.Left);
@@ -1174,7 +1177,9 @@ namespace osu.Game.Rulesets.Sticks.UI
             target?.TryHit(time);
         }
 
-        private static bool isTriggerPressed(float value) => value >= 0.5f;
+        // Triggers arrive untouched as well. This is the same point on the pull as before, when
+        // osu!'s default deadzone removed the first tenth and the press was half of what remained.
+        private static bool isTriggerPressed(float value) => value >= 0.55f;
 
         private bool crossesGestureBoundary(Vector2 previous, Vector2 current)
         {

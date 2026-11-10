@@ -98,7 +98,7 @@ namespace osu.Game.Rulesets.Sticks
                     Current = flickActivationThreshold,
                     KeyboardStep = 0.01f,
                     LabelFormat = value =>
-                        $"{value * 100:0}% (recharge at {SticksInputTracker.RechargeThresholdFor(value) * 100:0}%)",
+                        $"{value * 100:0}% (recharge at {SticksStickResponse.ToRaw(SticksInputTracker.RechargeThresholdFor(value)) * 100:0}%)",
                 }),
                 new SettingsItemV2(new FormSliderBar<float>
                 {

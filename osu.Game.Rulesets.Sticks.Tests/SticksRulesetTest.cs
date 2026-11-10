@@ -1035,9 +1035,9 @@ namespace osu.Game.Rulesets.Sticks.Tests
             Assert.Multiple(() =>
             {
                 Assert.That(frame.Time, Is.EqualTo(1234));
-                Assert.That(frame.LeftStick, Is.EqualTo(new Vector2(0.8f, -0.25f)),
-                    "Replay capture must store raw travel; playback applies the 80% distance mapping once.");
-                Assert.That(frame.RightStick, Is.EqualTo(new Vector2(-0.6f, 0.75f)));
+                Assert.That(frame.LeftStick, Is.EqualTo(SticksStickResponse.FromRaw(new Vector2(0.8f, -0.25f))),
+                    "Replay capture must store stick units; playback applies the 80% distance mapping once.");
+                Assert.That(frame.RightStick, Is.EqualTo(new Vector2(-0.6f, 0.75f)), "Stick units are the real position this far out.");
                 Assert.That(frame.LeftTrigger, Is.True);
                 Assert.That(frame.RightTrigger, Is.False);
                 Assert.That(frame.LeftShoulder, Is.False);
@@ -1254,7 +1254,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(notifications, Is.EqualTo(1));
                 Assert.That(reportedAsImportant, Is.True, "A flick-threshold crossing must be recorded without the 60 Hz movement limit.");
                 Assert.That(reportedLeft, Is.EqualTo(new Vector2(0.9f, -0.35f)));
-                Assert.That(reportedRight, Is.EqualTo(new Vector2(-0.65f, 0.35f)));
+                Assert.That(reportedRight, Is.EqualTo(SticksStickResponse.FromRaw(new Vector2(-0.65f, 0.35f))));
             });
 
             typeof(SticksPlayfield).GetMethod("reportPhysicalStickInput", BindingFlags.Instance | BindingFlags.NonPublic)!

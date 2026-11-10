@@ -22,6 +22,9 @@ namespace osu.Game.Rulesets.Sticks
         [Resolved(CanBeNull = true)]
         private IBindable<RulesetInfo> currentRuleset { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private IRulesetConfigCache rulesetConfigs { get; set; }
+
         public SticksRulesetIcon()
         {
             // Song select places ruleset icons directly inside an auto-sized horizontal flow.
@@ -52,6 +55,10 @@ namespace osu.Game.Rulesets.Sticks
         protected override void LoadComplete()
         {
             base.LoadComplete();
+
+            // The toolbar loads this icon at startup, which makes it the first chance to put the
+            // player's osu! deadzone back if the previous run ended while Sticks had it switched off.
+            SticksRawStickInput.RestoreIfUnused(host, rulesetConfigs);
 
             // External rulesets have no activation callback. The toolbar loads the icon
             // before gameplay, so observe selection here to enable menu input as well.

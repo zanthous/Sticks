@@ -115,10 +115,23 @@ namespace osu.Game.Rulesets.Sticks.UI
         [Resolved]
         private GameHost host { get; set; }
 
+        [Resolved(CanBeNull = true)]
+        private IRulesetConfigCache rulesetConfigs { get; set; }
+
+        private SticksRawStickInput rawStickInput;
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
             SticksInputManager.EnableJoystickInput(host);
+            rawStickInput = SticksRawStickInput.Acquire(host, rulesetConfigs);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            rawStickInput?.Dispose();
+            rawStickInput = null;
+            base.Dispose(isDisposing);
         }
 
         protected override bool OnJoystickAxisMove(JoystickAxisMoveEvent e)
@@ -149,9 +162,10 @@ namespace osu.Game.Rulesets.Sticks.UI
         protected override void Update()
         {
             base.Update();
+            rawStickInput?.Enforce();
 
-            Vector2 left = clampStick(new Vector2(leftX, leftY));
-            Vector2 right = clampStick(new Vector2(rightX, rightY));
+            Vector2 left = stick(leftX, leftY);
+            Vector2 right = stick(rightX, rightY);
 
             leftMeasurement.Update(left, Time.Current);
             rightMeasurement.Update(right, Time.Current);
@@ -162,11 +176,16 @@ namespace osu.Game.Rulesets.Sticks.UI
 
         private void resetMeasurements()
         {
-            leftMeasurement.Reset(clampStick(new Vector2(leftX, leftY)), Time.Current);
-            rightMeasurement.Reset(clampStick(new Vector2(rightX, rightY)), Time.Current);
+            leftMeasurement.Reset(stick(leftX, leftY), Time.Current);
+            rightMeasurement.Reset(stick(rightX, rightY), Time.Current);
         }
 
-        private static Vector2 clampStick(Vector2 value) => value.LengthSquared > 1 ? value.Normalized() : value;
+        // The same stick units gameplay uses, so the edge measured here is where a flick triggers.
+        private static Vector2 stick(float x, float y)
+        {
+            Vector2 value = SticksStickResponse.FromRaw(new Vector2(x, y));
+            return value.LengthSquared > 1 ? value.Normalized() : value;
+        }
 
         private partial class StickResultPanel : CircularContainer
         {

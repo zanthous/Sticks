@@ -99,6 +99,29 @@ namespace osu.Game.Rulesets.Sticks.Tests
             });
         }
 
+        [TestCase(1f, 0f)]
+        [TestCase(0f, -1f)]
+        [TestCase(0.8f, 0.8f)]
+        [TestCase(-0.9f, 0.6f)]
+        public void TestFullDeflectionAtMaximumThresholdRecordsPressAndReturn(float x, float y)
+        {
+            var measurement = new SticksSpeedMeasurement(1f);
+
+            // A stick pinned at its gate reports exactly 100%, or just past it before clamping.
+            measurement.Update(Vector2.Zero, 0);
+            measurement.Update(new Vector2(x, y), 100);
+            measurement.Update(new Vector2(x, y), 300);
+            measurement.Update(Vector2.Zero, 400);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(measurement.PressCount, Is.EqualTo(1));
+                Assert.That(measurement.ReturnCount, Is.EqualTo(1));
+                Assert.That(measurement.LatestPressTime, Is.EqualTo(100).Within(0.1));
+                Assert.That(measurement.LatestReturnTime, Is.EqualTo(95).Within(0.1));
+            });
+        }
+
         private static void performTrial(SticksSpeedMeasurement measurement, double neutralTime, double edgeTime, double returnedTime)
         {
             measurement.Update(0, neutralTime);

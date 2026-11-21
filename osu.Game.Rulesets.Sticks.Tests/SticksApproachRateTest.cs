@@ -33,7 +33,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 var ruleset = new SticksRuleset();
                 config = (SticksRulesetConfigManager)RulesetConfigs.GetConfigFor(ruleset)!;
                 config.GetBindable<float>(SticksRulesetSetting.PlayfieldDim).SetDefault();
-                config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors).SetDefault();
+                config.GetBindable<float>(SticksRulesetSetting.CursorHideRadius).SetDefault();
                 var beatmap = new Beatmap<SticksHitObject>
                 {
                     BeatmapInfo = new BeatmapInfo(ruleset.RulesetInfo, new BeatmapDifficulty()),
@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             AddUntilStep("loaded", () => drawable.IsLoaded);
             AddAssert("default dim and visible cursors", () =>
                 ((SticksPlayfield)drawable.Playfield).PlayfieldDim == 0.7f
-                && !((SticksPlayfield)drawable.Playfield).HideCenteredCursors);
+                && ((SticksPlayfield)drawable.Playfield).CursorHideRadius == 0);
             AddStep("increase dim", () => config.SetValue(SticksRulesetSetting.PlayfieldDim, 0.8f));
             AddAssert("dim applied independently of note layer", () =>
                 ((SticksPlayfield)drawable.Playfield).PlayfieldDim == 0.8f

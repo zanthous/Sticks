@@ -29,7 +29,7 @@ Sticks is a standalone external ruleset prototype for dual-analogue controllers.
 - Standard circles convert to flicks. Standard sliders and other duration objects convert to generated circular slider patterns.
 - Source hold notes and spinners convert to stationary sliders.
 
-Gameplay and the editor both use centre-out visuals. **Playfield dim** in **Settings → Rulesets → Sticks** darkens the area inside the hit circle (70% by default, adjustable from 0–100%). **Hide centered cursors** hides sticks near the center and keeps them visible when held outward; it is off by default.
+**Playfield dim** in **Settings → Rulesets → Sticks** darkens the area inside the hit circle (70% by default, adjustable from 0–100%). **Hide cursors near center** hides each stick's cursor while it is within a chosen distance of the center, from off up to 90% of the way to the hit ring, and keeps it visible while held out past that; it is off by default. If you had the old **Hide centered cursors** checkbox on, it becomes 20%, the distance it always used.
 
 Sticks automatically enables **Device: Joystick/Gamepad** as soon as you switch to Sticks, including when starting osu! with Sticks already selected. Gameplay, the editor, and the controller speed test also enable it when opened.
 
@@ -111,7 +111,7 @@ Sticks has a circular editor inside osu!lazer. To start from an imported song:
 
 Use the left editor toolbox (or number keys) to select Flick, Slider, or Click:
 
-- Notes use the same centre-out visuals and shared ring as gameplay. When placing a note, click just outside the ring for the left stick or just inside it for the right stick. Farther outside selects both sticks: a purple preview places an exact pair with one undo step. This also works for click halos and sliders. Outside the placement area, no preview is drawn.
+- When placing a note, click just outside the ring for the left stick or just inside it for the right stick. Farther outside selects both sticks: a purple preview places an exact pair with one undo step. This also works for click halos and sliders. Outside the placement area, no preview is drawn.
 - Flick: click near the ring to place the note.
 - Click: select the Click tool and place a halo. The placement angle does not affect gameplay.
 - Slider: click near the ring to start, trace an arc for movement or stay at the same angle for a stationary slider, then scroll to the end time. Left-click (or release a held left button) finishes; right-click places the point and starts the next span. Mouse distance never changes duration. Ctrl+Z cancels an unfinished point before undoing earlier edits.

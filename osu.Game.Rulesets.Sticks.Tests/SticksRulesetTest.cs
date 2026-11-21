@@ -830,13 +830,51 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 Assert.That(SticksPlayfield.CenterOutProgressAt(-200, 1000, 1200), Is.Zero);
                 Assert.That(SticksPlayfield.CenterOutProgressAt(400, 1000, 1200), Is.EqualTo(0.5f).Within(0.0001));
                 Assert.That(SticksPlayfield.CenterOutProgressAt(1000, 1000, 1200), Is.EqualTo(1));
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.14f, true), Is.False);
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, false), Is.False);
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, true), Is.True);
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, false), Is.True);
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, true), Is.True);
-                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.9f, false), Is.True);
+                // At the radius the old on/off setting always used, the cursor shows and hides where it always did.
+                const float old_radius = SticksRulesetConfigManager.LEGACY_CURSOR_HIDE_RADIUS;
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.14f, true, old_radius), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, false, old_radius), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.19f, true, old_radius), Is.True);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, false, old_radius), Is.True);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.21f, true, old_radius), Is.True);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0.9f, false, old_radius), Is.True);
             });
+        }
+
+        [TestCase(0.5f)]
+        [TestCase(0.08f)]
+        [TestCase(SticksPlayfield.MAX_CURSOR_HIDE_RADIUS)]
+        public void TestCursorHidesWithinAnyChosenRadius(float radius)
+        {
+            Assert.Multiple(() =>
+            {
+                // A hidden cursor shows only once past the radius.
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(radius * 0.99f, false, radius), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(radius * 1.01f, false, radius), Is.True);
+                // A shown cursor stays shown just inside it, and hides once well back inside.
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(radius * 0.99f, true, radius), Is.True);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(radius * 0.7f, true, radius), Is.False);
+                Assert.That(SticksPlayfield.CenterOutCursorVisible(0, true, radius), Is.False);
+            });
+        }
+
+        [Test]
+        public void TestOldHideCenteredCursorsSettingCarriesOver()
+        {
+            var config = new SticksRulesetConfigManager(null, new SticksRuleset().RulesetInfo);
+            Assert.That(config.Get<float>(SticksRulesetSetting.CursorHideRadius), Is.Zero, "Off by default.");
+
+            config.SetValue(SticksRulesetSetting.HideInactiveCursors, true);
+            config.MigrateLegacySettings();
+            Assert.Multiple(() =>
+            {
+                Assert.That(config.Get<float>(SticksRulesetSetting.CursorHideRadius), Is.EqualTo(SticksRulesetConfigManager.LEGACY_CURSOR_HIDE_RADIUS));
+                Assert.That(config.Get<bool>(SticksRulesetSetting.HideInactiveCursors), Is.False, "Carried over once.");
+            });
+
+            config.SetValue(SticksRulesetSetting.CursorHideRadius, 0.45f);
+            config.MigrateLegacySettings();
+            Assert.That(config.Get<float>(SticksRulesetSetting.CursorHideRadius), Is.EqualTo(0.45f), "A chosen radius is kept.");
         }
 
         [Test]

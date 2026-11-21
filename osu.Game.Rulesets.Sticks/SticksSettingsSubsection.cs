@@ -67,11 +67,14 @@ namespace osu.Game.Rulesets.Sticks
                 HintText = "Show the ring accent for perfect hits, every successful hit, or never.",
                 Current = config.GetBindable<SticksHitEffectMode>(SticksRulesetSetting.HitEffects),
             });
-            var hideCenteredCursors = new SettingsItemV2(new FormCheckBox
+            var cursorHideRadius = new SettingsItemV2(new FormSliderBar<float>
             {
-                Caption = "Hide centered cursors",
-                HintText = "Hide cursors near the center. Cursors remain visible while held away from the center.",
-                Current = config.GetBindable<bool>(SticksRulesetSetting.HideInactiveCursors),
+                Caption = "Hide cursors near center",
+                HintText = "Hide each stick's cursor while it is this close to the center, measured as a share of the way to the hit ring. "
+                           + "Cursors stay visible while held out past it. Off always shows them.",
+                Current = config.GetBindable<float>(SticksRulesetSetting.CursorHideRadius),
+                KeyboardStep = 0.05f,
+                LabelFormat = value => value > 0 ? $"{value * 100:0}%" : "Off",
             });
             Children = new Drawable[]
             {
@@ -117,7 +120,7 @@ namespace osu.Game.Rulesets.Sticks
                     KeyboardStep = 0.05f,
                     LabelFormat = value => value > 0 ? $"{value * 100:0}%" : "Off",
                 }),
-                hideCenteredCursors,
+                cursorHideRadius,
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = "Show cursor trails",

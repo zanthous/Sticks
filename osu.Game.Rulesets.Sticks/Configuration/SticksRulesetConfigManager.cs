@@ -21,6 +21,25 @@ namespace osu.Game.Rulesets.Sticks.Configuration
             GetBindable<bool>(SticksRulesetSetting.DisableBeatmapHitsounds).BindValueChanged(
                 value => DisableBeatmapHitsoundsForConversion = value.NewValue,
                 true);
+            MigrateLegacySettings();
+        }
+
+        /// <summary>
+        /// The radius "Hide centered cursors" always hid cursors within, before the radius could be chosen.
+        /// </summary>
+        public const float LEGACY_CURSOR_HIDE_RADIUS = 0.2f;
+
+        /// <summary>
+        /// Carries "Hide centered cursors", which was on or off, over to the radius that replaced it: on becomes the
+        /// radius it always used. The old setting is then cleared, so this happens once.
+        /// </summary>
+        internal void MigrateLegacySettings()
+        {
+            if (!Get<bool>(SticksRulesetSetting.HideInactiveCursors))
+                return;
+
+            SetValue(SticksRulesetSetting.CursorHideRadius, LEGACY_CURSOR_HIDE_RADIUS);
+            SetValue(SticksRulesetSetting.HideInactiveCursors, false);
         }
 
         private readonly object flickThresholdLockSync = new object();
@@ -75,6 +94,7 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 SticksInputTracker.MAX_ACTIVATION_THRESHOLD,
                 0.01f);
             SetDefault(SticksRulesetSetting.HideInactiveCursors, false);
+            SetDefault(SticksRulesetSetting.CursorHideRadius, 0f, 0f, SticksPlayfield.MAX_CURSOR_HIDE_RADIUS, 0.01f);
             SetDefault(SticksRulesetSetting.PlayfieldDim, 0.7f, 0f, 1f, 0.01f);
             SetDefault(SticksRulesetSetting.Perspective, 0f, 0f, 1f, 0.01f);
             SetDefault(SticksRulesetSetting.SliderTrackingSparks, true);
@@ -102,10 +122,10 @@ namespace osu.Game.Rulesets.Sticks.Configuration
                 name: "Sticks flick activation",
                 value: $"{threshold * 100:0}%"
             )),
-            new TrackedSetting<bool>(SticksRulesetSetting.HideInactiveCursors, hidden => new SettingDescription(
-                rawValue: hidden,
-                name: "Sticks hide centered cursors",
-                value: hidden ? "enabled" : "disabled"
+            new TrackedSetting<float>(SticksRulesetSetting.CursorHideRadius, radius => new SettingDescription(
+                rawValue: radius,
+                name: "Sticks hide cursors near center",
+                value: radius > 0 ? $"within {radius * 100:0}%" : "off"
             )),
             new TrackedSetting<float>(SticksRulesetSetting.PlayfieldDim, dim => new SettingDescription(
                 rawValue: dim,
@@ -164,7 +184,12 @@ namespace osu.Game.Rulesets.Sticks.Configuration
     {
         ApproachRate,
         FlickActivationThreshold,
-        HideInactiveCursors, // Keep the persisted key for the renamed "Hide centered cursors" setting.
+        /// <summary>
+        /// Was "Hide centered cursors", on or off. No longer shown: it is read once to carry it over to
+        /// <see cref="CursorHideRadius"/>, then cleared.
+        /// </summary>
+        HideInactiveCursors,
+
         SliderTrackingSparks,
         ShowCursorTrails,
         DisableBeatmapHitsounds,
@@ -177,6 +202,11 @@ namespace osu.Game.Rulesets.Sticks.Configuration
         SliderHeadFollowsPath,
         PlayfieldDim,
         Perspective,
+
+        /// <summary>
+        /// How close to the center a stick's cursor is hidden, as a fraction of the way to the hit ring. 0 never hides it.
+        /// </summary>
+        CursorHideRadius,
 
         /// <summary>
         /// Not a Sticks preference: the player's osu! joystick deadzone, kept here while

@@ -40,8 +40,14 @@ namespace osu.Game.Rulesets.Sticks.UI
         public const float OUTER_RADIUS = GUIDE_RADIUS + LANE_OFFSET;
         public const float INNER_RADIUS = GUIDE_RADIUS - LANE_OFFSET;
         public const float RELAX_DIRECTION_LENGTH_FRACTION = 0.25f;
-        private const float centered_cursor_hide_threshold = 0.15f;
-        private const float centered_cursor_show_threshold = 0.2f;
+
+        /// <summary>The largest <see cref="CursorHideRadius"/> that can be chosen. Any larger and a cursor would rarely show.</summary>
+        public const float MAX_CURSOR_HIDE_RADIUS = 0.9f;
+
+        // How far back inside the hiding radius a shown cursor must come before it hides, so a stick resting on
+        // the edge does not flicker. Never more than a quarter of the radius, so a small radius still hides.
+        private const float cursor_hide_margin = 0.05f;
+
         private const float guide_ring_thickness = 2;
         private const float max_perspective_depth = 4;
         public static readonly Color4 LEFT_COLOUR = SticksHitObject.LEFT_DISPLAY_COLOUR;
@@ -135,9 +141,11 @@ namespace osu.Game.Rulesets.Sticks.UI
         public bool ShowCursorTrails { get; set; }
 
         /// <summary>
-        /// Hides centered cursors, with separate show and hide thresholds to avoid jitter.
+        /// How close to the center a stick's cursor is hidden, as a fraction of the way to the hit ring. 0 never
+        /// hides it. A hidden cursor shows once it is past this and hides again only once it is back inside it by a
+        /// small margin, so a stick resting on the edge does not flicker.
         /// </summary>
-        public bool HideCenteredCursors { get; set; }
+        public float CursorHideRadius { get; set; }
 
         public float PlayfieldDim
         {
@@ -802,8 +810,12 @@ namespace osu.Game.Rulesets.Sticks.UI
         internal static float PerspectiveProgress(float progress, float depth) =>
             depth <= 1 ? progress : progress / (depth - (depth - 1) * progress);
 
-        internal static bool CenterOutCursorVisible(float mappedMagnitude, bool wasVisible) =>
-            mappedMagnitude > (wasVisible ? centered_cursor_hide_threshold : centered_cursor_show_threshold);
+        /// <summary>
+        /// Whether a cursor this far out is shown, when cursors within <paramref name="hideRadius"/> of the center are
+        /// hidden. Both are fractions of the way to the hit ring.
+        /// </summary>
+        internal static bool CenterOutCursorVisible(float mappedMagnitude, bool wasVisible, float hideRadius) =>
+            mappedMagnitude > (wasVisible ? hideRadius - Math.Min(cursor_hide_margin, hideRadius / 4) : hideRadius);
 
         public static float RadiusFor(StickSide side) => side == StickSide.Left ? OUTER_RADIUS : INNER_RADIUS;
 
@@ -1193,10 +1205,11 @@ namespace osu.Game.Rulesets.Sticks.UI
         private bool updateCursor(CircularContainer drawable, Vector2 value, ref bool awayFromCenter)
         {
             float magnitude = Math.Clamp(value.Length, 0, 1);
-            awayFromCenter = CenterOutCursorVisible(magnitude, awayFromCenter);
-            bool visible = !HideCenteredCursors || awayFromCenter;
+            bool hiding = CursorHideRadius > 0;
+            awayFromCenter = CenterOutCursorVisible(magnitude, awayFromCenter, CursorHideRadius);
+            bool visible = !hiding || awayFromCenter;
             drawable.Position = new Vector2(SIZE / 2) + value * GUIDE_RADIUS;
-            drawable.Alpha = HideCenteredCursors ? (visible ? 1 : 0) : 0.35f + magnitude * 0.65f;
+            drawable.Alpha = hiding ? (visible ? 1 : 0) : 0.35f + magnitude * 0.65f;
             return visible;
         }
 

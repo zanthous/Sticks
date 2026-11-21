@@ -9,6 +9,7 @@ using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Rulesets.Objects.Drawables;
 using osu.Game.Rulesets.Scoring;
+using osu.Game.Rulesets.Sticks.Configuration;
 using osu.Game.Rulesets.Sticks.Mods;
 using osu.Game.Rulesets.Sticks.Objects;
 using osu.Game.Rulesets.Sticks.Objects.Drawables;
@@ -191,7 +192,7 @@ namespace osu.Game.Rulesets.Sticks.Tests
             create(false, new SticksFlick { StartTime = 1000 });
             AddStep("enable hiding and trails", () =>
             {
-                playfield.HideCenteredCursors = true;
+                playfield.CursorHideRadius = SticksRulesetConfigManager.LEGACY_CURSOR_HIDE_RADIUS;
                 playfield.ShowCursorTrails = true;
             });
             move(1000, Vector2.Zero, Vector2.Zero);
@@ -207,7 +208,14 @@ namespace osu.Game.Rulesets.Sticks.Tests
                 && drawable.ChildrenOfType<SticksCursorTrail>().All(trail => trail.Alpha == 0));
             move(1700, at(0) * 0.19f, Vector2.Zero);
             AddAssert("small outward jitter does not show", () => playfield.LeftStickCursor.Alpha == 0);
-            AddStep("disable hiding", () => playfield.HideCenteredCursors = false);
+            AddStep("widen the radius", () => playfield.CursorHideRadius = 0.5f);
+            move(1720, at(0) * 0.45f, Vector2.Zero);
+            AddAssert("hidden inside a wider radius", () => playfield.LeftStickCursor.Alpha == 0);
+            move(1740, at(0) * 0.55f, Vector2.Zero);
+            AddAssert("shown past it", () => playfield.LeftStickCursor.Alpha == 1);
+            move(1760, at(0) * 0.4f, Vector2.Zero);
+            AddAssert("hidden again well inside it", () => playfield.LeftStickCursor.Alpha == 0);
+            AddStep("disable hiding", () => playfield.CursorHideRadius = 0);
             move(1800, Vector2.Zero, Vector2.Zero);
             AddAssert("normal centered cursors return", () => playfield.LeftStickCursor.Alpha > 0 && playfield.RightStickCursor.Alpha > 0);
         }
